@@ -1,0 +1,53 @@
+# Vivado project and everything it generates. The project is regenerated into
+# build/ by vivado/create_project.tcl, so none of it is a source.
+build/
+*.xpr
+*.xpr.lock
+*.cache/
+*.gen/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.srcs/
+.Xil/
+*.dcp
+*.jou
+*.log
+*.str
+*.pb
+*.wdb
+*.wcfg
+*.zip
+hs_err_pid*.log
+clockInfo.txt
+
+# Firmware build outputs (fw/Makefile writes everything under fw/build/).
+# The *.hex patterns stop stray image copies from reappearing beside the
+# sources; the only tracked image is rtl/firmware.hex, the one the RTL reads.
+fw/build/
+fw/*.hex
+fw/*.hex.*
+# Flash images of the ST-NICCC scene data (built from upstream's scene1.dat, not in the tree).
+niccc_data.mcs
+niccc_data.prm
+
+# Simulation outputs: xsim build tree and the Verilog assembler's products.
+sim/build/
+sim/asm/program.hex
+sim/asm/program_asm.out
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.vs/
+
+# Design document: `make -C docs/design` writes to docs/design/build/ (covered by
+# build/ above). A pdflatex run started by hand next to the sources leaves these
+# and design.log behind; lint rule 1 flags them. The PDF itself is not ignored:
+# it is committed once the document has content.
+docs/design/*.aux
+docs/design/*.toc
+docs/design/*.out
