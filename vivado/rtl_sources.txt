@@ -1,3 +1,4 @@
 # Synthesizable RTL of the SoC, one path per line, relative to the repository root.
 # Read by vivado/create_project.tcl, vivado/baseline.tcl and sim/run_regression.sh.
 # defines.vh is included by bare name; it is listed so Vivado finds it.
+rtl/Clockworks.v
