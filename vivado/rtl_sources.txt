@@ -3,3 +3,4 @@
 # defines.vh is included by bare name; it is listed so Vivado finds it.
 rtl/defines.vh
 rtl/Clockworks.v
+rtl/Memory.v
