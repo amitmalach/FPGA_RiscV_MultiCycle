@@ -5,4 +5,5 @@ rtl/defines.vh
 rtl/SOC.v
 rtl/IOBus.v
 rtl/Clockworks.v
+rtl/Decoder.v
 rtl/Memory.v
