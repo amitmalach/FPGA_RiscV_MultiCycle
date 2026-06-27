@@ -6,4 +6,6 @@ rtl/SOC.v
 rtl/IOBus.v
 rtl/Clockworks.v
 rtl/Decoder.v
+rtl/ALU.v
+rtl/RegisterFile.v
 rtl/Memory.v
