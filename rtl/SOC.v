@@ -1,9 +1,8 @@
 `timescale 1ns/1ps
 `include "defines.vh"
 // SOC -- top level for the Digilent Genesys 2.
-// Wiring only: clock and reset (IBUFDS, BUFG, Clockworks), the IO bus
-// (address decode, LED register) and the RAM. The core bus is declared here;
-// the core that drives it is the next layer.
+// Wiring only: clock and reset (IBUFDS, BUFG, Clockworks), the RV32I core,
+// the IO bus (address decode, LED register) and the RAM.
 // Memory map: defines.vh.
 module SOC #(
     parameter integer       RAM_WORDS = `RAM_WORDS    // on-chip RAM depth in words
@@ -39,6 +38,18 @@ module SOC #(
     wire [`DATA_W-1:0]  mem_wdata;
     wire [`WMASK_W-1:0] mem_wmask;
     wire                mem_rbusy;
+
+    Processor cpu (
+        .clk        (clk),
+        .clk_enable (clk_enable),
+        .reset_n    (reset_n),
+        .mem_addr   (mem_addr),
+        .mem_rdata  (mem_rdata),
+        .mem_rstrb  (mem_rstrb),
+        .mem_wdata  (mem_wdata),
+        .mem_wmask  (mem_wmask),
+        .mem_rbusy  (mem_rbusy)
+    );
 
     // ---- address decode and IO ----------------------------------------------
     wire                ram_rstrb;
