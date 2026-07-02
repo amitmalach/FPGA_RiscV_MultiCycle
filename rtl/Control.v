@@ -4,7 +4,7 @@
 //   FETCH_INSTR : drive pc on the bus with the read strobe
 //   WAIT_INSTR  : latch the instruction word once mem_rbusy is low
 //   FETCH_REGS  : read rs1 and rs2 from the register file
-//   EXECUTE     : update pc (not for SYSTEM); write rd
+//   EXECUTE     : update pc (not for SYSTEM); write rd except for branch
 // The edge strobes (latch_instr, read_regs, update_pc, write_rd) are already
 // qualified by clk_enable and reset_n, so the datapath registers only test
 // them; mem_rstrb is a plain state decode.
@@ -14,6 +14,7 @@ module Control (
     input  wire reset_n,
 
     input  wire mem_rbusy,
+    input  wire is_branch,
     input  wire is_system,
 
     output wire mem_rstrb,    // FETCH_INSTR
@@ -36,7 +37,7 @@ module Control (
     assign latch_instr = run & (state == WAIT_INSTR) & !mem_rbusy;
     assign read_regs   = run & (state == FETCH_REGS);
     assign update_pc   = run & (state == EXECUTE) & !is_system;
-    assign write_rd    = run & (state == EXECUTE);
+    assign write_rd    = run & (state == EXECUTE) & !is_branch;
 
     always @(posedge clk) begin
         if (!reset_n)

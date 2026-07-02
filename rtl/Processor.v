@@ -2,10 +2,10 @@
 `include "defines.vh"
 // Processor -- multi-cycle RV32I core.
 // Instantiates the decoder, ALU, register file and control FSM and keeps the
-// datapath glue: pc, the instruction register, the write-back path and the
-// bus outputs. Bus: a read requested with mem_rstrb is answered on mem_rdata
-// the next cycle, later if mem_rbusy is high; the write port is present but
-// idle until stores arrive. Reset is synchronous.
+// datapath glue: pc, the instruction register, the next-pc adders, the
+// write-back mux and the bus outputs. Bus: a read requested with mem_rstrb is
+// answered on mem_rdata the next cycle, later if mem_rbusy is high; the write
+// port is present but idle until stores arrive. Reset is synchronous.
 module Processor (
     input  wire                 clk,
     input  wire                 clk_enable, // everything holds still while low
@@ -26,17 +26,23 @@ module Processor (
     reg [`DATA_W-1:0] instr = NOP;
 
     // ---- decoder ------------------------------------------------------------
-    wire        is_alu_reg, is_alu_imm, is_system;
+    wire        is_alu_reg, is_alu_imm, is_branch, is_jalr, is_jal;
+    wire        is_auipc, is_lui, is_system;
     wire [4:0]  rs1_id, rs2_id, rd_id;
     wire [2:0]  funct3;
     wire [6:0]  funct7;
     wire        alu_sub, alu_sra;
-    wire [`DATA_W-1:0] imm_i;
+    wire [`DATA_W-1:0] imm_u, imm_i, imm_b, imm_j;
 
     Decoder decoder (
         .instr      (instr),
         .is_alu_reg (is_alu_reg),
         .is_alu_imm (is_alu_imm),
+        .is_branch  (is_branch),
+        .is_jalr    (is_jalr),
+        .is_jal     (is_jal),
+        .is_auipc   (is_auipc),
+        .is_lui     (is_lui),
         .is_system  (is_system),
         .rs1_id     (rs1_id),
         .rs2_id     (rs2_id),
@@ -45,7 +51,10 @@ module Processor (
         .funct7     (funct7),
         .alu_sub    (alu_sub),
         .alu_sra    (alu_sra),
-        .imm_i      (imm_i)
+        .imm_u      (imm_u),
+        .imm_i      (imm_i),
+        .imm_b      (imm_b),
+        .imm_j      (imm_j)
     );
 
     // ---- control FSM --------------------------------------------------------
@@ -56,6 +65,7 @@ module Processor (
         .clk_enable  (clk_enable),
         .reset_n     (reset_n),
         .mem_rbusy   (mem_rbusy),
+        .is_branch   (is_branch),
         .is_system   (is_system),
         .mem_rstrb   (mem_rstrb),
         .latch_instr (latch_instr),
@@ -82,6 +92,7 @@ module Processor (
 
     // ---- ALU ----------------------------------------------------------------
     wire [`DATA_W-1:0] alu_result;
+    wire        take_branch;
 
     ALU alu (
         .rs1         (rs1),
@@ -91,11 +102,17 @@ module Processor (
         .funct3      (funct3),
         .sub         (alu_sub),
         .sra         (alu_sra),
-        .result      (alu_result)
+        .result      (alu_result),
+        .take_branch (take_branch)
     );
 
     // ---- pc and instruction register ----------------------------------------
-    wire [`ADDR_W-1:0] next_pc = pc + 32'd4;
+    // jalr_target is named so bit 0 can be cleared by slicing.
+    wire [`ADDR_W-1:0] jalr_target = rs1 + imm_i;
+    wire [`ADDR_W-1:0] next_pc = (is_branch && take_branch) ? pc + imm_b :
+                                 is_jal                     ? pc + imm_j :
+                                 is_jalr                    ? {jalr_target[31:1], 1'b0} :
+                                                              pc + 32'd4;
 
     always @(posedge clk) begin
         if (!reset_n) begin
@@ -108,7 +125,11 @@ module Processor (
     end
 
     // ---- write-back and bus outputs -----------------------------------------
-    assign wb_data = alu_result;
+    // The class flags are mutually exclusive, so this is a plain mux.
+    assign wb_data = (is_jal || is_jalr) ? pc + 32'd4 :
+                     is_lui              ? imm_u      :
+                     is_auipc            ? pc + imm_u :
+                                           alu_result;
 
     assign mem_addr  = pc;
     assign mem_wdata = {`DATA_W{1'b0}};
