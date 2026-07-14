@@ -16,6 +16,7 @@ module Decoder (
     output wire               is_auipc,     // U-type: rd <- pc + imm_u
     output wire               is_lui,       // U-type: rd <- imm_u
     output wire               is_load,      // I-type: rd <- mem[rs1 + imm_i]
+    output wire               is_store,     // S-type: mem[rs1 + imm_s] <- rs2
     output wire               is_system,    // ECALL / EBREAK
 
     // register indices and function fields, at fixed positions in every format
@@ -30,6 +31,7 @@ module Decoder (
     // immediates, sign-extended from instr[31]; imm_b and imm_j have bit 0 forced to 0
     output wire [`DATA_W-1:0] imm_u,
     output wire [`DATA_W-1:0] imm_i,
+    output wire [`DATA_W-1:0] imm_s,
     output wire [`DATA_W-1:0] imm_b,
     output wire [`DATA_W-1:0] imm_j
 );
@@ -44,6 +46,7 @@ module Decoder (
     assign is_auipc   = (opcode == 7'b0010111);
     assign is_lui     = (opcode == 7'b0110111);
     assign is_load    = (opcode == 7'b0000011);
+    assign is_store   = (opcode == 7'b0100011);
     assign is_system  = (opcode == 7'b1110011);
 
     assign rs1_id = instr[19:15];
@@ -59,6 +62,7 @@ module Decoder (
 
     assign imm_u = {    instr[31],   instr[30:12], {12{1'b0}}};
     assign imm_i = {{21{instr[31]}}, instr[30:20]};
+    assign imm_s = {{21{instr[31]}}, instr[30:25], instr[11:7]};
     assign imm_b = {{20{instr[31]}}, instr[7],  instr[30:25], instr[11:8], 1'b0};
     assign imm_j = {{12{instr[31]}}, instr[19:12], instr[20], instr[30:21], 1'b0};
 
