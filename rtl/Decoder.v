@@ -2,7 +2,8 @@
 `include "defines.vh"
 // Decoder -- RV32I instruction fields, immediates and instruction-class flags.
 // Purely combinational on the instruction word. The class flags come from
-// disjoint opcodes, so at most one is high.
+// disjoint opcodes, so at most one is high; every instruction this core
+// implements raises exactly one.
 module Decoder (
     input  wire [`DATA_W-1:0] instr,
 
@@ -14,6 +15,7 @@ module Decoder (
     output wire               is_jal,       // J-type: rd <- pc + 4; pc <- pc + imm_j
     output wire               is_auipc,     // U-type: rd <- pc + imm_u
     output wire               is_lui,       // U-type: rd <- imm_u
+    output wire               is_load,      // I-type: rd <- mem[rs1 + imm_i]
     output wire               is_system,    // ECALL / EBREAK
 
     // register indices and function fields, at fixed positions in every format
@@ -41,6 +43,7 @@ module Decoder (
     assign is_jal     = (opcode == 7'b1101111);
     assign is_auipc   = (opcode == 7'b0010111);
     assign is_lui     = (opcode == 7'b0110111);
+    assign is_load    = (opcode == 7'b0000011);
     assign is_system  = (opcode == 7'b1110011);
 
     assign rs1_id = instr[19:15];

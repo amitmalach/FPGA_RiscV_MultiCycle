@@ -5,7 +5,7 @@
 
 // ---- bus ------------------------------------------------------------------
 // ADDR_W and DATA_W are the RV32I word: the modules declare their ports with
-// them, but the byte-lane logic assumes 32, so they are not a knob.
+// them, but the core's byte-lane slices assume 32, so they are not a knob.
 `define ADDR_W   32            // byte address
 `define DATA_W   32
 `define WMASK_W  4             // one write enable per byte lane

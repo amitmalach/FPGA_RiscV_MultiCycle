@@ -2,10 +2,11 @@
 `include "defines.vh"
 // Processor -- multi-cycle RV32I core.
 // Instantiates the decoder, ALU, register file and control FSM and keeps the
-// datapath glue: pc, the instruction register, the next-pc adders, the
-// write-back mux and the bus outputs. Bus: a read requested with mem_rstrb is
-// answered on mem_rdata the next cycle, later if mem_rbusy is high; the write
-// port is present but idle until stores arrive. Reset is synchronous.
+// datapath glue: pc, the instruction register, next-pc and load address
+// adders, byte-lane alignment for narrow loads, the write-back mux and the
+// bus outputs. Bus: a read requested with mem_rstrb is answered on mem_rdata
+// the next cycle, later if mem_rbusy is high; the write port is present but
+// idle until stores arrive. Reset is synchronous.
 module Processor (
     input  wire                 clk,
     input  wire                 clk_enable, // everything holds still while low
@@ -27,7 +28,7 @@ module Processor (
 
     // ---- decoder ------------------------------------------------------------
     wire        is_alu_reg, is_alu_imm, is_branch, is_jalr, is_jal;
-    wire        is_auipc, is_lui, is_system;
+    wire        is_auipc, is_lui, is_load, is_system;
     wire [4:0]  rs1_id, rs2_id, rd_id;
     wire [2:0]  funct3;
     wire [6:0]  funct7;
@@ -43,6 +44,7 @@ module Processor (
         .is_jal     (is_jal),
         .is_auipc   (is_auipc),
         .is_lui     (is_lui),
+        .is_load    (is_load),
         .is_system  (is_system),
         .rs1_id     (rs1_id),
         .rs2_id     (rs2_id),
@@ -58,15 +60,17 @@ module Processor (
     );
 
     // ---- control FSM --------------------------------------------------------
-    wire latch_instr, read_regs, update_pc, write_rd;
+    wire fetching, latch_instr, read_regs, update_pc, write_rd;
 
     Control control (
         .clk         (clk),
         .clk_enable  (clk_enable),
         .reset_n     (reset_n),
         .mem_rbusy   (mem_rbusy),
+        .is_load     (is_load),
         .is_branch   (is_branch),
         .is_system   (is_system),
+        .fetching    (fetching),
         .mem_rstrb   (mem_rstrb),
         .latch_instr (latch_instr),
         .read_regs   (read_regs),
@@ -124,14 +128,29 @@ module Processor (
         end
     end
 
+    // ---- load alignment -----------------------------------------------------
+    // Memory moves whole words; funct3[1:0] (00 byte, 01 halfword, 10 word)
+    // and the address low bits pick the lane.
+    wire [`ADDR_W-1:0] loadstore_addr = rs1 + imm_i;
+    wire        byte_access     = (funct3[1:0] == 2'b00);
+    wire        halfword_access = (funct3[1:0] == 2'b01);
+
+    wire [15:0] load_halfword = loadstore_addr[1] ? mem_rdata[31:16]    : mem_rdata[15:0];
+    wire  [7:0] load_byte     = loadstore_addr[0] ? load_halfword[15:8] : load_halfword[7:0];
+    wire        load_sign     = !funct3[2] & (byte_access ? load_byte[7] : load_halfword[15]);
+    wire [`DATA_W-1:0] load_data = byte_access     ? {{24{load_sign}}, load_byte}     :
+                                   halfword_access ? {{16{load_sign}}, load_halfword} :
+                                                     mem_rdata;
+
     // ---- write-back and bus outputs -----------------------------------------
     // The class flags are mutually exclusive, so this is a plain mux.
     assign wb_data = (is_jal || is_jalr) ? pc + 32'd4 :
                      is_lui              ? imm_u      :
                      is_auipc            ? pc + imm_u :
+                     is_load             ? load_data  :
                                            alu_result;
 
-    assign mem_addr  = pc;
+    assign mem_addr  = fetching ? pc : loadstore_addr;
     assign mem_wdata = {`DATA_W{1'b0}};
     assign mem_wmask = {`WMASK_W{1'b0}};
 
