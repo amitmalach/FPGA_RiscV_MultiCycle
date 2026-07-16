@@ -5,6 +5,7 @@ rtl/defines.vh
 rtl/SOC.v
 rtl/IOBus.v
 rtl/Clockworks.v
+rtl/UartTx.v
 rtl/Processor.v
 rtl/Decoder.v
 rtl/ALU.v
