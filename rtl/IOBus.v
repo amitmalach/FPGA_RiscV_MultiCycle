@@ -2,10 +2,10 @@
 `include "defines.vh"
 // IOBus -- address decoder and IO bus.
 // Owns the memory map (defines.vh): selects RAM or IO space for each core
-// access, holds the LED register and muxes read data back to the core.
-// RAM and IO answer a read the cycle after the strobe; nothing stalls the
-// core, so mem_rbusy is tied low. Any RAM access is masked off outside RAM
-// space.
+// access, holds the LED register, handshakes with the UART transmitter and
+// muxes read data back to the core. RAM and IO answer a read the cycle after
+// the strobe; nothing stalls the core, so mem_rbusy is tied low. Any RAM
+// access is masked off outside RAM space.
 module IOBus (
     input  wire                        clk,
     input  wire                        clk_enable,
@@ -25,7 +25,10 @@ module IOBus (
     input  wire [`DATA_W-1:0]          ram_rdata,
 
     // peripherals
-    output reg  [`LEDS_W-1:0]          leds
+    output reg  [`LEDS_W-1:0]          leds,
+    output wire                        uart_valid,         // one-cycle "send uart_data"
+    output wire [7:0]                  uart_data,
+    input  wire                        uart_ready
 );
 
     // ---- region select ------------------------------------------------------
@@ -48,8 +51,17 @@ module IOBus (
             leds <= mem_wdata[`LEDS_W-1:0];
     end
 
+    // ---- UART ---------------------------------------------------------------
+    assign uart_valid = io_write & |(mem_addr & `IO_UART_DAT);
+    assign uart_data  = mem_wdata[7:0];
+
+    // Status word: bit UART_BUSY_BIT = transmitter busy, all else 0. The only
+    // readable IO register; LEDS and UART_DAT read as 0.
+    wire [`DATA_W-1:0] uart_status =
+        {{(`DATA_W-1-`UART_BUSY_BIT){1'b0}}, !uart_ready, {`UART_BUSY_BIT{1'b0}}};
+    wire [`DATA_W-1:0] io_rdata = |(mem_addr & `IO_UART_CNTL) ? uart_status : {`DATA_W{1'b0}};
+
     // ---- read mux -----------------------------------------------------------
-    // LEDS is write-only and reads as 0.
-    assign mem_rdata = is_ram ? ram_rdata : {`DATA_W{1'b0}};
+    assign mem_rdata = is_ram ? ram_rdata : io_rdata;
 
 endmodule

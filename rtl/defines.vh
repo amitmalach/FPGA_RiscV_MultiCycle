@@ -18,6 +18,7 @@
 
 // ---- clock ----------------------------------------------------------------
 `define CLK_HZ    200000000    // Genesys 2 system clock
+`define UART_BAUD 115200       // default; the SOC parameter UART_BAUD overrides it
 
 // ---- memory map (byte addresses) -----------------------------------------
 // A region is selected by one address bit: its base has exactly that bit set.
@@ -28,5 +29,8 @@
 
 // ---- IO registers (byte offsets from IO_BASE, one address bit each) ------
 `define IO_LEDS        32'h00000004   // write: LED register
+`define IO_UART_DAT    32'h00000008   // write: send one byte
+`define IO_UART_CNTL   32'h00000010   // read: UART status
+`define UART_BUSY_BIT  9              // status bit: transmitter busy
 
 `endif
