@@ -5,9 +5,10 @@
 // registered: the word requested with mem_rstrb appears on mem_rdata the next
 // cycle. A write lands on the edge its address, data and mask are presented,
 // one byte lane per mem_wmask bit, so the core needs no wait state after a
-// store. The initial contents come from firmware.hex (one word per line),
-// resolved by bare name against the working directory of the tool that reads
-// it; a missing file leaves the RAM at X without an error.
+// store. The initial contents come from firmware.hex (one word per line,
+// written by make -C fw), resolved by bare name against the working directory
+// of the tool that reads it; a missing file leaves the RAM at X without an
+// error.
 module Memory #(
     parameter integer WORDS = `RAM_WORDS
 ) (
