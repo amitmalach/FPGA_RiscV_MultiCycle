@@ -12,3 +12,4 @@ rtl/ALU.v
 rtl/RegisterFile.v
 rtl/Control.v
 rtl/Memory.v
+rtl/SPIFlash.v
