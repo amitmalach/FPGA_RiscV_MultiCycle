@@ -5,9 +5,13 @@
 // datapath glue: pc, the instruction register, next-pc and load/store address
 // adders, byte-lane alignment for narrow loads and stores, the write-back mux
 // and the bus outputs. Bus: a read requested with mem_rstrb is answered on
-// mem_rdata the next cycle, later if mem_rbusy is high; a write is performed
-// on the edge where mem_wmask is non-zero. Reset is synchronous.
-module Processor (
+// mem_rdata the next cycle, later if mem_rbusy is high (SPI flash); a write
+// is performed on the edge where mem_wmask is non-zero. Reset is synchronous.
+module Processor #(
+    // Reset vector: the single switch between BRAM boot (RAM_BASE) and flash
+    // boot (an SPI-flash address); set by SOC.v from its BOOT_ADDR.
+    parameter [`ADDR_W-1:0] RESET_PC = `RAM_BASE
+) (
     input  wire                 clk,
     input  wire                 clk_enable, // everything holds still while low
     input  wire                 reset_n,    // synchronous, active-low
@@ -23,7 +27,7 @@ module Processor (
     // ADD x0, x0, x0: the instruction register's value until the first fetch lands
     localparam [`DATA_W-1:0] NOP = 32'b0000000_00000_00000_000_00000_0110011;
 
-    reg [`ADDR_W-1:0] pc    = `RAM_BASE;
+    reg [`ADDR_W-1:0] pc    = RESET_PC;
     reg [`DATA_W-1:0] instr = NOP;
 
     // ---- decoder ------------------------------------------------------------
@@ -124,7 +128,7 @@ module Processor (
 
     always @(posedge clk) begin
         if (!reset_n) begin
-            pc    <= `RAM_BASE;
+            pc    <= RESET_PC;
             instr <= NOP;
         end else begin
             if (latch_instr) instr <= mem_rdata;

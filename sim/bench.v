@@ -5,11 +5,11 @@
 // trace file: LEDS <time_ns> <hex>, UART <hex>, END <reason> cycles=<n>
 // uart_bytes=<n> leds=<hex>. Nothing internal is read, so the RTL can change
 // freely as long as the trace stays byte-identical to sim/golden/*.txt.
-// The run script links firmware.hex into xsim's working directory; the RAM
-// boots from it. The run stops when LEDS becomes STOP_LEDS (the mandelbrot
-// frame counter, 1 = first frame drawn; negative = never) or after
-// MAX_CYCLES. Plusargs override the parameters: +out=<file> +max_cycles=<n>
-// +stop_leds=<n>. See sim/README.md.
+// BOOT_ADDR is forced to 0 (BRAM boot: no SPI-flash model); the run script
+// links firmware.hex into xsim's working directory. The run stops when LEDS
+// becomes STOP_LEDS (the mandelbrot frame counter, 1 = first frame drawn;
+// negative = never) or after MAX_CYCLES. Plusargs override the parameters:
+// +out=<file> +max_cycles=<n> +stop_leds=<n>. See sim/README.md.
 
 module bench();
 
@@ -32,7 +32,12 @@ module bench();
    reg  uart_tx_in = 1'b1;
    wire uart_rx_out;
 
+   // SPI flash pins: unused in BRAM boot. MISO is tied low.
+   wire spiflash_csn;
+   wire spiflash_mosi;
+
    SOC #(
+      .BOOT_ADDR     (32'h00000000),    // BRAM boot; see header
       .UART_BAUD     (BAUD)
    ) uut (
       .sysclk_p      (sysclk_p),
@@ -40,7 +45,10 @@ module bench();
       .RESET         (reset_n),
       .LEDS          (leds),
       .uart_tx_in    (uart_tx_in),
-      .uart_rx_out   (uart_rx_out)
+      .uart_rx_out   (uart_rx_out),
+      .spiflash_csn  (spiflash_csn),
+      .spiflash_mosi (spiflash_mosi),
+      .spiflash_miso (1'b0)
    );
 
    always begin

@@ -5,8 +5,11 @@
 // the IO bus (address decode, LED register, UART and flash handshakes), the
 // RAM, the UART transmitter, the SPI-flash controller and the STARTUPE2
 // primitive that gives user logic the flash clock pin after configuration.
-// Memory map: defines.vh.
+// Memory map and boot addresses: defines.vh.
 module SOC #(
+    // Reset vector. Default = flash boot; the testbench overrides it with 0
+    // (BRAM boot, BOOT_ADDR_BRAM: no SPI-flash model in simulation).
+    parameter [`ADDR_W-1:0] BOOT_ADDR = `BOOT_ADDR_FLASH,
     parameter integer       RAM_WORDS = `RAM_WORDS,   // on-chip RAM depth in words
     parameter integer       UART_BAUD = `UART_BAUD
 ) (
@@ -47,7 +50,9 @@ module SOC #(
     wire [`WMASK_W-1:0] mem_wmask;
     wire                mem_rbusy;
 
-    Processor cpu (
+    Processor #(
+        .RESET_PC   (BOOT_ADDR)
+    ) cpu (
         .clk        (clk),
         .clk_enable (clk_enable),
         .reset_n    (reset_n),
