@@ -1,0 +1,58 @@
+% design.tex -- design document for the multi-cycle RV32I SoC on the Digilent Genesys 2.
+%
+% Build: make (in this directory) -> build/design.pdf, two pdflatex passes.
+%
+% Source material: notes.md in this directory holds the design rationale behind each
+% module (bugs, workarounds, timing subtleties, deliberate quirks), grouped by module
+% and naming the signal each note concerns.
+% Read the matching section of notes.md before writing each chapter below. The
+% current RTL (rtl/), the firmware (fw/), the simulation harness (sim/) and the
+% baseline numbers (docs/baseline.md) are the other inputs.
+%
+% Figures go in figures/ and are included with \includegraphics{figures/<name>}.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+
+\title{A Multi-cycle RV32I System on Chip for the Digilent Genesys 2}
+\author{Amit Malach \\ Supervisor: Prof.\ Avi Mendelson \\ Technion -- Israel Institute of Technology}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\clearpage
+
+\section{Introduction and goals}
+
+\section{Board and toolchain}
+
+\section{System architecture}
+
+\section{Multi-cycle core}
+
+\section{Memory subsystem and bus timing}
+
+\section{Memory-mapped IO}
+
+\section{Clocking and reset}
+
+\section{Boot modes and SPI flash}
+
+\section{Firmware and toolchain}
+
+\section{Verification}
+
+\section{Results}
+
+\section{Conclusions}
+
+\end{document}
