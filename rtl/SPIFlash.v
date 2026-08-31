@@ -8,6 +8,7 @@
 // edge, spi_miso is sampled on the rising edge. The SPI clock is the system clock
 // divided by 6 (33.3 MHz against the S25FL256S limit of 50 MHz for 03h reads).
 // spi_clk reaches the chip's CCLK pin only through STARTUPE2 (SOC.v).
+// Design notes: docs/design/notes.md, SPIFlash section.
 module SPIFlash(
     input  wire                        clk,
     input  wire                        rstrb,        // one-cycle read request
