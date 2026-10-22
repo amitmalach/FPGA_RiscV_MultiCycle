@@ -1,0 +1,11 @@
+# Runs the tool-free checks of scripts/lint.sh on every push and pull request.
+# The simulation and synthesis gates need Vivado and the RISC-V toolchain and
+# stay local (make check); see the root Makefile.
+name: lint
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make lint

@@ -12,8 +12,11 @@
 #    vivado/, constraints/, docs/ or scripts/: everything Vivado writes belongs
 #    under build/.
 # 2. No tracked file refers to a retired path (old Vivado import tree,
-#    firmware/, bench_iverilog.v, vivado/sources.tcl). docs/design/notes.md is
-#    exempt because it quotes removed comments verbatim.
+#    firmware/, bench_iverilog.v, vivado/sources.tcl); docs/design/notes.md is
+#    exempt because it quotes removed comments verbatim. No tracked file, the
+#    notes included, uses retired vocabulary either: "tutorial", a tutorial
+#    step number (10 to 24), step1.v, "ticket #", "seam 1/2". The published
+#    tree describes the design, not where it came from or how it was tidied.
 # 3. Markdown prose lines are at most 100 characters; table rows are exempt.
 # 4. vivado/rtl_sources.txt lists exactly the tracked rtl/*.v and rtl/*.vh
 #    files: a file missing from the list compiles nowhere and fails nowhere.
@@ -66,6 +69,13 @@ retired='bench_iverilog\.v|vivado/sources\.tcl|(^|[^a-z_/])firmware/'
 hits=$(git ls-files | grep -v '^docs/design/notes\.md$' | xargs grep -nE "$retired" 2>/dev/null | grep -v '^scripts/lint.sh:' || true)
 if [ -n "$hits" ]; then
     echo "FAIL: references to paths that no longer exist:"
+    echo "$hits"
+    fail=1
+fi
+vocabulary='[Tt]utorial|\b[Ss]teps? ?(1[0-9]|2[0-4])\b|step1\.v|ticket #|seam [12]'
+hits=$(git ls-files | xargs grep -nE "$vocabulary" 2>/dev/null | grep -v '^scripts/lint.sh:' || true)
+if [ -n "$hits" ]; then
+    echo "FAIL: retired vocabulary (tutorial, step numbers, step1.v, ticket #, seam):"
     echo "$hits"
     fail=1
 fi
