@@ -21,8 +21,11 @@ BUILD  ?= build
 HEX_OUT ?= ../rtl/firmware.hex
 
 # Bytes of on-chip RAM and the flash code offset: copies of RAM_WORDS (x4) and
-# SPIFLASH_CODE_OFFSET in rtl/defines.vh, like the regions in memory.ld;
-# tests/check_memory_map.sh keeps them equal.
+# SPIFLASH_CODE_OFFSET in rtl/defines.vh; tests/check_memory_map.sh keeps them
+# equal. RAM_SIZE is the firmware's only copy of the RAM size: the assembler
+# and linker receive it as the symbol RAM_SIZE (ASFLAGS, LDFLAGS below), so
+# start*.S compute the stack top and memory.ld the RAM length from it. A SOC
+# built with another RAM_WORDS needs its firmware from `make RAM_SIZE=<bytes>`.
 RAM_SIZE          = 6144
 FLASH_CODE_OFFSET = 0xD00000
 
@@ -39,10 +42,11 @@ HOSTCXX ?= g++
 VIVADO  ?= vivado
 
 ARCHFLAGS = -march=rv32i -mabi=ilp32
-ASFLAGS   = $(ARCHFLAGS) -mno-relax
+ASFLAGS   = $(ARCHFLAGS) -mno-relax --defsym RAM_SIZE=$(RAM_SIZE)
 CFLAGS    = $(ARCHFLAGS) -O2 -fno-pic -fno-stack-protector -I.
 # --no-warn-rwx-segments: a single RWX region is the intended layout here.
-LDFLAGS   = -m elf32lriscv -nostdlib --no-relax --no-warn-rwx-segments
+LDFLAGS   = -m elf32lriscv -nostdlib --no-relax --no-warn-rwx-segments \
+            --defsym RAM_SIZE=$(RAM_SIZE)
 LIBGCC    = $(shell $(CC) $(ARCHFLAGS) -print-libgcc-file-name)
 
 # The distro toolchain ships no C library. tinyraytracer needs <math.h> and

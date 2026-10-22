@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Memory-map mirror check: every constant the firmware repeats from
 # rtl/defines.vh (IO base and register offsets, UART busy bit, RAM size and
-# base, flash base and code offset) must still equal the RTL value. Runs
+# base, flash base and code offset) must still equal the RTL value, and so
+# must the addresses in the README's memory-map tables. The RAM size has one
+# firmware copy, RAM_SIZE in fw/Makefile: the stack top in fw/start*.S and
+# the RAM length in fw/memory.ld must spell that symbol, not a number. Runs
 # without any tool; `make lint` calls it. Exit 1 on the first mismatch group.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DEF="$ROOT/rtl/defines.vh"
 FW="$ROOT/fw"
+README="$ROOT/README.md"
 fail=0
 
 # Value of a `define in defines.vh, as a decimal string. Verilog literals
@@ -32,6 +36,16 @@ expect() {
         fail=1
     fi
 }
+# expect_text <where> <name> <mirror text> <required text>: a value that must
+# be written as a symbol the build defines, so there is no number to compare.
+expect_text() {
+    if [ "$3" = "$4" ]; then
+        echo "ok    $1: $2 = $3"
+    else
+        echo "FAIL  $1: $2 = '$3', must be the symbol $4"
+        fail=1
+    fi
+}
 
 for name in IO_BASE IO_LEDS IO_UART_DAT IO_UART_CNTL UART_BUSY_BIT RAM_BASE RAM_WORDS \
             SPIFLASH_BASE SPIFLASH_CODE_OFFSET; do
@@ -44,6 +58,7 @@ RAM_BASE=$(vdef RAM_BASE);         RAM_BYTES=$(( $(vdef RAM_WORDS) * 4 ))
 SPIFLASH_BASE=$(vdef SPIFLASH_BASE)
 SPIFLASH_CODE_OFFSET=$(vdef SPIFLASH_CODE_OFFSET)
 FLASH_ORIGIN=$(( SPIFLASH_BASE + SPIFLASH_CODE_OFFSET ))
+RAM_TOP=$(( RAM_BASE + RAM_BYTES - 1 ))
 
 # C header: #define NAME value
 cdef() { grep -E "^#define[[:space:]]+$2[[:space:]]" "$FW/$1" | awk '{print $3}'; }
@@ -53,8 +68,11 @@ aequ() { grep -E "^\.equ[[:space:]]+$2," "$FW/$1" | sed -E 's/.*,[[:space:]]*//;
 ali()  { grep -E "^[[:space:]]*li[[:space:]]+$2," "$FW/$1" | head -1 | sed -E 's/.*,[[:space:]]*//; s/[[:space:]]+$//'; }
 # Makefile: NAME = value
 mvar() { grep -E "^$2[[:space:]]*=" "$FW/Makefile" | sed -E 's/.*=[[:space:]]*//'; }
+# README table row: the $2-th 0x.. address on the first table row matching $1,
+# underscores stripped (the README writes 0x0040_0004).
+rdaddr() { grep -E "^\|.*$1" "$README" | head -1 | grep -oE '0x[0-9A-Fa-f_]+' | sed -n "${2}p" | tr -d _; }
 # Linker script MEMORY line: REGION (..) : ORIGIN = x, LENGTH = y
-ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | sed -E "s/.*$2[[:space:]]*=[[:space:]]*([0-9a-fA-Fx]+).*/\1/"; }
+ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | sed -E "s/.*$2[[:space:]]*=[[:space:]]*([^,[:space:]]+).*/\1/"; }
 
 echo "== fw/io.h"
 expect io.h IO_BASE      "$(cdef io.h IO_BASE)"      "$IO_BASE"
@@ -72,18 +90,26 @@ expect putchar.S "UART busy bit (li t0, 1<<n)" "${busy:-missing}" "$UART_BUSY_BI
 
 echo "== fw/start.S, fw/start_spiflash.S"
 for s in start.S start_spiflash.S; do
-    expect "$s" IO_BASE          "$(aequ "$s" IO_BASE)" "$IO_BASE"
-    expect "$s" "sp (top of RAM)" "$(ali "$s" sp)"       "$(( RAM_BASE + RAM_BYTES ))"
+    expect "$s" IO_BASE               "$(aequ "$s" IO_BASE)" "$IO_BASE"
+    expect_text "$s" "sp (top of RAM)" "$(ali "$s" sp)"       RAM_SIZE
 done
 
 echo "== fw/memory.ld"
-expect memory.ld "RAM ORIGIN"   "$(ldfield RAM ORIGIN)"   "$RAM_BASE"
-expect memory.ld "RAM LENGTH"   "$(ldfield RAM LENGTH)"   "$RAM_BYTES"
+expect memory.ld "RAM ORIGIN"        "$(ldfield RAM ORIGIN)"   "$RAM_BASE"
+expect_text memory.ld "RAM LENGTH"   "$(ldfield RAM LENGTH)"   RAM_SIZE
 expect memory.ld "FLASH ORIGIN" "$(ldfield FLASH ORIGIN)" "$FLASH_ORIGIN"
 
 echo "== fw/Makefile"
 expect Makefile RAM_SIZE          "$(mvar Makefile RAM_SIZE)"          "$RAM_BYTES"
 expect Makefile FLASH_CODE_OFFSET "$(mvar Makefile FLASH_CODE_OFFSET)" "$SPIFLASH_CODE_OFFSET"
 
-[ "$fail" = 0 ] && echo "PASS: firmware memory-map mirrors match rtl/defines.vh"
+echo "== README.md memory-map tables"
+expect README.md "RAM top"          "$(rdaddr 'RAM,' 2)"                "$RAM_TOP"
+expect README.md IO_LEDS            "$(rdaddr '`IO_LEDS`' 1)"           "$(( IO_BASE + IO_LEDS ))"
+expect README.md IO_UART_DAT        "$(rdaddr '`IO_UART_DAT`' 1)"       "$(( IO_BASE + IO_UART_DAT ))"
+expect README.md IO_UART_CNTL       "$(rdaddr '`IO_UART_CNTL`' 1)"      "$(( IO_BASE + IO_UART_CNTL ))"
+expect README.md "SPI flash base"   "$(rdaddr 'SPI flash,' 1)"          "$SPIFLASH_BASE"
+expect README.md "flash reset vector" "$(rdaddr 'Flash boot' 1)"        "$FLASH_ORIGIN"
+
+[ "$fail" = 0 ] && echo "PASS: firmware and README memory-map mirrors match rtl/defines.vh"
 exit "$fail"

@@ -1,8 +1,10 @@
 // defines.vh -- SoC-wide constants: bus widths, memory map, boot addresses.
 // The single place the memory map is defined. Software mirrors the IO values
-// in fw/io.h and fw/putchar.S, the IO base and RAM top in fw/start*.S, the
-// regions in fw/memory.ld and fw/Makefile; fw/tests/check_memory_map.sh (lint
-// rule 8) keeps them equal.
+// in fw/io.h and fw/putchar.S, the IO base in fw/start*.S, the RAM size as
+// RAM_SIZE in fw/Makefile (fed to start*.S and memory.ld as a symbol) and the
+// flash region in fw/memory.ld; the README's memory-map tables repeat the
+// addresses. fw/tests/check_memory_map.sh (lint rule 8) keeps them all equal.
+// sim/asm/program_asm.v includes this file instead of copying.
 `ifndef DEFINES_VH
 `define DEFINES_VH
 
@@ -16,8 +18,8 @@
 
 // ---- RAM ------------------------------------------------------------------
 // Default depth of the on-chip RAM in words (6 KB); the SOC parameter
-// RAM_WORDS overrides it. Mirrored by RAM_SIZE in fw/Makefile and the RAM
-// region in fw/memory.ld (bytes) and the stack top in fw/start*.S.
+// RAM_WORDS overrides it. Mirrored once, as RAM_SIZE (bytes) in fw/Makefile;
+// an override needs firmware built with the matching `make -C fw RAM_SIZE=`.
 `define RAM_WORDS 1536
 
 // ---- clock ----------------------------------------------------------------

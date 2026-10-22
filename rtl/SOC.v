@@ -10,7 +10,9 @@ module SOC #(
     // Reset vector. Default = flash boot; the testbench overrides it with 0
     // (BRAM boot, BOOT_ADDR_BRAM: no SPI-flash model in simulation).
     parameter [`ADDR_W-1:0] BOOT_ADDR = `BOOT_ADDR_FLASH,
-    parameter integer       RAM_WORDS = `RAM_WORDS,   // on-chip RAM depth in words
+    // On-chip RAM depth in words. An override needs firmware linked for the same
+    // size: `make -C fw RAM_SIZE=<RAM_WORDS*4>` (stack top and RAM length follow it).
+    parameter integer       RAM_WORDS = `RAM_WORDS,
     parameter integer       UART_BAUD = `UART_BAUD
 ) (
     input  wire               sysclk_p,       // 200 MHz differential system clock

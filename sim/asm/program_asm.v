@@ -1,10 +1,12 @@
 `timescale 1ns/1ps
 `default_nettype none
+`include "defines.vh"
 
 // program_asm -- sample program for the Verilog assembler: an 80x80 ASCII-art
 // mandelbrot over UART in Q22.10 fixed point with a software multiply (no MUL
 // in RV32I). Not part of the hardware. `make -C sim/asm [DEFS=-DBENCH]` writes
-// program.hex, a RAM image in the format of rtl/firmware.hex.
+// program.hex, a RAM image in the format of rtl/firmware.hex. The stack top,
+// IO base and IO register offsets come from rtl/defines.vh, never typed here.
 
 module program_asm;
 
@@ -19,22 +21,9 @@ module program_asm;
        localparam SLOW_BIT=20;
     `endif
 
-    // Memory-mapped IO in IO page, using one-hot word addressing.
-    localparam IO_LEDS_BIT      = 0;
-    localparam IO_UART_DAT_BIT  = 1;
-    localparam IO_UART_CNTL_BIT = 2;
-
-    // Convert IO bit number into byte offset.
-    //
-    // bit 0 -> 1 << 2 = 4
-    // bit 1 -> 1 << 3 = 8
-    // bit 2 -> 1 << 4 = 16
-    function [31:0] IO_BIT_TO_OFFSET;
-        input [31:0] bitid;
-        begin
-            IO_BIT_TO_OFFSET = 1 << (bitid + 2);
-        end
-    endfunction
+    // Memory map, from rtl/defines.vh: the stack starts at the top of the RAM,
+    // gp holds the IO page base and the IO registers are offsets from it.
+    localparam [31:0] STACK_TOP = `RAM_BASE + `RAM_WORDS * 4;
 
     integer i;
     integer fd;
@@ -73,8 +62,8 @@ module program_asm;
     initial begin
         memPC = 0;
 
-        LI(sp, 32'h1800);       // end of 6 KB RAM
-        LI(gp, 32'h400000);     // I/O page base address
+        LI(sp, STACK_TOP);
+        LI(gp, `IO_BASE);
 
         Label(mandelstart_);
 
@@ -84,16 +73,16 @@ module program_asm;
         Label(blink_);
 
             LI(a0, 8'h0F);
-            SW(a0, gp, IO_BIT_TO_OFFSET(IO_LEDS_BIT));
+            SW(a0, gp, `IO_LEDS);
             CALL(LabelRef(wait_));
             LI(a0, 8'hF0);
-            SW(a0, gp, IO_BIT_TO_OFFSET(IO_LEDS_BIT));
+            SW(a0, gp, `IO_LEDS);
             CALL(LabelRef(wait_));
             ADDI(s0, s0, -1);
             BNEZ(s0, LabelRef(blink_));
 
         LI(a0, 0);
-        SW(a0, gp, IO_BIT_TO_OFFSET(IO_LEDS_BIT));
+        SW(a0, gp, `IO_LEDS);
 
         // Outer loop: Y (row); s3 holds C imaginary.
         LI(s1, 0);
@@ -187,13 +176,13 @@ module program_asm;
         // targets forward: AUIPC gets no rounding fix for a negative low half.
         Label(putc_);
 
-            SW(a0, gp, IO_BIT_TO_OFFSET(IO_UART_DAT_BIT));
+            SW(a0, gp, `IO_UART_DAT);
 
-            LI(t0, 1 << 9);
+            LI(t0, 1 << `UART_BUSY_BIT);
 
         Label(putc_L0_);
 
-            LW(t1, gp, IO_BIT_TO_OFFSET(IO_UART_CNTL_BIT));
+            LW(t1, gp, `IO_UART_CNTL);
             AND(t1, t1, t0);
             BNEZ(t1, LabelRef(putc_L0_));
             RET();

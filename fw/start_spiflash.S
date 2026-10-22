@@ -37,8 +37,9 @@ _start:
      li  gp,IO_BASE
 .option pop
 
-# Stack grows DOWN from the top of the 6KB BRAM.
-     li   sp,0x1800
+# Stack grows DOWN from the top of the BRAM. RAM_SIZE (bytes) comes from
+# fw/Makefile via --defsym, the same symbol memory.ld sizes the RAM with.
+     li   sp,RAM_SIZE
 
 # ---- 1. zero-init the .bss section (from _sbss up to _ebss) ----------------
 # The bge guard handles the case of an empty .bss (nothing to do).

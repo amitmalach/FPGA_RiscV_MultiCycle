@@ -1,8 +1,9 @@
 /* ===========================================================================
  * memory.ld -- the two memory regions, shared by every linker script
  * ===========================================================================
- * RAM   is the 6 KB on-chip BRAM (RAM_WORDS in rtl/defines.vh). The stack grows down
- *       from its top (0x1800, set in start*.S).
+ * RAM   is the on-chip BRAM, 6 KB by default (RAM_WORDS in rtl/defines.vh). Its LENGTH
+ *       is the symbol RAM_SIZE, passed by fw/Makefile with --defsym; start*.S put the
+ *       stack top at the same symbol, so the two cannot drift apart.
  * FLASH is the window of the board's SPI flash the core can execute from.
  *
  * FLASH ORIGIN 0x01D00000 = SPIFLASH_BASE (0x01000000, i.e. address bit 24,
@@ -17,12 +18,12 @@
  * 1<<23 would give an 8MB flash window, smaller than our own bitstream, and
  * 128KB is sized for a bitstream of a few tens of KB.
  *
- * RAM LENGTH must equal RAM_WORDS x 4 (rtl/defines.vh) and RAM_SIZE in the Makefile;
- * FLASH ORIGIN must equal SPIFLASH_BASE + SPIFLASH_CODE_OFFSET (rtl/defines.vh) and
+ * RAM_SIZE in the Makefile must equal RAM_WORDS x 4 (rtl/defines.vh); FLASH ORIGIN
+ * must equal SPIFLASH_BASE + SPIFLASH_CODE_OFFSET (rtl/defines.vh) and
  * FLASH_CODE_OFFSET in the Makefile. tests/check_memory_map.sh checks all of them.
  * =========================================================================== */
 
 MEMORY {
-    RAM   (rwx) : ORIGIN = 0x00000000, LENGTH = 0x1800      /* 6 KB in BRAM  */
+    RAM   (rwx) : ORIGIN = 0x00000000, LENGTH = RAM_SIZE    /* BRAM, 6 KB by default */
     FLASH (rx)  : ORIGIN = 0x01D00000, LENGTH = 0x300000    /* 3 MB in flash */
 }

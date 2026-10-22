@@ -24,7 +24,9 @@
 # 6. Active-low signals are declared with an _n suffix, never resetn/rstn.
 # 7. Section banners ("// ---- name ----...") in rtl/*.v and sim/*.v end at column 80.
 # 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S, fw/start*.S,
-#    fw/memory.ld, fw/Makefile) equal rtl/defines.vh: fw/tests/check_memory_map.sh.
+#    fw/memory.ld, fw/Makefile) and the README's memory-map tables equal
+#    rtl/defines.vh; start*.S and memory.ld take the RAM size from the one
+#    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
@@ -125,7 +127,7 @@ if [ -n "$bad_banner" ]; then
     fail=1
 fi
 
-echo "== firmware memory-map mirrors"
+echo "== firmware and README memory-map mirrors"
 fw/tests/check_memory_map.sh | grep -E '^(FAIL|PASS)' || fail=1
 
 [ "$fail" = 0 ] && echo "PASS: lint clean"
