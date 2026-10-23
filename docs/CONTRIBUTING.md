@@ -47,14 +47,25 @@ tools support it.
   trimmed").
 - Third-party modules keep their upstream attribution lines at the top of the file.
 
-## Behaviour-preserving changes
+## Gates and evidence
 
-Refactors are gated by the golden trace: `make smoke` after each edit, `make -j2 check`
-before closing a ticket, and `make baseline` as well when the ticket's acceptance criteria
-say timing met, because `make check` stops after synthesis and reports no timing. Every
-gate writes its log to `build/logs/<target>-<timestamp>.log`; that log is the evidence a
-commit message or closing comment may cite. A change that alters the trace is a behaviour
-change and needs
+The gates are the targets of the root `Makefile`. Each tool-running gate writes
+`build/logs/<target>-<timestamp>.log`; that log is the only evidence a commit message or
+closing comment may cite, and the cited log must postdate the last edit it covers.
+
+- `make lint` before every commit. The pre-commit hook in `scripts/hooks` runs it (enable once
+  with `git config core.hooksPath scripts/hooks`). The hook's own `lint-<timestamp>.log` is the
+  lint evidence for that commit, so commit messages cite only the smoke and check logs.
+- `make smoke` after each RTL edit.
+- `make -j2 check` once per ticket, after the code review and its fixes (lint and smoke first,
+  then review, fix, then check), and before any push. Add `make baseline` when the ticket's
+  acceptance criteria say timing met: `make check` stops after synthesis and reports no timing.
+- `make check-moves BASE=<rev>` for a move-only commit.
+- Commits that touch only comments, `*.md`, `docs/`, `.gitignore` or `scripts/` need
+  `make lint` only, including before a push, provided the last passing `make check` covers the
+  current `rtl/`, `fw/` and `sim/` sources; cite its log.
+
+A change that alters the golden trace is a behaviour change and needs
 `sim/run_regression.sh --update-golden` with the reason in the commit message.
 
 ## Review judgement calls
