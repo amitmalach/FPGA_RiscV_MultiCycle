@@ -5,7 +5,8 @@
 # must the addresses in the README's memory-map tables. The RAM size has one
 # firmware copy, RAM_SIZE in fw/Makefile: the stack top in fw/start*.S and
 # the RAM length in fw/memory.ld must spell that symbol, not a number. Runs
-# without any tool; `make lint` calls it. Exit 1 on the first mismatch group.
+# without any tool; `make lint` calls it. Runs every group; exit 1 if any
+# value mismatched or was not found.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DEF="$ROOT/rtl/defines.vh"
@@ -29,7 +30,10 @@ num() { printf '%d\n' "$1"; }
 
 # expect <where> <name> <mirror value> <rtl value>
 expect() {
-    if [ "$(num "$3")" = "$4" ]; then
+    if [ -z "$3" ]; then
+        echo "FAIL  $1: $2 is missing (no value found)"
+        fail=1
+    elif [ "$(num "$3")" = "$4" ]; then
         echo "ok    $1: $2 = $3"
     else
         echo "FAIL  $1: $2 = $3, rtl/defines.vh gives $4"
@@ -69,8 +73,10 @@ ali()  { grep -E "^[[:space:]]*li[[:space:]]+$2," "$FW/$1" | head -1 | sed -E 's
 # Makefile: NAME = value
 mvar() { grep -E "^$2[[:space:]]*=" "$FW/Makefile" | sed -E 's/.*=[[:space:]]*//'; }
 # README table row: the $2-th 0x.. address on the first table row matching $1,
-# underscores stripped (the README writes 0x0040_0004).
-rdaddr() { grep -E "^\|.*$1" "$README" | head -1 | grep -oE '0x[0-9A-Fa-f_]+' | sed -n "${2}p" | tr -d _; }
+# underscores stripped (the README writes 0x0040_0004). Anchor on a cell that
+# names the row uniquely (the Select column, a register name, the boot mode),
+# never on prose that a rewording would move to another row.
+rdaddr() { grep -E '^\|' "$README" | grep -E "$1" | head -1 | grep -oE '0x[0-9A-Fa-f_]+' | sed -n "${2}p" | tr -d _; }
 # Linker script MEMORY line: REGION (..) : ORIGIN = x, LENGTH = y
 ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | sed -E "s/.*$2[[:space:]]*=[[:space:]]*([^,[:space:]]+).*/\1/"; }
 
@@ -104,12 +110,12 @@ expect Makefile RAM_SIZE          "$(mvar Makefile RAM_SIZE)"          "$RAM_BYT
 expect Makefile FLASH_CODE_OFFSET "$(mvar Makefile FLASH_CODE_OFFSET)" "$SPIFLASH_CODE_OFFSET"
 
 echo "== README.md memory-map tables"
-expect README.md "RAM top"          "$(rdaddr 'RAM,' 2)"                "$RAM_TOP"
+expect README.md "RAM top"          "$(rdaddr '\| no region bit set \|' 2)" "$RAM_TOP"
 expect README.md IO_LEDS            "$(rdaddr '`IO_LEDS`' 1)"           "$(( IO_BASE + IO_LEDS ))"
 expect README.md IO_UART_DAT        "$(rdaddr '`IO_UART_DAT`' 1)"       "$(( IO_BASE + IO_UART_DAT ))"
 expect README.md IO_UART_CNTL       "$(rdaddr '`IO_UART_CNTL`' 1)"      "$(( IO_BASE + IO_UART_CNTL ))"
-expect README.md "SPI flash base"   "$(rdaddr 'SPI flash,' 1)"          "$SPIFLASH_BASE"
-expect README.md "flash reset vector" "$(rdaddr 'Flash boot' 1)"        "$FLASH_ORIGIN"
+expect README.md "SPI flash base"   "$(rdaddr '\| bit 24 \|' 1)"           "$SPIFLASH_BASE"
+expect README.md "flash reset vector" "$(rdaddr '^\| Flash boot' 1)"      "$FLASH_ORIGIN"
 
 [ "$fail" = 0 ] && echo "PASS: firmware and README memory-map mirrors match rtl/defines.vh"
 exit "$fail"

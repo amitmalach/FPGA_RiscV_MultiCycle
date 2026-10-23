@@ -97,8 +97,8 @@ configuration pin, so the flash controller's clock passes through the `STARTUPE2
 
 ## Memory map
 
-Defined once, in `rtl/defines.vh`; the firmware and the tables below carry copies that a
-lint rule holds equal.
+Defined once, in `rtl/defines.vh`; the firmware and the addresses in the tables below carry
+copies that a lint rule holds equal.
 A region is selected by a single address bit, so no address comparator is needed.
 
 | Byte address | Region | Select | Access |

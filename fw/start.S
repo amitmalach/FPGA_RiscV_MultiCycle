@@ -1,5 +1,5 @@
 .equ IO_BASE, 0x400000
-# RAM_SIZE (bytes) comes from fw/Makefile via --defsym; the stack grows down from the RAM top.
+# RAM_SIZE: fw/Makefile (--defsym); the stack grows down from the RAM top.
 .section .text
 .globl start
 start:
@@ -7,4 +7,3 @@ start:
 	li   sp,RAM_SIZE
 	call main
 	ebreak
-	

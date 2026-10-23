@@ -37,8 +37,7 @@ _start:
      li  gp,IO_BASE
 .option pop
 
-# Stack grows DOWN from the top of the BRAM. RAM_SIZE (bytes) comes from
-# fw/Makefile via --defsym, the same symbol memory.ld sizes the RAM with.
+# RAM_SIZE: fw/Makefile (--defsym); the stack grows down from the RAM top.
      li   sp,RAM_SIZE
 
 # ---- 1. zero-init the .bss section (from _sbss up to _ebss) ----------------

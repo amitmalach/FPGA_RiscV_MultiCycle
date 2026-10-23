@@ -1,9 +1,8 @@
 /* ===========================================================================
  * memory.ld -- the two memory regions, shared by every linker script
  * ===========================================================================
- * RAM   is the on-chip BRAM, 6 KB by default (RAM_WORDS in rtl/defines.vh). Its LENGTH
- *       is the symbol RAM_SIZE, passed by fw/Makefile with --defsym; start*.S put the
- *       stack top at the same symbol, so the two cannot drift apart.
+ * RAM   is the on-chip BRAM; LENGTH is the symbol RAM_SIZE from fw/Makefile (--defsym),
+ *       the same symbol start*.S use for the stack top.
  * FLASH is the window of the board's SPI flash the core can execute from.
  *
  * FLASH ORIGIN 0x01D00000 = SPIFLASH_BASE (0x01000000, i.e. address bit 24,
