@@ -26,8 +26,11 @@ tools support it.
 |---|---|---|
 | Signals, ports, instances | `lower_snake_case` | `mem_rdata`, `spiflash_rstrb`, `bus` |
 | Active-low signals | `_n` suffix (lint rule 6) | `reset_n`, `spiflash_csn` is a frozen port |
-| Parameters, localparams, macros | `UPPER_CASE` | `BOOT_ADDR`, `IO_BASE` |
+| Parameters, localparams, macros | `UPPER_CASE` (lint rule 9) | `BOOT_ADDR`, `IO_BASE` |
 | Modules | one word, capitalised as the file is named | `IOBus`, `Processor`, `UartTx` |
+
+Rule 9 exempts `sim/asm/riscv_assembly.v`: it is third-party and its lower-case localparams
+are the RISC-V ABI register names (`a0`, `sp`, `ra`) that the assembly programs use.
 
 ## Comments
 
@@ -49,13 +52,19 @@ tools support it.
 
 ## Gates and evidence
 
-The gates are the targets of the root `Makefile`. Each tool-running gate writes
-`build/logs/<target>-<timestamp>.log`; that log is the only evidence a commit message or
-closing comment may cite, and the cited log must postdate the last edit it covers.
+The gates are the targets of the root `Makefile`. Each gate writes
+`build/logs/<target>-<timestamp>.log`, ending in `PASS: <target>` or `FAIL: <target>`, and
+prints `LOG: build/logs/<target>-<timestamp>.log` as its last line. That log is the only
+evidence a commit message or closing comment may cite, and the cited log must postdate the
+last edit it covers. Copy the citation from the `LOG:` line.
 
-- `make lint` before every commit. The pre-commit hook in `scripts/hooks` runs it (enable once
-  with `git config core.hooksPath scripts/hooks`). The hook's own `lint-<timestamp>.log` is the
-  lint evidence for that commit, so commit messages cite only the smoke and check logs.
+Two hooks in `scripts/hooks` hold this (enable both once with
+`git config core.hooksPath scripts/hooks`): the pre-commit hook runs `make lint`, and the
+commit-msg hook refuses a message that cites a log which does not exist or does not end in
+PASS (or `timing=MET`), or that says pass, passes, passed or verified without citing any log.
+
+- `make lint` before every commit. Cite its log; for a comment-only commit it is the only
+  citation.
 - `make smoke` after each RTL edit.
 - `make -j2 check` once per ticket, after the code review and its fixes (lint and smoke first,
   then review, fix, then check), and before any push. Add `make baseline` when the ticket's

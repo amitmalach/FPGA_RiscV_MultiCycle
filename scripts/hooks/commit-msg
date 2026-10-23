@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Enable with: git config core.hooksPath scripts/hooks   (same setting as pre-commit)
+#
+# A commit message may claim a verification only by citing the gate log that
+# shows it (docs/CONTRIBUTING.md, "Gates and evidence"). This hook holds that:
+#   - every build/logs/<target>-<stamp>.log the message names must exist and
+#     end with a PASS or timing=MET line (the Makefile's logged macro writes
+#     "PASS: <target>" as the last line of a passing gate's log);
+#   - a message that says pass, passes, passed or verified must name at least
+#     one such log.
+# Comment-only commits cite the lint log printed by their `make lint` run.
+# Lines git treats as comments (#...) are ignored; merge and fixup messages
+# that make no claim pass through untouched.
+set -u
+msg=$(grep -v '^#' "$1")
+cited=$(grep -oE 'build/logs/[A-Za-z0-9_.-]+\.log' <<<"$msg" | sort -u)
+fail=0
+
+for log in $cited; do
+    if [ ! -f "$log" ]; then
+        echo "commit-msg: cited log does not exist: $log" >&2
+        fail=1
+    elif ! tail -n 1 "$log" | grep -qE '\bPASS\b|timing=MET'; then
+        echo "commit-msg: cited log does not end in PASS or timing=MET: $log" >&2
+        echo "            last line: $(tail -n 1 "$log")" >&2
+        fail=1
+    fi
+done
+
+if [ -z "$cited" ] && grep -qiE '\b(pass|passes|passed|verified)\b' <<<"$msg"; then
+    echo "commit-msg: the message claims a pass or verification but cites no build/logs/<target>-<stamp>.log" >&2
+    echo "            cite the LOG: line that the gate printed last" >&2
+    fail=1
+fi
+
+[ "$fail" = 0 ] || echo "commit-msg: refused (bypass only with --no-verify, and say so in the message)" >&2
+exit "$fail"

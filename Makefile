@@ -11,16 +11,23 @@
 #
 # smoke and check need riscv64-unknown-elf-gcc on PATH and Vivado's settings64.sh sourced.
 #
-# Every tool-running target writes its output to build/logs/<target>-<timestamp>.log
-# as well as the terminal; targets of one make invocation share the timestamp.
+# Every gate writes its output to build/logs/<target>-<timestamp>.log as well as
+# the terminal; targets of one make invocation share the timestamp. The log ends
+# with "PASS: <target>" or "FAIL: <target> (exit N)", and the terminal output ends
+# with "LOG: build/logs/<target>-<timestamp>.log" so `tail -1` gives the line a
+# commit message cites (the commit-msg hook in scripts/hooks checks the citation).
 
 SHELL  := /bin/bash
 VIVADO ?= vivado
 BUILD   = build
 LOGS    = $(BUILD)/logs
 STAMP  := $(shell date +%Y%m%d-%H%M%S)
-# logged,<target>,<command>: run the command, tee to the target's log, keep its exit code.
-logged = mkdir -p $(LOGS) && { $(2); } 2>&1 | tee $(LOGS)/$(1)-$(STAMP).log; exit $${PIPESTATUS[0]}
+# logged,<target>,<command>: run the command, tee to the target's log, append the
+# verdict to the log, print the log path last, keep the command's exit code.
+logged = @mkdir -p $(LOGS) && log=$(LOGS)/$(1)-$(STAMP).log && { $(2); } 2>&1 | tee $$log; \
+	rc=$${PIPESTATUS[0]}; \
+	if [ $$rc = 0 ]; then echo "PASS: $(1)" | tee -a $$log; else echo "FAIL: $(1) (exit $$rc)" | tee -a $$log; fi; \
+	echo "LOG: $$log"; exit $$rc
 # Vivado writes .Xil/ into the directory it is launched from, so every Vivado
 # run starts inside build/. The scripts take absolute paths.
 VIVADO_BATCH = mkdir -p $(BUILD) && cd $(BUILD) && $(VIVADO) -mode batch -nojournal -nolog
@@ -55,4 +62,4 @@ baseline:
 	$(call logged,baseline,$(VIVADO_BATCH) -source $(CURDIR)/vivado/baseline.tcl -tclargs $(CURDIR)/$(BUILD)/baseline)
 
 check-moves:
-	scripts/lint.sh --moves $(BASE)
+	$(call logged,check-moves,scripts/lint.sh --moves $(BASE))

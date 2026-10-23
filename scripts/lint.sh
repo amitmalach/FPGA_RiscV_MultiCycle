@@ -28,6 +28,13 @@
 #    rtl/defines.vh; start*.S and memory.ld take the RAM size from the one
 #    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh, whose --selftest proves it
 #    detects a change or deletion of every value it checks.
+# 9. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v
+#    and sim/asm/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*, docs/CONTRIBUTING.md). The
+#    first name of each declaration is checked, with // and single-line /* */
+#    comments stripped. sim/asm/riscv_assembly.v is exempt: it is third-party
+#    (Bruno Levy's assembler, kept as upstream wrote it) and its lower-case
+#    localparams are the RISC-V ABI register names (a0, sp, ra, ...) that the
+#    assembly programs use as mnemonics.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
@@ -131,6 +138,21 @@ fi
 echo "== firmware and README memory-map mirrors"
 fw/tests/check_memory_map.sh | grep -E '^(FAIL|PASS)' || fail=1
 fw/tests/check_memory_map.sh --selftest | grep -E '^(FAIL|PASS)' || fail=1
+
+echo "== UPPER_CASE macros, parameters and localparams"
+bad_case=$(git ls-files 'rtl/*.v' 'rtl/*.vh' 'sim/*.v' 'sim/asm/*.v' \
+    | grep -v '^sim/asm/riscv_assembly\.v$' \
+    | xargs perl -ne '
+        s{//.*}{}; s{/\*.*?\*/}{}g;
+        while (/(?:`define|\b(?:parameter|localparam)\b)\s+(?:(?:integer|real|time|signed|unsigned)\s+)*(?:\[[^\]]*\]\s*)?(?:signed\s+)?([A-Za-z_][A-Za-z0-9_]*)/g) {
+            print "$ARGV:$.: $1\n" unless $1 =~ /^[A-Z][A-Z0-9_]*$/;
+        }
+        close ARGV if eof;' 2>/dev/null || true)
+if [ -n "$bad_case" ]; then
+    echo "FAIL: macro, parameter and localparam names are UPPER_CASE (docs/CONTRIBUTING.md):"
+    echo "$bad_case"
+    fail=1
+fi
 
 [ "$fail" = 0 ] && echo "PASS: lint clean"
 exit "$fail"

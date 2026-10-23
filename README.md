@@ -136,7 +136,7 @@ controller sends a 24-bit address.
 | `constraints/` | `Genesys-2-Master.xdc`: pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: regenerate the project, build the bitstream, run the non-project baseline, with `common.tcl` shared by all three; `rtl_sources.txt` is the file list every script shares |
 | `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (design document sources and notes) |
-| `scripts/` | `lint.sh`, the pre-commit hook that runs it, and `quote_comment.sh` for moving RTL comments into the design notes |
+| `scripts/` | `lint.sh`, the pre-commit hook that runs it, the commit-msg hook that checks cited gate logs, and `quote_comment.sh` for moving RTL comments into the design notes |
 | `build/` | Everything generated: the Vivado project, run directories, `SOC.bit`, gate logs. Not tracked |
 
 The Vivado project is never committed. `vivado/create_project.tcl` regenerates it into
