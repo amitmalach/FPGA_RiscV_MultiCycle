@@ -18,8 +18,8 @@
 
 // ---- RAM ------------------------------------------------------------------
 // Default depth of the on-chip RAM in words (6 KB); the SOC parameter
-// RAM_WORDS overrides it. Mirrored once, as RAM_SIZE (bytes) in fw/Makefile;
-// an override needs firmware built with the matching `make -C fw RAM_SIZE=`.
+// RAM_WORDS overrides it. Mirrored once, as RAM_SIZE (bytes) in fw/Makefile; an
+// override needs firmware from `make -C fw RAM_SIZE=<bytes> HEX_OUT=<path>`.
 `define RAM_WORDS 1536
 
 // ---- clock ----------------------------------------------------------------

@@ -25,7 +25,8 @@ HEX_OUT ?= ../rtl/firmware.hex
 # equal. RAM_SIZE is the firmware's only copy of the RAM size: the assembler
 # and linker receive it as the symbol RAM_SIZE (ASFLAGS, LDFLAGS below), so
 # start*.S compute the stack top and memory.ld the RAM length from it. A SOC
-# built with another RAM_WORDS needs its firmware from `make RAM_SIZE=<bytes>`.
+# built with another RAM_WORDS needs its firmware from
+# `make RAM_SIZE=<bytes> HEX_OUT=<path>`: the canonical image stays the default's.
 RAM_SIZE          = 6144
 FLASH_CODE_OFFSET = 0xD00000
 
@@ -100,6 +101,9 @@ ifneq ($(filter-out clean print-hex-path,$(GOALS)),)
   ifneq ($(filter all bram,$(GOALS)),)
     ifeq ($(TARGET)/$(filter $(PROG),$(FLASH_ONLY)),bram/$(PROG))
       $(error $(PROG) does not fit in the $(RAM_SIZE)-byte RAM; build it with TARGET=flash)
+    endif
+    ifeq ($(TARGET)/$(origin RAM_SIZE)/$(origin HEX_OUT),bram/command line/file)
+      $(error RAM_SIZE=$(RAM_SIZE) would overwrite the canonical image $(HEX_OUT); add HEX_OUT=<path>)
     endif
   endif
   ifeq ($(PROG)/$(wildcard $(XILINX_RV32_ROOT)/lib/rv32i/ilp32/libm.a),tinyraytracer/)
