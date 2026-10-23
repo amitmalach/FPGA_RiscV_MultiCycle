@@ -7,12 +7,75 @@
 # the RAM length in fw/memory.ld must spell that symbol, not a number. Runs
 # without any tool; `make lint` calls it. Runs every group; exit 1 if any
 # value mismatched or was not found.
+#
+#   check_memory_map.sh             check the working tree (ROOT=<dir> checks another tree)
+#   check_memory_map.sh --selftest  prove the check detects drift: copy the mirror files to a
+#                                   temporary tree, alter or delete each checked value in
+#                                   turn and require a FAIL; the working tree is untouched
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="${ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 DEF="$ROOT/rtl/defines.vh"
 FW="$ROOT/fw"
 README="$ROOT/README.md"
 fail=0
+
+# One mutation per checked value: <file>@<sed -E expression>@<what>. A pattern that
+# no longer matches leaves the copy intact, so the check passes and the self-test
+# reports it as undetected: a stale mutation fails, it never hides.
+MUTATIONS='
+fw/io.h@s/^(#define[[:space:]]+IO_BASE[[:space:]]+)0x400000/\10x200000/@IO_BASE changed
+fw/io.h@s/^(#define[[:space:]]+IO_LEDS[[:space:]]+)4$/\18/@IO_LEDS changed
+fw/io.h@s/^(#define[[:space:]]+IO_UART_DAT[[:space:]]+)8$/\116/@IO_UART_DAT changed
+fw/io.h@s/^(#define[[:space:]]+IO_UART_CNTL[[:space:]]+)16$/\1/@IO_UART_CNTL deleted
+fw/putchar.S@s/^(\.equ IO_BASE, )0x400000/\10x400001/@IO_BASE changed
+fw/putchar.S@s/^(\.equ IO_LEDS, )4$/\12/@IO_LEDS changed
+fw/putchar.S@s/^(\.equ IO_UART_DAT, )8$/\1/@IO_UART_DAT deleted
+fw/putchar.S@s/^(\.equ IO_UART_CNTL, )16$/\132/@IO_UART_CNTL changed
+fw/putchar.S@s/1<<9/1<<8/@UART busy bit changed
+fw/start.S@s/^(\.equ IO_BASE, )0x400000/\10x800000/@IO_BASE changed
+fw/start.S@s/li   sp,RAM_SIZE/li   sp,0x1800/@stack top typed as a literal
+fw/start_spiflash.S@s/^(\.equ IO_BASE, )0x400000/\10x800000/@IO_BASE changed
+fw/start_spiflash.S@s/li   sp,RAM_SIZE/li   sp,0x1800/@stack top typed as a literal
+fw/memory.ld@s/ORIGIN = 0x00000000/ORIGIN = 0x00000100/@RAM ORIGIN changed
+fw/memory.ld@s/ORIGIN = 0x00000000,/ORIGIN = ,/@RAM ORIGIN deleted (a zero value: the empty guard, not the compare, must catch it)
+fw/memory.ld@s/LENGTH = RAM_SIZE/LENGTH = 0x1800/@RAM LENGTH typed as a literal
+fw/memory.ld@s/ORIGIN = 0x01D00000/ORIGIN = 0x01C00000/@FLASH ORIGIN changed
+fw/Makefile@s/^(RAM_SIZE[[:space:]]*=[[:space:]]*)6144$/\18192/@RAM_SIZE changed
+fw/Makefile@s/^(FLASH_CODE_OFFSET[[:space:]]*=[[:space:]]*)0xD00000$/\1/@FLASH_CODE_OFFSET deleted
+README.md@s/0x0000_17FF/0x0000_1FFF/@RAM top changed
+README.md@s/0x0040_0004/0x0040_0002/@IO_LEDS address changed
+README.md@s/0x0040_0008/0x0040_0009/@IO_UART_DAT address changed
+README.md@s/0x0040_0010/0x0040_0020/@IO_UART_CNTL address changed
+README.md@s/0x0100_0000/0x0200_0000/@SPI flash base changed
+README.md@s/0x01D0_0000/0x01C0_0000/@flash reset vector changed
+README.md@s/`0x01D0_0000`//@flash reset vector deleted
+README.md@s/[|] bit 24 [|] read, fetch [|]/| bit twenty-four | read, fetch |/@flash row reworded
+'
+
+selftest() {
+    local tmp; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+    mkdir -p "$tmp/rtl" "$tmp/fw"
+    cp "$DEF" "$tmp/rtl/"; cp "$README" "$tmp/"
+    cp "$FW"/io.h "$FW"/putchar.S "$FW"/start.S "$FW"/start_spiflash.S "$FW"/memory.ld "$FW"/Makefile "$tmp/fw/"
+    if ! ROOT="$tmp" bash "$0" >/dev/null; then
+        echo "FAIL  selftest: the unmodified copy does not pass"; exit 1
+    fi
+    local n=0 file expr what
+    while IFS='@' read -r file expr what; do
+        [ -n "$file" ] || continue
+        sed -i -E "$expr" "$tmp/$file"
+        if ROOT="$tmp" bash "$0" >/dev/null; then
+            echo "FAIL  selftest: $file: $what was not detected"; fail=1
+        else
+            echo "ok    selftest: $file: $what detected"
+        fi
+        cp "$ROOT/$file" "$tmp/$file"
+        n=$((n + 1))
+    done <<< "$MUTATIONS"
+    [ "$fail" = 0 ] && echo "PASS: selftest: all $n mutations detected"
+    exit "$fail"
+}
+[ "${1:-}" = "--selftest" ] && selftest
 
 # Value of a `define in defines.vh, as a decimal string. Verilog literals
 # 32'h.. and 32'd.. and plain decimals are accepted; anything else is an error.
@@ -30,10 +93,14 @@ num() { printf '%d\n' "$1"; }
 
 # expect <where> <name> <mirror value> <rtl value>
 expect() {
+    local got
     if [ -z "$3" ]; then
         echo "FAIL  $1: $2 is missing (no value found)"
         fail=1
-    elif [ "$(num "$3")" = "$4" ]; then
+    elif ! got=$(num "$3" 2>/dev/null); then
+        echo "FAIL  $1: $2 = '$3' is not a number"
+        fail=1
+    elif [ "$got" = "$4" ]; then
         echo "ok    $1: $2 = $3"
     else
         echo "FAIL  $1: $2 = $3, rtl/defines.vh gives $4"
@@ -78,7 +145,7 @@ mvar() { grep -E "^$2[[:space:]]*=" "$FW/Makefile" | sed -E 's/.*=[[:space:]]*//
 # never on prose that a rewording would move to another row.
 rdaddr() { grep -E '^\|' "$README" | grep -E "$1" | head -1 | grep -oE '0x[0-9A-Fa-f_]+' | sed -n "${2}p" | tr -d _; }
 # Linker script MEMORY line: REGION (..) : ORIGIN = x, LENGTH = y
-ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | sed -E "s/.*$2[[:space:]]*=[[:space:]]*([^,[:space:]]+).*/\1/"; }
+ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | grep -oE "$2[[:space:]]*=[[:space:]]*[^,[:space:]]+" | sed -E 's/.*=[[:space:]]*//'; }
 
 echo "== fw/io.h"
 expect io.h IO_BASE      "$(cdef io.h IO_BASE)"      "$IO_BASE"

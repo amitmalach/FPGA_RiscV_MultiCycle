@@ -26,7 +26,8 @@
 # 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S, fw/start*.S,
 #    fw/memory.ld, fw/Makefile) and the README's memory-map tables equal
 #    rtl/defines.vh; start*.S and memory.ld take the RAM size from the one
-#    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh.
+#    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh, whose --selftest proves it
+#    detects a change or deletion of every value it checks.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
@@ -129,6 +130,7 @@ fi
 
 echo "== firmware and README memory-map mirrors"
 fw/tests/check_memory_map.sh | grep -E '^(FAIL|PASS)' || fail=1
+fw/tests/check_memory_map.sh --selftest | grep -E '^(FAIL|PASS)' || fail=1
 
 [ "$fail" = 0 ] && echo "PASS: lint clean"
 exit "$fail"
