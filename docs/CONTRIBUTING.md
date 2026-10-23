@@ -58,10 +58,11 @@ prints `LOG: build/logs/<target>-<timestamp>.log` as its last line. That log is 
 evidence a commit message or closing comment may cite, and the cited log must postdate the
 last edit it covers. Copy the citation from the `LOG:` line.
 
-Two hooks in `scripts/hooks` hold this (enable both once with
+Two hooks in `scripts/hooks` hold the mechanical part (enable both once with
 `git config core.hooksPath scripts/hooks`): the pre-commit hook runs `make lint`, and the
 commit-msg hook refuses a message that cites a log which does not exist or does not end in
 PASS (or `timing=MET`), or that says pass, passes, passed or verified without citing any log.
+Whether the cited log is the right gate, and postdates the edits, stays a review judgement.
 
 - `make lint` before every commit. Cite its log; for a comment-only commit it is the only
   citation.
@@ -72,7 +73,8 @@ PASS (or `timing=MET`), or that says pass, passes, passed or verified without ci
 - `make check-moves BASE=<rev>` for a move-only commit.
 - Commits that touch only comments, `*.md`, `docs/`, `.gitignore` or `scripts/` need
   `make lint` only, including before a push, provided the last passing `make check` covers the
-  current `rtl/`, `fw/` and `sim/` sources; cite its log.
+  current `rtl/`, `fw/` and `sim/` sources; cite its `check-sim` and `check-synth` logs
+  (`check` itself writes no log).
 
 A change that alters the golden trace is a behaviour change and needs
 `sim/run_regression.sh --update-golden` with the reason in the commit message.
