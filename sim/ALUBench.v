@@ -7,7 +7,7 @@
 // RTL. Immediate operands are imm_i as the decoder produces it: SRAI carries
 // funct7 = 0100000 in imm[11:5], so SRAI by 9 arrives as 0x409. Prints one
 // FAIL line per mismatch and a final PASS or FAIL line; sim/run_unit.sh runs
-// it under iverilog and keys on that last line.
+// it under iverilog and greps for the PASS line.
 
 module ALUBench();
 
@@ -70,6 +70,7 @@ module ALUBench();
       shift_right("SRA  min by 31",     1'b1, 1'b1, 32'h8000_0000, 32'd31,        32'hFFFF_FFFF);
       shift_right("SRL  min by 31",     1'b0, 1'b1, 32'h8000_0000, 32'd31,        32'h0000_0001);
       shift_right("SRA  rs2[4:0] only", 1'b1, 1'b1, 32'h8000_0000, 32'hFFFF_FFE4, 32'hF800_0000);
+      shift_right("SRL  rs2[4:0] only", 1'b0, 1'b1, 32'h8000_0000, 32'hFFFF_FFE4, 32'h0800_0000);
       if (failures == 0)
          $display("PASS: ALUBench (%0d cases)", cases);
       else
