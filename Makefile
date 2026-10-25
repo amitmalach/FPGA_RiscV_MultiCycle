@@ -3,7 +3,7 @@
 #
 #   make lint          seconds: by-products, stale paths, line length, naming (no tools needed)
 #   make unit          seconds: ALU bench under iverilog, results against hand-worked values
-#   make smoke         ~25 s: unit, then a short xsim run that must match the golden trace so far
+#   make smoke         ~25 s: unit, firmware check, then a short xsim run matching the golden so far
 #   make check         minutes: unit, firmware reproducibility, xsim regression, Vivado synthesis
 #   make -j2 check     same, regression and synthesis in parallel
 #   make check-moves BASE=<rev>   every file moved since <rev> is a 100 % rename

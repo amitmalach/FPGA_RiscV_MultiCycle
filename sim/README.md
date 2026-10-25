@@ -57,8 +57,9 @@ The run ends at whichever comes first:
 
 Both are testbench parameters and can be overridden with plusargs
 (`+out=`, `+max_cycles=`, `+stop_leds=`; in xsim `-testplusarg "max_cycles=4000000"`).
-`run_regression.sh --max-cycles N` (or `make smoke`, 4 M cycles, about 20 s) passes the
-budget through for a quick smoke run. A truncated trace can never equal the golden file,
+`run_regression.sh --max-cycles N` passes the budget through for a quick smoke run;
+`make smoke` uses 4 M cycles, about 20 s in xsim, 25 s with the unit bench and firmware
+check that run before it. A truncated trace can never equal the golden file,
 so the smoke run checks that every event it recorded is a prefix of the golden event list.
 It is the inner-loop gate after an RTL edit; the full run is the gate for closing a ticket.
 
