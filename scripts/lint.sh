@@ -25,11 +25,12 @@
 #    third-party assembler and the sample program it assembles.
 # 6. Active-low signals are declared with an _n suffix, never resetn/rstn.
 # 7. Section banners ("// ---- name ----...") in rtl/*.v and sim/*.v end at column 80.
-# 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S, fw/start*.S,
-#    fw/memory.ld, fw/Makefile) and the README's memory-map tables equal
-#    rtl/defines.vh; start*.S and memory.ld take the RAM size from the one
-#    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh, whose --selftest proves it
-#    detects a change or deletion of every value it checks.
+# 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S,
+#    fw/blinker.S, fw/start*.S, fw/memory.ld, fw/Makefile) and the README's
+#    memory-map tables equal rtl/defines.vh; start*.S and memory.ld take the RAM
+#    size from the one RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh,
+#    whose --selftest proves it detects a change or deletion of every value it
+#    checks.
 # 9. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v
 #    and sim/asm/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*, docs/CONTRIBUTING.md). The
 #    first name of each declaration is checked, with // and single-line /* */
