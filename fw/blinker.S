@@ -1,6 +1,5 @@
 # Simple blinker
 
-.equ IO_BASE, 0x400000  
 .equ IO_LEDS, 4
 
 .section .text

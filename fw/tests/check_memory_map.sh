@@ -32,6 +32,7 @@ fw/putchar.S@s/^(\.equ IO_LEDS, )4$/\12/@IO_LEDS changed
 fw/putchar.S@s/^(\.equ IO_UART_DAT, )8$/\1/@IO_UART_DAT deleted
 fw/putchar.S@s/^(\.equ IO_UART_CNTL, )16$/\132/@IO_UART_CNTL changed
 fw/putchar.S@s/1<<9/1<<8/@UART busy bit changed
+fw/blinker.S@s/^(\.equ IO_LEDS, )4$/\18/@IO_LEDS changed
 fw/start.S@s/^(\.equ IO_BASE, )0x400000/\10x800000/@IO_BASE changed
 fw/start.S@s/li   sp,RAM_SIZE/li   sp,0x1800/@stack top typed as a literal
 fw/start_spiflash.S@s/^(\.equ IO_BASE, )0x400000/\10x800000/@IO_BASE changed
@@ -56,7 +57,7 @@ selftest() {
     local tmp; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
     mkdir -p "$tmp/rtl" "$tmp/fw"
     cp "$DEF" "$tmp/rtl/"; cp "$README" "$tmp/"
-    cp "$FW"/io.h "$FW"/putchar.S "$FW"/start.S "$FW"/start_spiflash.S "$FW"/memory.ld "$FW"/Makefile "$tmp/fw/"
+    cp "$FW"/io.h "$FW"/putchar.S "$FW"/blinker.S "$FW"/start.S "$FW"/start_spiflash.S "$FW"/memory.ld "$FW"/Makefile "$tmp/fw/"
     if ! ROOT="$tmp" bash "$0" >/dev/null; then
         echo "FAIL  selftest: the unmodified copy does not pass"; exit 1
     fi
@@ -160,6 +161,9 @@ expect putchar.S IO_UART_DAT  "$(aequ putchar.S IO_UART_DAT)"  "$IO_UART_DAT"
 expect putchar.S IO_UART_CNTL "$(aequ putchar.S IO_UART_CNTL)" "$IO_UART_CNTL"
 busy=$(grep -oE 'li[[:space:]]+t0,[[:space:]]*1<<[0-9]+' "$FW/putchar.S" | sed -E 's/.*<<//')
 expect putchar.S "UART busy bit (li t0, 1<<n)" "${busy:-missing}" "$UART_BUSY_BIT"
+
+echo "== fw/blinker.S"
+expect blinker.S IO_LEDS "$(aequ blinker.S IO_LEDS)" "$IO_LEDS"
 
 echo "== fw/start.S, fw/start_spiflash.S"
 for s in start.S start_spiflash.S; do
