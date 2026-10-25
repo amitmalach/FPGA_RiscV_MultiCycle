@@ -52,7 +52,8 @@ are the RISC-V ABI register names (`a0`, `sp`, `ra`) that the assembly programs 
 
 ## Gates and evidence
 
-The gates are the targets of the root `Makefile`. Each gate writes
+The gates are the targets of the root `Makefile`; its header lists what each one runs and
+how long it takes. Each gate writes
 `build/logs/<target>-<timestamp>.log`, ending in `PASS: <target>` or `FAIL: <target>`, and
 prints `LOG: build/logs/<target>-<timestamp>.log` as its last line. That log is the only
 evidence a commit message or closing comment may cite, and the cited log must postdate the
@@ -62,12 +63,13 @@ Two hooks in `scripts/hooks` hold the mechanical part (enable both once with
 `git config core.hooksPath scripts/hooks`): the pre-commit hook runs `make lint`, and the
 commit-msg hook refuses a message that cites a log which does not exist or does not end in
 PASS (or `timing=MET`), or that says pass, passes, passed or verified without citing any log.
+A line that starts with `red:` cites the run that showed a new test failing before the fix;
+its log must end in FAIL instead.
 Whether the cited log is the right gate, and postdates the edits, stays a review judgement.
 
 - `make lint` before every commit. Cite its log; for a comment-only commit it is the only
   citation.
-- `make smoke` after each RTL edit. It also runs `make unit` (`sim/ALUBench.v` under
-  iverilog, seconds, no Vivado); cite both logs.
+- `make smoke` after each RTL edit; cite its `unit` and `smoke` logs.
 - `make -j2 check` once per ticket, after the code review and its fixes (lint and smoke first,
   then review, fix, then check), and before any push. Add `make baseline` when the ticket's
   acceptance criteria say timing met: `make check` stops after synthesis and reports no timing.
@@ -77,8 +79,10 @@ Whether the cited log is the right gate, and postdates the edits, stays a review
   current `rtl/`, `fw/` and `sim/` sources; cite its `unit`, `check-sim` and `check-synth` logs
   (`check` itself writes no log).
 
-A change that alters the golden trace is a behaviour change and needs
-`sim/run_regression.sh --update-golden` with the reason in the commit message.
+A change that alters the golden trace is a behaviour change. It needs `make golden`, with the
+reason in the commit message, and `make baseline`, with `docs/baseline.md` updated to both
+runs: lint rule 10 holds its trace numbers to the golden file, while the synthesis numbers
+are copied by hand.
 
 ## Review judgement calls
 

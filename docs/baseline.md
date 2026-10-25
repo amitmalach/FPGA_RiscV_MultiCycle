@@ -6,7 +6,7 @@ timing closure and resource use are unchanged.
 
 ## Simulation golden trace
 
-`sim/golden/mandelbrot_bram.txt`, produced by `sim/run_regression.sh --update-golden`
+`sim/golden/mandelbrot_bram.txt`, produced by `make golden`
 with the committed mandelbrot firmware image in BRAM boot. See `sim/README.md`.
 
 The testbench overrides the `BOOT_ADDR` parameter of `rtl/SOC.v` with 0 to select BRAM
@@ -42,14 +42,15 @@ different synthesis settings will not match.
 ## The golden frame against the C source
 
 The golden frame is also what the C source means: `fw/mandelbrot.c` compiled natively
-emits a first frame of 11 014 bytes, byte-identical to the UART bytes of the golden trace.
+emits a first frame byte-identical to the UART bytes of the golden trace.
 The native program draws frames forever, so the golden bytes are a prefix of its output,
 and the next native bytes, `ESC [ H`, start the second frame:
 
 ```sh
 gcc -O2 -w '-DIO_OUT(a,b)=' -o /tmp/mandel fw/mandelbrot.c
 grep '^UART' sim/golden/mandelbrot_bram.txt | cut -d' ' -f2 | xxd -r -p > /tmp/sim.bin
-timeout 1 /tmp/mandel | head -c 11017 | cmp /tmp/sim.bin -   # EOF on /tmp/sim.bin after byte 11014
+n=$(stat -c %s /tmp/sim.bin)
+timeout 1 /tmp/mandel | head -c $((n + 3)) | cmp /tmp/sim.bin -  # EOF on sim.bin after byte $n
 ```
 
 An earlier golden trace recorded 8368 bytes, diverging at row 8, pixel 36: `srai` behaved

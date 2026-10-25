@@ -6,29 +6,45 @@
 #   - every build/logs/<target>-<stamp>.log the message names must exist and
 #     end with a PASS or timing=MET line (the Makefile's logged macro writes
 #     "PASS: <target>" as the last line of a passing gate's log);
+#   - a log cited on a line that starts with "red:" is the run that showed a
+#     new test failing before the fix, and must end with a "FAIL: " line;
 #   - a message that says pass, passes, passed or verified must name at least
-#     one such log.
+#     one passing log.
 # Comment-only commits cite the lint log printed by their `make lint` run.
 # Lines git treats as comments (#...) are ignored; merge and fixup messages
 # that make no claim pass through untouched.
 set -u
 msg=$(grep -v '^#' "$1")
-cited=$(grep -oE 'build/logs/[A-Za-z0-9_.-]+\.log' <<<"$msg" | sort -u)
 fail=0
+green=0
 
-for log in $cited; do
-    if [ ! -f "$log" ]; then
-        echo "commit-msg: cited log does not exist: $log" >&2
-        fail=1
-    elif ! tail -n 1 "$log" | grep -qE '\bPASS\b|timing=MET'; then
-        echo "commit-msg: cited log does not end in PASS or timing=MET: $log" >&2
-        echo "            last line: $(tail -n 1 "$log")" >&2
-        fail=1
-    fi
-done
+while IFS= read -r line; do
+    for log in $(grep -oE 'build/logs/[A-Za-z0-9_.-]+\.log' <<<"$line"); do
+        if [ ! -f "$log" ]; then
+            echo "commit-msg: cited log does not exist: $log" >&2
+            fail=1
+            continue
+        fi
+        last=$(tail -n 1 "$log")
+        if [[ "$line" =~ ^[[:space:]]*red: ]]; then
+            if ! grep -qE '^FAIL: ' <<<"$last"; then
+                echo "commit-msg: a red: citation must end in FAIL: $log" >&2
+                echo "            last line: $last" >&2
+                fail=1
+            fi
+        elif grep -qE '\bPASS\b|timing=MET' <<<"$last"; then
+            green=1
+        else
+            echo "commit-msg: cited log does not end in PASS or timing=MET: $log" >&2
+            echo "            last line: $last" >&2
+            echo "            (a run that shows a test failing before the fix goes on a line starting red:)" >&2
+            fail=1
+        fi
+    done
+done <<<"$msg"
 
-if [ -z "$cited" ] && grep -qiE '\b(pass|passes|passed|verified)\b' <<<"$msg"; then
-    echo "commit-msg: the message claims a pass or verification but cites no build/logs/<target>-<stamp>.log" >&2
+if [ "$green" = 0 ] && grep -qiE '\b(pass|passes|passed|verified)\b' <<<"$msg"; then
+    echo "commit-msg: the message claims a pass or verification but cites no passing build/logs/<target>-<stamp>.log" >&2
     echo "            cite the LOG: line that the gate printed last" >&2
     fail=1
 fi
