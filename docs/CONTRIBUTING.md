@@ -66,14 +66,15 @@ Whether the cited log is the right gate, and postdates the edits, stays a review
 
 - `make lint` before every commit. Cite its log; for a comment-only commit it is the only
   citation.
-- `make smoke` after each RTL edit.
+- `make smoke` after each RTL edit. It also runs `make unit` (`sim/ALUBench.v` under
+  iverilog, seconds, no Vivado); cite both logs.
 - `make -j2 check` once per ticket, after the code review and its fixes (lint and smoke first,
   then review, fix, then check), and before any push. Add `make baseline` when the ticket's
   acceptance criteria say timing met: `make check` stops after synthesis and reports no timing.
 - `make check-moves BASE=<rev>` for a move-only commit.
 - Commits that touch only comments, `*.md`, `docs/`, `.gitignore` or `scripts/` need
   `make lint` only, including before a push, provided the last passing `make check` covers the
-  current `rtl/`, `fw/` and `sim/` sources; cite its `check-sim` and `check-synth` logs
+  current `rtl/`, `fw/` and `sim/` sources; cite its `unit`, `check-sim` and `check-synth` logs
   (`check` itself writes no log).
 
 A change that alters the golden trace is a behaviour change and needs

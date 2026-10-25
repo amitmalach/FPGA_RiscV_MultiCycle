@@ -132,7 +132,7 @@ controller sends a 24-bit address.
 |---|---|
 | `rtl/` | Synthesizable Verilog, one module per file: `SOC.v` (top), `Processor.v` with `Decoder.v`, `ALU.v`, `RegisterFile.v`, `Control.v`; `IOBus.v`, `Memory.v`, `UartTx.v`, `SPIFlash.v`, `Clockworks.v`; `defines.vh` (memory map, widths); `firmware.hex` (the one committed firmware image) |
 | `fw/` | Demo programs, startup code, linker scripts, `Makefile`, the ELF-to-hex converter and `write_mcs.tcl` |
-| `sim/` | SoC-level testbench, golden trace, regression script; `sim/asm/` is a Verilog-macro assembler for test programs |
+| `sim/` | SoC-level testbench, golden trace, regression script; `ALUBench.v`, the ALU unit bench, and `run_unit.sh`; `sim/asm/` is a Verilog-macro assembler for test programs |
 | `constraints/` | `Genesys-2-Master.xdc`: pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: regenerate the project, build the bitstream, run the non-project baseline, with `common.tcl` shared by all three; `rtl_sources.txt` is the file list every script shares |
 | `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (design document sources and notes) |
@@ -256,8 +256,9 @@ board with a terminal showing a demo (for example `docs/design/figures/board.jpg
 
 ```sh
 make lint               # seconds, no tools: stray by-products, naming, file list, memory-map copies
-make smoke              # ~10 s: short xsim run checked as a prefix of the golden trace
-make -j2 check          # minutes: firmware reproducibility, full xsim regression, Vivado synthesis
+make unit               # seconds, iverilog only: ALU bench against hand-worked results
+make smoke              # ~25 s: unit, then a short xsim run checked as a prefix of the golden trace
+make -j2 check          # minutes: unit, firmware reproducibility, full xsim regression, synthesis
 ```
 
 The testbench in `sim/bench.v` instantiates `SOC` with BRAM boot, loads the committed firmware

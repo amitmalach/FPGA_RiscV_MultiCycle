@@ -2,14 +2,16 @@
 # docs/CONTRIBUTING.md, "Gates and evidence".
 #
 #   make lint          seconds: by-products, stale paths, line length, naming (no tools needed)
-#   make smoke         ~10 s: short xsim run, trace must match the start of the golden file
-#   make check         minutes: firmware reproducibility, xsim regression, Vivado synthesis
+#   make unit          seconds: ALU bench under iverilog, results against hand-worked values
+#   make smoke         ~25 s: unit, then a short xsim run that must match the golden trace so far
+#   make check         minutes: unit, firmware reproducibility, xsim regression, Vivado synthesis
 #   make -j2 check     same, regression and synthesis in parallel
 #   make check-moves BASE=<rev>   every file moved since <rev> is a 100 % rename
 #   make bitstream     synthesis, implementation, bitstream to build/SOC.bit
 #   make baseline      non-project synth/impl with reports in build/baseline/
 #
-# smoke and check need riscv64-unknown-elf-gcc on PATH and Vivado's settings64.sh sourced.
+# unit needs iverilog; smoke and check also need riscv64-unknown-elf-gcc on PATH and
+# Vivado's settings64.sh sourced.
 #
 # Every gate writes its output to build/logs/<target>-<timestamp>.log as well as
 # the terminal; targets of one make invocation share the timestamp. The log ends
@@ -32,12 +34,15 @@ logged = @mkdir -p $(LOGS) && log=$(LOGS)/$(1)-$(STAMP).log && { $(2); } 2>&1 | 
 # run starts inside build/. The scripts take absolute paths.
 VIVADO_BATCH = mkdir -p $(BUILD) && cd $(BUILD) && $(VIVADO) -mode batch -nojournal -nolog
 
-.PHONY: lint smoke check check-fw check-sim check-synth check-moves bitstream baseline
+.PHONY: lint unit smoke check check-fw check-sim check-synth check-moves bitstream baseline
 
 lint:
 	$(call logged,lint,scripts/lint.sh)
 
-check: check-sim check-synth
+unit:
+	$(call logged,unit,sim/run_unit.sh)
+
+check: unit check-sim check-synth
 
 # The firmware check deletes and regenerates rtl/firmware.hex, so the gates
 # that read the image wait for it.
@@ -48,7 +53,7 @@ check-sim: check-fw
 	$(call logged,check-sim,sim/run_regression.sh)
 
 SMOKE_CYCLES ?= 4000000
-smoke: check-fw
+smoke: unit check-fw
 	$(call logged,smoke,sim/run_regression.sh --max-cycles $(SMOKE_CYCLES))
 
 check-synth: check-fw

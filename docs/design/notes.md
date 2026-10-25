@@ -531,11 +531,12 @@ whose funct7-shaped bits happen to be set would be misread as SUB.
 
 ### SRL versus SRA, as the comment described it
 
-*Signals:* `aluOut`, `shamt`
+*Signals:* `aluOut`, `shamt`, `result`, `sra`
 
-The comment below describes the intent; the expression it sat next to shifts logically in
-both arms (issue #10, see `docs/baseline.md`). The expression is kept verbatim in
-`rtl/ALU.v` so the golden trace still matches.
+The comment below describes the intent. The expression it sat next to,
+`funct7[5] ? ($signed(aluIn1) >>> shamt) : (aluIn1 >> shamt)`, shifted logically in both
+arms: the unsigned else-arm makes the whole conditional unsigned, and that context reaches
+the `$signed` operand of `>>>` (issue #10, see `docs/baseline.md`).
 
 ```text
 SRL and SRA also share one funct3 (101), split by funct7[5].
@@ -543,6 +544,18 @@ $signed(aluIn1) makes Verilog's >>> perform an arithmetic
 (sign-extending) shift instead of a plain logical one -- that
 sign-extension is exactly what SRA needs and SRL must not have.
 ```
+
+`rtl/ALU.v` first kept the expression unchanged, so that the golden trace captured from it
+still matched, with this comment:
+
+```text
+Kept as written: the unsigned else-arm makes the whole expression
+unsigned, so >>> shifts logically. The golden trace depends on it.
+```
+
+Both arms now shift `$signed(in1)`; the logical arm is unaffected, because `>>` fills with
+zeros whatever the signedness. `sim/ALUBench.v` checks SRA, SRAI, SRL and SRLI on
+negative operands, and the golden trace was re-captured with the fix.
 
 ### Why jalr_target is a named wire
 
