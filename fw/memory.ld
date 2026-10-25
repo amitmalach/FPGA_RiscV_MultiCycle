@@ -19,7 +19,9 @@
  *
  * RAM_SIZE in the Makefile must equal RAM_WORDS x 4 (rtl/defines.vh); FLASH ORIGIN
  * must equal SPIFLASH_BASE + SPIFLASH_CODE_OFFSET (rtl/defines.vh) and
- * FLASH_CODE_OFFSET in the Makefile. tests/check_memory_map.sh checks all of them.
+ * FLASH_CODE_OFFSET in the Makefile; FLASH LENGTH must end the region at the top
+ * of the 16MB window (1 << SPIFLASH_ADDR_W). tests/check_memory_map.sh checks all
+ * of them.
  * =========================================================================== */
 
 MEMORY {
