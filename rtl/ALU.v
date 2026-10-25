@@ -27,9 +27,8 @@ module ALU (
             3'b010: result = {{(`DATA_W-1){1'b0}}, ($signed(in1) < $signed(in2))};
             3'b011: result = {{(`DATA_W-1){1'b0}}, (in1 < in2)};
             3'b100: result = in1 ^ in2;
-            // Kept as written: the unsigned else-arm makes the whole expression
-            // unsigned, so >>> shifts logically. The golden trace depends on it.
-            3'b101: result = sra ? ($signed(in1) >>> shamt) : (in1 >> shamt);
+            // Both arms signed: one unsigned arm would make >>> shift logically.
+            3'b101: result = sra ? ($signed(in1) >>> shamt) : ($signed(in1) >> shamt);
             3'b110: result = in1 | in2;
             3'b111: result = in1 & in2;
         endcase

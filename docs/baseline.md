@@ -15,9 +15,9 @@ boot; nothing else differs from the synthesized design.
 | | |
 |---|---|
 | Stop reason | `stop_leds`: LED register became 1, the mandelbrot frame counter after the first full frame |
-| Cycles simulated | 153 553 434 (0.768 s at 200 MHz; 232 s wall time in xsim) |
-| UART bytes | 8368 (46 rows of 46 pixels, ANSI colour escapes) |
-| LED changes | 1 (`LEDS 767767168 01`) |
+| Cycles simulated | 206 292 808 (1.031 s at 200 MHz; 333 s wall time in xsim) |
+| UART bytes | 11 014 (46 rows of 46 pixels, ANSI colour escapes) |
+| LED changes | 1 (`LEDS 1031464038 01`) |
 
 ## Synthesis and implementation
 
@@ -29,30 +29,32 @@ different synthesis settings will not match.
 
 | | |
 |---|---|
-| Timing | met (0 failing endpoints of 1243 setup / 1243 hold) |
-| WNS | 0.082 ns |
-| WHS | 0.104 ns |
-| Fmax (1 / (period - WNS)) | 203.3 MHz |
-| Slice LUTs | 930 of 203800 (0.46 %) |
+| Timing | met (0 failing endpoints of 1229 setup / 1229 hold) |
+| WNS | 0.219 ns |
+| WHS | 0.113 ns |
+| Fmax (1 / (period - WNS)) | 209.2 MHz |
+| Slice LUTs | 984 of 203800 (0.48 %) |
 | Slice registers | 244 of 407600 (0.06 %) |
 | Block RAM tiles | 2 of 445 (0.45 %) |
 | DSPs | 0 |
 | Bonded IOBs | 15 |
 
-## Known pre-existing behavior captured in the golden trace
+## The golden frame against the C source
 
-The golden frame is what the current RTL produces, not what the C source means. The
-same `mandelbrot.c` compiled natively emits an 11 014-byte first frame; the SoC emits
-8368 bytes, and the two diverge at row 8, pixel 36. A diagnostic firmware run in the
-same harness shows why: `srai` behaves as `srli` (`-1544416 >> 9` yields
-`0x007FF437`, expected `0xFFFFF437`), while software multiplication and the other
-operations checked are correct. The cause is this ALU arm in `Processor.v`:
+The golden frame is also what the C source means: `fw/mandelbrot.c` compiled natively
+emits a first frame of 11 014 bytes, byte-identical to the UART bytes of the golden trace.
+The native program draws frames forever, so the golden bytes are a prefix of its output,
+and the next native bytes, `ESC [ H`, start the second frame:
 
-```verilog
-3'b101: aluOut = funct7[5] ? ($signed(aluIn1) >>> shamt) : (aluIn1 >> shamt);
+```sh
+gcc -O2 -w '-DIO_OUT(a,b)=' -o /tmp/mandel fw/mandelbrot.c
+grep '^UART' sim/golden/mandelbrot_bram.txt | cut -d' ' -f2 | xxd -r -p > /tmp/sim.bin
+timeout 1 /tmp/mandel | head -c 11017 | cmp /tmp/sim.bin -   # EOF on /tmp/sim.bin after byte 11014
 ```
 
-The unsigned else-arm makes the whole conditional expression unsigned, so `>>>` is
-evaluated as a logical shift. Fixing it changes the UART stream, so it is deliberately
-left as it is for now; it is tracked as issue #10 and the golden file must be
-re-captured when the fix lands.
+An earlier golden trace recorded 8368 bytes, diverging at row 8, pixel 36: `srai` behaved
+as `srli` (`-1544416 >> 9` yielded `0x007FF437`, expected `0xFFFFF437`), because the
+unsigned else-arm of the ALU's shift expression made `>>>` shift logically (issue #10;
+`docs/design/notes.md`, "SRL versus SRA, as the comment described it"). The trace was
+re-captured with the fix, and `sim/ALUBench.v` now checks the shifts directly. The fix
+also gave the shifter its sign fill: Slice LUTs went from 930 to 984, and timing stayed met.

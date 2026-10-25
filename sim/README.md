@@ -10,8 +10,8 @@ source <vivado-install>/2025.2/Vivado/settings64.sh   # xvlog/xelab/xsim on PATH
 sim/run_regression.sh                              # PASS / FAIL, exit 0 / 1
 ```
 
-A full run simulates one mandelbrot frame, about 154 M clock cycles (0.77 s of
-simulated time), and takes about 4 minutes of wall time in xsim.
+A full run simulates one mandelbrot frame, about 206 M clock cycles (1.03 s of
+simulated time), and takes about 6 minutes of wall time in xsim.
 
 ## What is compared
 
@@ -57,7 +57,7 @@ The run ends at whichever comes first:
 
 Both are testbench parameters and can be overridden with plusargs
 (`+out=`, `+max_cycles=`, `+stop_leds=`; in xsim `-testplusarg "max_cycles=4000000"`).
-`run_regression.sh --max-cycles N` (or `make smoke`, 4 M cycles, about 10 s) passes the
+`run_regression.sh --max-cycles N` (or `make smoke`, 4 M cycles, about 20 s) passes the
 budget through for a quick smoke run. A truncated trace can never equal the golden file,
 so the smoke run checks that every event it recorded is a prefix of the golden event list.
 It is the inner-loop gate after an RTL edit; the full run is the gate for closing a ticket.
@@ -67,6 +67,15 @@ It is the inner-loop gate after an RTL edit; the full run is the gate for closin
 Only when a behavior change is intended. `sim/run_regression.sh --update-golden`
 overwrites the golden trace with the new run; commit it together with the RTL change
 and say why in the commit message.
+
+## ALU unit bench
+
+`sim/ALUBench.v` drives the ports of `rtl/ALU.v` directly and checks the right shifts
+(SRL, SRA, SRLI, SRAI; shift amounts 0, 4, 9 and 31; upper operand bits ignored) against results
+worked out by hand from the RV32I specification. `sim/run_unit.sh`, or `make unit`, compiles
+it under iverilog into `build/unit/` and passes only when the bench prints its final `PASS`
+line; `make smoke` and `make check` run it too. It covers what the golden trace cannot:
+the golden file records what the RTL did when it was captured, right or wrong.
 
 ## Assembly test programs
 
