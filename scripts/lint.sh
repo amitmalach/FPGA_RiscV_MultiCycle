@@ -20,7 +20,9 @@
 # 3. Markdown prose lines are at most 100 characters; table rows are exempt.
 # 4. vivado/rtl_sources.txt lists exactly the tracked rtl/*.v and rtl/*.vh
 #    files: a file missing from the list compiles nowhere and fails nowhere.
-# 5. File name equals module name for every rtl/*.v (docs/CONTRIBUTING.md).
+# 5. File name equals module name, one word without underscores, for every
+#    rtl/*.v and sim/*.v (docs/CONTRIBUTING.md). sim/asm/ is exempt: the
+#    third-party assembler and the sample program it assembles.
 # 6. Active-low signals are declared with an _n suffix, never resetn/rstn.
 # 7. Section banners ("// ---- name ----...") in rtl/*.v and sim/*.v end at column 80.
 # 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S, fw/start*.S,
@@ -35,6 +37,10 @@
 #    (Bruno Levy's assembler, kept as upstream wrote it) and its lower-case
 #    localparams are the RISC-V ABI register names (a0, sp, ra, ...) that the
 #    assembly programs use as mnemonics.
+# 10. The golden-trace summary in docs/baseline.md (cycles, simulated seconds,
+#    UART bytes, LED changes) equals the END and LEDS lines of the golden trace:
+#    sim/tests/check_golden_mirror.sh, whose --selftest proves it detects a
+#    change or deletion of every value it checks.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
@@ -108,11 +114,14 @@ if [ "$listed" != "$tracked" ]; then
 fi
 
 echo "== module name equals file name"
-for f in $(git ls-files 'rtl/*.v'); do
+for f in $(git ls-files 'rtl/*.v' 'sim/*.v' | grep -v '^sim/asm/'); do
     want=$(basename "$f" .v)
     got=$(grep -oE '^\s*module\s+[A-Za-z_][A-Za-z0-9_]*' "$f" | awk '{print $2}')
     if [ "$got" != "$want" ]; then
         echo "FAIL: $f declares module '${got:-<none>}', expected '$want' (one module per file, same name)"
+        fail=1
+    elif [[ ! "$got" =~ ^[A-Za-z][A-Za-z0-9]*$ ]]; then
+        echo "FAIL: $f: module '$got' is not one word (docs/CONTRIBUTING.md, Naming: no underscores)"
         fail=1
     fi
 done
@@ -153,6 +162,10 @@ if [ -n "$bad_case" ]; then
     echo "$bad_case"
     fail=1
 fi
+
+echo "== golden-trace mirrors in docs/baseline.md"
+sim/tests/check_golden_mirror.sh | grep -E '^(FAIL|PASS)' || fail=1
+sim/tests/check_golden_mirror.sh --selftest | grep -E '^(FAIL|PASS)' || fail=1
 
 [ "$fail" = 0 ] && echo "PASS: lint clean"
 exit "$fail"

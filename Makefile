@@ -1,17 +1,19 @@
-# Repository gates. When each one runs, and what a commit may cite:
+# Repository gates. This header is the one list of what each gate runs and how
+# long it takes; when each one runs, and what a commit may cite:
 # docs/CONTRIBUTING.md, "Gates and evidence".
 #
-#   make lint          seconds: by-products, stale paths, line length, naming (no tools needed)
+#   make lint          seconds, no tools: by-products, stale paths, line length, naming, mirrors
 #   make unit          seconds: ALU bench under iverilog, results against hand-worked values
 #   make smoke         ~25 s: unit, firmware check, then a short xsim run matching the golden so far
 #   make check         minutes: unit, firmware reproducibility, xsim regression, Vivado synthesis
 #   make -j2 check     same, regression and synthesis in parallel
+#   make golden        ~6 min: firmware check, then a full xsim run that overwrites the golden trace
 #   make check-moves BASE=<rev>   every file moved since <rev> is a 100 % rename
 #   make bitstream     synthesis, implementation, bitstream to build/SOC.bit
 #   make baseline      non-project synth/impl with reports in build/baseline/
 #
-# unit needs iverilog; smoke and check also need riscv64-unknown-elf-gcc on PATH and
-# Vivado's settings64.sh sourced.
+# unit needs iverilog; smoke, check and golden also need riscv64-unknown-elf-gcc on PATH
+# and Vivado's settings64.sh sourced.
 #
 # Every gate writes its output to build/logs/<target>-<timestamp>.log as well as
 # the terminal; targets of one make invocation share the timestamp. The log ends
@@ -34,7 +36,7 @@ logged = @mkdir -p $(LOGS) && log=$(LOGS)/$(1)-$(STAMP).log && { $(2); } 2>&1 | 
 # run starts inside build/. The scripts take absolute paths.
 VIVADO_BATCH = mkdir -p $(BUILD) && cd $(BUILD) && $(VIVADO) -mode batch -nojournal -nolog
 
-.PHONY: lint unit smoke check check-fw check-sim check-synth check-moves bitstream baseline
+.PHONY: lint unit smoke check check-fw check-sim check-synth golden check-moves bitstream baseline
 
 lint:
 	$(call logged,lint,scripts/lint.sh)
@@ -51,6 +53,10 @@ check-fw:
 
 check-sim: check-fw
 	$(call logged,check-sim,sim/run_regression.sh)
+
+# Re-captures the golden trace: only for an intended behaviour change.
+golden: check-fw
+	$(call logged,golden,sim/run_regression.sh --update-golden)
 
 SMOKE_CYCLES ?= 4000000
 smoke: unit check-fw

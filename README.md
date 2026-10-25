@@ -50,7 +50,7 @@ What it does, concretely:
 | FPGA tools | Vivado, version TODO (the scripts were written against 2025.2; confirm the version used for the final bitstream) |
 | RISC-V toolchain | `riscv64-unknown-elf-gcc` with `-march=rv32i -mabi=ilp32` (a 64-bit-named toolchain builds RV32I code); the committed firmware image reproduces with GCC 13.2.0 |
 | Host tools | GNU make, a C++ compiler for the ELF-to-hex converter, `pdflatex` for the design document |
-| Simulators | xsim, installed with Vivado, for the SoC regression; Icarus Verilog for `make unit` (so also for `make smoke` and `make check`) and the assembly test-program generator in `sim/asm/` |
+| Simulators | xsim (installed with Vivado) and Icarus Verilog; the root `Makefile` header says which gate needs which |
 
 ## Block diagram
 
@@ -255,11 +255,13 @@ board with a terminal showing a demo (for example `docs/design/figures/board.jpg
 ## Simulation and checks
 
 ```sh
-make lint               # seconds, no tools: stray by-products, naming, file list, memory-map copies
-make unit               # seconds, iverilog only: ALU bench against hand-worked results
-make smoke              # ~25 s: unit, firmware check, then a short xsim run on the golden's prefix
-make -j2 check          # minutes: unit, firmware reproducibility, full xsim regression, synthesis
+make lint
+make smoke
+make -j2 check
 ```
+
+The header of the root `Makefile` lists every gate with what it runs and how long it takes;
+`docs/CONTRIBUTING.md`, "Gates and evidence", says when each one runs.
 
 The testbench in `sim/bench.v` instantiates `SOC` with BRAM boot, loads the committed firmware
 image and records what an outside observer sees: every UART byte and every LED change. The
