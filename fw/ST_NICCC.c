@@ -4,14 +4,9 @@
  * rendered as ANSI character sequences through
  * the UART.
  * 
- * The polygon stream is a 640K file, that needs
- * to be stored in the SPI flash, using:
- * ICEStick: iceprog -o 1M EXAMPLES/DATA/scene1.dat
- * ULX3S:    cp EXAMPLES/DATA/scene1.dat scene1.img
- *           ujprog -j flash -f 1048576 scene1.img
- *   (using latest version of ujprog compiled from https://github.com/kost/fujprog)
- *
- * More details and links in EXAMPLES/DATA/notes.txt
+ * The polygon stream (scene1.dat, 640K) must be
+ * written to the SPI flash at ADDR_OFFSET (see
+ * below); README.md, "Flash boot", says how.
  */
 
 #include <stdint.h>
@@ -239,15 +234,10 @@ void GL_fillpoly(int nb_pts, int* points) {
 /**********************************************************************************/
 
 /*
- * Starting address of data stream stored in the 
- * SPI.
- * I put the data stream starting from 1M offset,
- * just to make sure it does not collide with
- * FPGA wiring configuration ! (but FPGA configuration
- * only takes a few tenth of kilobytes I think).
- * Using the IO interface, it is using the physical address
- *  (starting at 1M). Using the mapped memory interface,
- *  SPI_FLASH_BASE is mapped to 1M.
+ * Flash byte address of the next byte of the data stream (scene1.dat). The
+ * stream starts at ADDR_OFFSET in the flash chip, past this design's bitstream
+ * (flash layout in fw/memory.ld). The mapped interface reads flash byte n at
+ * CPU address SPIFLASH_BASE + n.
  */
 uint32_t spi_addr = 0;
 
@@ -299,9 +289,6 @@ uint8_t next_spi_byte() {
 
 #else
 
-
-# define SPI_FLASH_BASE ((uint32_t*)(1 << 24))
-
 /**
  * Reads one byte from the SPI flash, using the mapped SPI flash interface.
  */
@@ -309,7 +296,7 @@ static inline uint8_t next_spi_byte() {
    uint8_t result;
    if(spi_word_addr != spi_addr >> 2) {
       spi_word_addr = spi_addr >> 2;
-      spi_u.spi_word = SPI_FLASH_BASE[spi_word_addr];
+      spi_u.spi_word = ((uint32_t*)SPIFLASH_BASE)[spi_word_addr];
    }
    result = spi_u.spi_bytes[spi_addr&3];
    ++spi_addr;

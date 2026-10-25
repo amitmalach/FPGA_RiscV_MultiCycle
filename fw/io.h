@@ -5,6 +5,8 @@
 #define IO_UART_DAT   8
 #define IO_UART_CNTL  16
 
+#define SPIFLASH_BASE 0x1000000
+
 #define IO_IN(port)       *(volatile uint32_t*)(IO_BASE + port)
 #define IO_OUT(port,val)  *(volatile uint32_t*)(IO_BASE + port)=(val)
 

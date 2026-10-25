@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Memory-map mirror check: every constant the firmware repeats from
 # rtl/defines.vh (IO base and register offsets, UART busy bit, RAM size and
-# base, flash base and code offset) must still equal the RTL value, and so
-# must the addresses in the README's memory-map tables. The RAM size has one
-# firmware copy, RAM_SIZE in fw/Makefile: the stack top in fw/start*.S and
-# the RAM length in fw/memory.ld must spell that symbol, not a number. Runs
-# without any tool; `make lint` calls it. Runs every group; exit 1 if any
-# value mismatched or was not found.
+# base, flash base, code offset and window) must still equal the RTL value,
+# and so must the addresses in the README's memory-map tables. The RAM size
+# has one firmware copy, RAM_SIZE in fw/Makefile: the stack top in
+# fw/start*.S and the RAM length in fw/memory.ld must spell that symbol, not
+# a number. Runs without any tool; `make lint` calls it. Runs every group;
+# exit 1 if any value mismatched or was not found.
 #
 #   check_memory_map.sh             check the working tree (ROOT=<dir> checks another tree)
 #   check_memory_map.sh --selftest  prove the check detects drift: copy the mirror files to a
@@ -21,14 +21,15 @@ fail=0
 
 # One mutation per checked value: <file>@<sed -E expression>@<what>. A pattern that
 # no longer matches leaves the copy intact, so the check passes and the self-test
-# reports it as undetected: a stale mutation fails, it never hides.
+# reports it as undetected: a stale mutation fails, it never hides. The self-test
+# copies only the files named here, so a checked file without a mutation is
+# missing from the copy and fails the unmodified run.
 MUTATIONS='
 fw/io.h@s/^(#define[[:space:]]+IO_BASE[[:space:]]+)0x400000/\10x200000/@IO_BASE changed
 fw/io.h@s/^(#define[[:space:]]+IO_LEDS[[:space:]]+)4$/\18/@IO_LEDS changed
 fw/io.h@s/^(#define[[:space:]]+IO_UART_DAT[[:space:]]+)8$/\116/@IO_UART_DAT changed
 fw/io.h@s/^(#define[[:space:]]+IO_UART_CNTL[[:space:]]+)16$/\1/@IO_UART_CNTL deleted
-fw/putchar.S@s/^(\.equ IO_BASE, )0x400000/\10x400001/@IO_BASE changed
-fw/putchar.S@s/^(\.equ IO_LEDS, )4$/\12/@IO_LEDS changed
+fw/io.h@s/^(#define[[:space:]]+SPIFLASH_BASE[[:space:]]+)0x1000000$/\10x800000/@SPIFLASH_BASE changed
 fw/putchar.S@s/^(\.equ IO_UART_DAT, )8$/\1/@IO_UART_DAT deleted
 fw/putchar.S@s/^(\.equ IO_UART_CNTL, )16$/\132/@IO_UART_CNTL changed
 fw/putchar.S@s/1<<9/1<<8/@UART busy bit changed
@@ -41,6 +42,7 @@ fw/memory.ld@s/ORIGIN = 0x00000000/ORIGIN = 0x00000100/@RAM ORIGIN changed
 fw/memory.ld@s/ORIGIN = 0x00000000,/ORIGIN = ,/@RAM ORIGIN deleted (a zero value: the empty guard, not the compare, must catch it)
 fw/memory.ld@s/LENGTH = RAM_SIZE/LENGTH = 0x1800/@RAM LENGTH typed as a literal
 fw/memory.ld@s/ORIGIN = 0x01D00000/ORIGIN = 0x01C00000/@FLASH ORIGIN changed
+fw/memory.ld@s/LENGTH = 0x300000/LENGTH = 0x400000/@FLASH LENGTH changed (runs past the 16MB window)
 fw/Makefile@s/^(RAM_SIZE[[:space:]]*=[[:space:]]*)6144$/\18192/@RAM_SIZE changed
 fw/Makefile@s/^(FLASH_CODE_OFFSET[[:space:]]*=[[:space:]]*)0xD00000$/\1/@FLASH_CODE_OFFSET deleted
 README.md@s/0x0000_17FF/0x0000_1FFF/@RAM top changed
@@ -54,10 +56,11 @@ README.md@s/[|] bit 24 [|] read, fetch [|]/| bit twenty-four | read, fetch |/@fl
 '
 
 selftest() {
-    local tmp; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-    mkdir -p "$tmp/rtl" "$tmp/fw"
-    cp "$DEF" "$tmp/rtl/"; cp "$README" "$tmp/"
-    cp "$FW"/io.h "$FW"/putchar.S "$FW"/blinker.S "$FW"/start.S "$FW"/start_spiflash.S "$FW"/memory.ld "$FW"/Makefile "$tmp/fw/"
+    local tmp f; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+    mkdir -p "$tmp/rtl"; cp "$DEF" "$tmp/rtl/"
+    for f in $(cut -d@ -f1 <<< "$MUTATIONS" | sort -u); do
+        mkdir -p "$tmp/$(dirname "$f")"; cp "$ROOT/$f" "$tmp/$f"
+    done
     if ! ROOT="$tmp" bash "$0" >/dev/null; then
         echo "FAIL  selftest: the unmodified copy does not pass"; exit 1
     fi
@@ -120,7 +123,7 @@ expect_text() {
 }
 
 for name in IO_BASE IO_LEDS IO_UART_DAT IO_UART_CNTL UART_BUSY_BIT RAM_BASE RAM_WORDS \
-            SPIFLASH_BASE SPIFLASH_CODE_OFFSET; do
+            SPIFLASH_BASE SPIFLASH_ADDR_W SPIFLASH_CODE_OFFSET; do
     grep -qE "^\`define[[:space:]]+$name[[:space:]]" "$DEF" || { echo "FAIL: no \`define $name in $DEF"; exit 2; }
 done
 IO_BASE=$(vdef IO_BASE);           IO_LEDS=$(vdef IO_LEDS)
@@ -130,6 +133,7 @@ RAM_BASE=$(vdef RAM_BASE);         RAM_BYTES=$(( $(vdef RAM_WORDS) * 4 ))
 SPIFLASH_BASE=$(vdef SPIFLASH_BASE)
 SPIFLASH_CODE_OFFSET=$(vdef SPIFLASH_CODE_OFFSET)
 FLASH_ORIGIN=$(( SPIFLASH_BASE + SPIFLASH_CODE_OFFSET ))
+FLASH_LENGTH=$(( (1 << $(vdef SPIFLASH_ADDR_W)) - SPIFLASH_CODE_OFFSET ))
 RAM_TOP=$(( RAM_BASE + RAM_BYTES - 1 ))
 
 # C header: #define NAME value
@@ -149,14 +153,13 @@ rdaddr() { grep -E '^\|' "$README" | grep -E "$1" | head -1 | grep -oE '0x[0-9A-
 ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | grep -oE "$2[[:space:]]*=[[:space:]]*[^,[:space:]]+" | sed -E 's/.*=[[:space:]]*//'; }
 
 echo "== fw/io.h"
-expect io.h IO_BASE      "$(cdef io.h IO_BASE)"      "$IO_BASE"
-expect io.h IO_LEDS      "$(cdef io.h IO_LEDS)"      "$IO_LEDS"
-expect io.h IO_UART_DAT  "$(cdef io.h IO_UART_DAT)"  "$IO_UART_DAT"
-expect io.h IO_UART_CNTL "$(cdef io.h IO_UART_CNTL)" "$IO_UART_CNTL"
+expect io.h IO_BASE       "$(cdef io.h IO_BASE)"       "$IO_BASE"
+expect io.h IO_LEDS       "$(cdef io.h IO_LEDS)"       "$IO_LEDS"
+expect io.h IO_UART_DAT   "$(cdef io.h IO_UART_DAT)"   "$IO_UART_DAT"
+expect io.h IO_UART_CNTL  "$(cdef io.h IO_UART_CNTL)"  "$IO_UART_CNTL"
+expect io.h SPIFLASH_BASE "$(cdef io.h SPIFLASH_BASE)" "$SPIFLASH_BASE"
 
 echo "== fw/putchar.S"
-expect putchar.S IO_BASE      "$(aequ putchar.S IO_BASE)"      "$IO_BASE"
-expect putchar.S IO_LEDS      "$(aequ putchar.S IO_LEDS)"      "$IO_LEDS"
 expect putchar.S IO_UART_DAT  "$(aequ putchar.S IO_UART_DAT)"  "$IO_UART_DAT"
 expect putchar.S IO_UART_CNTL "$(aequ putchar.S IO_UART_CNTL)" "$IO_UART_CNTL"
 busy=$(grep -oE 'li[[:space:]]+t0,[[:space:]]*1<<[0-9]+' "$FW/putchar.S" | sed -E 's/.*<<//')
@@ -175,6 +178,7 @@ echo "== fw/memory.ld"
 expect memory.ld "RAM ORIGIN"        "$(ldfield RAM ORIGIN)"   "$RAM_BASE"
 expect_text memory.ld "RAM LENGTH"   "$(ldfield RAM LENGTH)"   RAM_SIZE
 expect memory.ld "FLASH ORIGIN" "$(ldfield FLASH ORIGIN)" "$FLASH_ORIGIN"
+expect memory.ld "FLASH LENGTH" "$(ldfield FLASH LENGTH)" "$FLASH_LENGTH"
 
 echo "== fw/Makefile"
 expect Makefile RAM_SIZE          "$(mvar Makefile RAM_SIZE)"          "$RAM_BYTES"
