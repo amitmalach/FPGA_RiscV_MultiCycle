@@ -1,6 +1,7 @@
 # Figures
 
-Figures for the final report, `docs/design/design.tex`, one file per figure. Every figure that a
+Figures for the final report, `docs/design/design.tex`, one file per figure, or per panel of a
+figure with panels (`vivado_device_*`, numbered in panel order). Every figure that a
 script can make is made by one, so it can follow a change to the design; the rest are manual,
 each with a recipe below. Each figure is committed once it exists, and `make -C docs/design`
 builds the PDF from the committed figures without Vivado or the board. Paths below are relative
@@ -14,8 +15,9 @@ hand-made drawing (for example `.svg`) next to its exported PDF.
 | `board.jpg` | Title page | by hand: the owner's photo, notes below |
 | `rtl_soc.pdf` | 4, System architecture | `make figures`: `docs/design/scripts/rtl_schematics.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
-| `vivado_routed_worst_path.png` | 10, Implementation results | by hand, recipe below |
 | `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
+| `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
+| `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
 
 ## Scripted figures: `make figures`
 
@@ -50,7 +52,8 @@ Facts about Vivado 2025.2 behind these scripts:
 
 One colour per module, in every Vivado view and drawing of the report. They are Okabe-Ito
 colours, which stay distinct under the common forms of colour blindness.
-`docs/design/scripts/gui_helper.tcl` holds the same table.
+`docs/design/scripts/gui_helper.tcl` holds the same table, and so does `docs/design/design.tex`:
+the `\definecolor` lines in its preamble, and the colour key, `tab:module-colours`, in chapter 2.
 
 | Module | Cells | RGB | Ports |
 |---|---|---|---|
@@ -65,7 +68,7 @@ colours, which stay distinct under the common forms of colour blindness.
 
 ## Manual figures
 
-Both start from the GUI helper, `docs/design/scripts/gui_helper.tcl`. Sourced in the Vivado GUI,
+All start from the GUI helper, `docs/design/scripts/gui_helper.tcl`. Sourced in the Vivado GUI,
 it opens a copy of the routed checkpoint, colours the modules, colours the worst setup path's
 cells red and selects the path. It never moves the mouse; the clicks below are yours.
 
@@ -86,26 +89,36 @@ Common steps:
 
 If the Vivado version is not 2025.2, note it in the commit that adds the screenshot.
 
-### Zoomed routed view with the worst path
+### Device views, from the whole device to the worst path
 
-- File: `vivado_routed_worst_path.png`, chapter 10
+- Files: `vivado_device_1_whole.png` to `vivado_device_6_routing_off.png`, chapter 10:
+  figure `fig:device-zoom` holds panels 1 to 4, figure `fig:worst-path` panels 5 and 6
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
-- View: Device window, routing resources shown, zoomed to the worst path
+- View: Device window, the worst path selected, Auto-fit Selection on in every panel;
+  Routing Resources on in panels 1 to 5, off in panel 6
 - Taken 2026-10-27 by the owner: the maximised Device panel, 1827x872 at screen scale
-  (GNOME on a 1920x1080 display), zoomed in until the interconnect tiles' names show
+  (GNOME on a 1920x1080 display). Panel 1 keeps a tooltip, which names the tile under the
+  mouse pointer.
 
-1. Common steps 1 to 3. The Device window zooms to the selected path when Auto-fit Selection
-   is on in its toolbar; turn it on if the view did not move.
-2. Maximise the Device window (double-click its tab).
-3. In the Device window's toolbar, turn on Routing Resources, so the path follows its routed
-   wires instead of straight lines. Zoom out a step if the path touches the border.
-4. Leave the path selected: its wires and cells show white against the module colours.
-5. Screenshot the maximised panel at screen scale (GNOME: Print, then drag over the panel);
-   save it as `docs/design/figures/vivado_routed_worst_path.png`.
+1. Common steps 1 to 3.
+2. Maximise the Device window (double-click its tab) and, in its toolbar, turn on Auto-fit
+   Selection and Routing Resources. With Routing Resources on, a net follows its routed wires
+   instead of a straight line.
+3. Leave the path selected: its wires and cells show white against the module colours.
+4. Zoom out all the way, and take each panel as you zoom in, one screenshot of the maximised
+   panel at screen scale each (GNOME: Print, then drag over the panel):
+   1. `vivado_device_1_whole.png`: the whole device.
+   2. `vivado_device_2_regions.png`: the lower clock regions.
+   3. `vivado_device_3_design.png`: the design filling the view.
+   4. `vivado_device_4_path.png`: the area around the path.
+   5. `vivado_device_5_routing_on.png`: the path filling the view, the interconnect tiles'
+      names showing; zoom out a step if the path touches the border.
+5. Turn Routing Resources off, zoom in a step further, and take
+   `vivado_device_6_routing_off.png`: the path's nets drawn as straight lines over the slices.
 
 ### I/O package view
 
-- File: `vivado_io_package.png`, chapter 2
+- File: `vivado_io_package.png`, chapter 2, figure `fig:io-package`
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
 - View: Package window of the I/O Planning layout, with all 16 ports on their pins in their
   modules' colours: the 15 bonded IOBs of `docs/baseline.md`, and `uart_tx_in` on Y20, which
