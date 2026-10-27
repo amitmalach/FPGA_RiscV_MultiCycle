@@ -94,24 +94,30 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 - Files: `vivado_device_1_whole.png` to `vivado_device_6_routing_off.png`, chapter 10:
   figure `fig:device-zoom` holds panels 1 to 4, figure `fig:worst-path` panels 5 and 6
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
-- View: Device window, the worst path selected, Auto-fit Selection on in every panel;
-  Routing Resources on in panels 1 to 5, off in panel 6
+- View: Device window, Auto-fit Selection on in every panel. Panel 1: the path not
+  selected, so its cells show red, and Routing Resources off. Panels 2 to 5: the path
+  selected, in white, and Routing Resources on. Panel 6: the path selected, Routing
+  Resources off.
 - Taken 2026-10-27 by the owner: the maximised Device panel, 1827x872 at screen scale
-  (GNOME on a 1920x1080 display). Panel 1 keeps a tooltip, which names the tile under the
-  mouse pointer.
+  (GNOME on a 1920x1080 display). Panel 1 was retaken later in the day, without the
+  tooltip the first take had.
+
+Take each panel as one screenshot of the maximised panel at screen scale (GNOME: Print, then
+drag over the panel).
 
 1. Common steps 1 to 3.
-2. Maximise the Device window (double-click its tab) and, in its toolbar, turn on Auto-fit
-   Selection and Routing Resources. With Routing Resources on, a net follows its routed wires
-   instead of a straight line.
-3. Leave the path selected: its wires and cells show white against the module colours.
-4. Zoom out all the way, and take each panel as you zoom in, one screenshot of the maximised
-   panel at screen scale each (GNOME: Print, then drag over the panel):
-   1. `vivado_device_1_whole.png`: the whole device.
-   2. `vivado_device_2_regions.png`: the lower clock regions.
-   3. `vivado_device_3_design.png`: the design filling the view.
-   4. `vivado_device_4_path.png`: the area around the path.
-   5. `vivado_device_5_routing_on.png`: the path filling the view, the interconnect tiles'
+2. Maximise the Device window (double-click its tab) and turn on Auto-fit Selection in its
+   toolbar.
+3. Panel 1: type `unselect_objects` in the Tcl Console, leave Routing Resources off, zoom
+   out all the way and take `vivado_device_1_whole.png`, the whole device.
+4. Select the path again, `select_objects [get_timing_paths -setup -max_paths 1 -nworst 1]`,
+   and turn on Routing Resources in the toolbar: a net then follows its routed wires instead
+   of a straight line. The path's wires and cells show white against the module colours.
+   Zoom out to the lower clock regions, then take each panel as you zoom in:
+   1. `vivado_device_2_regions.png`: the lower clock regions.
+   2. `vivado_device_3_design.png`: the design filling the view.
+   3. `vivado_device_4_path.png`: the area around the path.
+   4. `vivado_device_5_routing_on.png`: the path filling the view, the interconnect tiles'
       names showing; zoom out a step if the path touches the border.
 5. Turn Routing Resources off, zoom in a step further, and take
    `vivado_device_6_routing_off.png`: the path's nets drawn as straight lines over the slices.

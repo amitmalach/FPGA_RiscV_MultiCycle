@@ -36,6 +36,7 @@
 \definecolor{moduart}{RGB}{0,158,115}
 \definecolor{modflash}{RGB}{204,121,167}
 \definecolor{modclock}{RGB}{153,153,153}
+\definecolor{modpath}{RGB}{255,0,0}
 \newcommand{\swatch}[1]{{\setlength{\fboxsep}{0pt}\fcolorbox{gray}{#1}{\rule{0pt}{1.6ex}\rule{1.6em}{0pt}}}}
 
 % Compact chapter headings: about 25 pages of body in 13 chapters.
@@ -79,12 +80,13 @@ schematic~\cite{digilent-genesys2-rm}, the I/O package view, and the tool versio
     \swatch{moduart} & \texttt{UartTx} & \texttt{uart\_rx\_out}, \texttt{uart\_tx\_in} \\
     \swatch{modflash} & \texttt{SPIFlash}, with \texttt{STARTUPE2} & \texttt{spiflash\_*} \\
     \swatch{modclock} & clock and reset & \texttt{sysclk\_*}, \texttt{RESET} \\
-    \swatch{white} & the worst setup path, selected & \\
+    \swatch{modpath} & the worst setup path's cells & \\
+    \swatch{white} & the worst setup path, selected: its cells and wires & \\
     \bottomrule
   \end{tabular}
-  \caption{The module colours of every Vivado view in this report: Okabe-Ito colours, which
-    stay distinct under the common forms of colour blindness. A selected path shows in
-    Vivado's selection white.}
+  \caption{The colours of every Vivado view in this report. The modules' are Okabe-Ito
+    colours, which stay distinct under the common forms of colour blindness; the worst path
+    is in pure red, and in Vivado's selection white while it is selected.}
   \label{tab:module-colours}
 \end{table}
 
@@ -153,8 +155,8 @@ logic-level or slack chart, and the power breakdown.}
   \begin{subfigure}[t]{0.49\textwidth}
     \includegraphics[width=\textwidth]{figures/vivado_device_1_whole}
     \caption{The whole device, its 14 clock regions outlined and named. The design is the
-      coloured patch at the left edge of the lower half. A tooltip names the tile under the
-      mouse pointer.}
+      coloured patch at the left edge of the lower half. Here the path is not selected, so
+      its cells show red, and Routing Resources is off.}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.49\textwidth}
     \includegraphics[width=\textwidth]{figures/vivado_device_2_regions}
@@ -173,8 +175,8 @@ logic-level or slack chart, and the power breakdown.}
       RAM.}
   \end{subfigure}
   \caption{Vivado's Device view of the routed design, zoomed in from the whole device to the
-    worst setup path. The modules are in their colours (Table~\ref{tab:module-colours}) and
-    the worst path is selected; Routing Resources is on.}
+    worst setup path, with the modules in their colours (Table~\ref{tab:module-colours}). In
+    panels (b) to (d) the worst path is selected, in white, and Routing Resources is on.}
   \label{fig:device-zoom}
 \end{figure}
 
