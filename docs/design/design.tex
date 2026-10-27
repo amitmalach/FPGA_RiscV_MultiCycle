@@ -28,7 +28,9 @@
 \usepackage{titlesec}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta}
+\usepackage{animate}
 \usepackage[hidelinks]{hyperref}
+\usepackage{qrcode}
 
 % Callouts on board photos: a label in the margin, an arrow with a white halo, so that it
 % shows on the black board and on the white page alike.
@@ -260,8 +262,91 @@ logic-level or slack chart, and the power breakdown.}
 \end{figure}
 
 \chapter{Results on the board}
-\planned{the demos as captured from the board's UART, and the mandelbrot frame compared
-byte for byte with the golden trace.}
+\label{ch:board}
+
+Everything in this chapter was captured from the real board. Each demo's bitstream is loaded
+into the FPGA over JTAG and never written to the flash, which keeps Digilent's factory demo:
+the board boots it again at the next power-on. From the moment the bitstream starts to load, the host
+records the UART at 115\,200~baud, 8N1, with a timestamp on every read, accurate to about
+2~ms. The raw
+captures are committed in \texttt{docs/design/captures/}, and \texttt{make figures} renders
+the figures below from them; \texttt{docs/design/figures/README.md} gives the procedure.
+
+\section{Mandelbrot in BRAM boot}
+
+The mandelbrot demo is the committed firmware image, the one the golden trace was simulated
+with. Its bitstream is the synthesised design with \texttt{BOOT\_ADDR} set to
+\texttt{BOOT\_ADDR\_BRAM}, as the testbench sets it, so the core starts from the image in the
+RAM as soon as configuration ends. Figure~\ref{fig:board-mandelbrot} shows the first frame
+the board sent.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.6\textwidth]{figures/board_mandelbrot}
+  \caption{The mandelbrot demo's first frame, rendered from the board's UART capture as a
+    terminal shows it: 46 rows of 46 pixels, each pixel two spaces on a 24-bit background
+    colour.}
+  \label{fig:board-mandelbrot}
+\end{figure}
+
+\paragraph{The board against the simulation.} The first frame the board sent is 11\,014
+bytes long, and it is byte for byte the UART bytes of the golden trace. The golden trace is in
+turn byte for byte what \texttt{fw/mandelbrot.c} prints when compiled natively
+(\texttt{docs/baseline.md}), so the board, the simulation and the C source agree.
+
+\paragraph{Frame time.} On the board the frame took 1031.8~ms, from its first byte to the
+first byte of the next frame. The simulation took 206\,292\,808 cycles from reset to the start
+of the next frame, 1031.46~ms at 200~MHz. The start-up code before the first byte is a few
+dozen instructions, so the two measure the same interval. They agree to 0.3~ms, within the
+timestamps' accuracy of about 2~ms, or 0.2\,\%: to that accuracy, the board takes the cycles
+the simulation counts, at 200~MHz. Most
+of the frame is the UART. At ten bits per byte, sending the 11\,014 bytes takes about
+956~ms, and \texttt{putchar} waits for each byte to leave before it returns, so the
+computation itself takes about 75~ms.
+
+\section{riscv\_logo}
+
+The riscv\_logo demo rotates and zooms the RISC-V logo, a 16 by 16 bitmap, tiled over a grid
+of 40 by 40 pixels in the 16 standard terminal colours, here in xterm's palette. One turn is
+64 frames. The board sent them in 35.3~s, 551~ms a frame on average and 388 to 675~ms each:
+a frame is 4\,400 to 7\,700 bytes, and the UART sets the pace, as for mandelbrot.
+Figure~\ref{fig:board-riscv-logo} shows every eighth frame, and
+Figure~\ref{fig:board-riscv-logo-animated} the whole turn. The 72 frames captured are, byte
+for byte, what \texttt{fw/riscv\_logo.c} prints when compiled natively: no byte was lost on
+the way to the host.
+
+\begin{figure}[htbp]
+  \centering
+  \foreach \frame in {1,9,...,57} {%
+    \includegraphics[page=\frame, width=0.118\textwidth]{figures/board_riscv_logo}\hfill}%
+  \unskip
+  \par\medskip
+  \begin{minipage}[c]{0.8\textwidth}
+    \caption{The riscv\_logo demo on the board: frames 0, 8, \ldots, 56 of one turn, left to
+      right, 45 degrees apart, rendered from the UART capture. The animation plays in the
+      repository's README, at
+      \url{https://github.com/amitmalach/FPGA_RiscV_MultiCycle\#running-the-demos},
+      the address the code on the right holds.}
+    \label{fig:board-riscv-logo}
+  \end{minipage}\hfill
+  \begin{minipage}[c]{0.15\textwidth}
+    \raggedleft
+    \qrcode[height=2cm]{https://github.com/amitmalach/FPGA_RiscV_MultiCycle\#running-the-demos}
+  \end{minipage}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \animategraphics[width=0.5\textwidth, autoplay, loop, controls]{1.81}%
+    {figures/board_riscv_logo}{}{}
+  \caption{The riscv\_logo demo's turn, all 64 frames, at the board's average rate of 1.81
+    frames per second. Only Adobe Reader plays the animation; other viewers show the first
+    frame.}
+  \label{fig:board-riscv-logo-animated}
+\end{figure}
+
+\planned{tinyraytracer in flash boot, ST\_NICCC if it runs, and a line each on the blinker
+and sieve demos.}
 
 \chapter{For the next student}
 \planned{the pitfalls checklist (symptom, cause, where it is handled) and a ranked list of

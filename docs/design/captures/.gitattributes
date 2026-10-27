@@ -1,0 +1,2 @@
+# Raw UART bytes: ANSI escape sequences, not text to diff.
+*.bin binary

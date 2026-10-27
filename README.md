@@ -210,12 +210,20 @@ has no SPI-flash model.
 Open a serial terminal on the board's USB-UART port at 115200 baud, 8N1, for example:
 
 ```sh
-picocom -b 115200 /dev/ttyUSB0
+picocom -b 115200 --imap lfcrlf /dev/ttyUSB0
 ```
 
+The demos end their lines with a bare LF; `--imap lfcrlf` starts each line at the left margin.
 The demos that draw in colour use ANSI escape sequences: `mandelbrot` sets 24-bit
 backgrounds, `riscv_logo` the 16-colour SGR codes, `ST_NICCC` and `tinyraytracer` 256-colour
 codes. Use a terminal emulator that supports all three.
+
+![riscv_logo turning, as the board drew it](docs/design/figures/board_riscv_logo.gif)
+
+`riscv_logo` on the board, in BRAM boot: one turn of 64 frames, each shown for as long as the
+board took to send it (to 10 ms), rendered from the UART capture in xterm's colours. The final
+report shows this and the other board results (`docs/design/design.tex`, "Results on the
+board").
 
 ### BRAM boot
 
@@ -278,11 +286,13 @@ and how the core, memory subsystem, SoC and firmware fit together.
 ```sh
 make -C docs/design           # pdflatex -> docs/design/build/design.pdf from the committed figures
 make -C docs/design figures   # regenerate the scriptable figures: Vivado, xvfb-run, Ghostscript
+make -C docs/design captures  # record the board captures again: the board, Vivado, RISC-V gcc
 ```
 
 The sources are [`docs/design/design.tex`](docs/design/design.tex) and
-`docs/design/figures/`, whose README lists every figure, the script behind it, and the recipes
-for the manual ones. The built PDF is not committed until the report has content.
+`docs/design/figures/`, whose README lists every figure, the script behind it, the recipes
+for the manual ones, and what each target needs. The built PDF is not committed until the
+report has content.
 TODO: link the published PDF here once it exists.
 
 ## Results

@@ -23,6 +23,9 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
 | `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
 | `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
+| `board_mandelbrot.pdf` | 11, Results on the board | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
+| `board_riscv_logo.pdf` | 11, Results on the board: the filmstrip (pages 1, 9, ..., 57) and the animation | `make figures`, as above |
+| `board_riscv_logo.gif` | The README, "Running the demos" | `make figures`, as above |
 
 ## Scripted figures: `make figures`
 
@@ -31,7 +34,9 @@ source ~/Xilinx/2025.2/Vivado/settings64.sh
 make -C docs/design figures     # then review and commit the changed figures
 ```
 
-Needs Vivado, `xvfb-run` (package `xvfb`) and Ghostscript. `docs/design/scripts/vivado_xvfb.sh`
+Needs Vivado, `xvfb-run` (package `xvfb`), Ghostscript, and Python 3 with Pillow for the
+figures rendered from the board captures (`make board-figures` makes only those, and needs
+nothing else). `docs/design/scripts/vivado_xvfb.sh`
 runs each Vivado script in the GUI on a private X server, never on your display, from the
 scratch directory `docs/design/build/vivado/`, so nothing Vivado writes lands in the tracked
 tree; its log is `vivado.log` there. Afterwards `git status` shows only the figures that
@@ -52,6 +57,53 @@ Facts about Vivado 2025.2 behind these scripts:
   LUTs in the ALU, so the schematics come from the elaborated RTL (`synth_design -rtl`).
 - Every Vivado run works in a scratch directory (the firmware image is read by bare name), and a
   checkpoint is opened from a copy, so the original is never written.
+
+## Board captures: `make captures`
+
+The figures of chapter 11 are rendered from the board's UART output, recorded once and
+committed in `docs/design/captures/` as source data, so `make figures` needs no board.
+Recording again needs the board, its two micro-USB cables, Vivado, `riscv64-unknown-elf-gcc`
+and Python 3 with pyserial:
+
+```sh
+source ~/Xilinx/2025.2/Vivado/settings64.sh
+make -C docs/design captures    # then make figures; review and commit captures and figures
+```
+
+For each demo, `docs/design/scripts/board_capture.sh` builds the firmware image and a BRAM-boot
+bitstream in `docs/design/build/board/<demo>/`, the bitstream only when the image, the RTL, the
+constraints or `board_bitstream.tcl` changed (`board_bitstream.tcl`: synthesis and
+implementation as in `vivado/baseline.tcl`, with `BOOT_ADDR` set to 0 as `sim/bench.v` sets
+it; it fails unless timing is met). It then opens the UART, loads the bitstream over
+JTAG (`board_program.tcl`) and records the output (`uart_capture.py`). The bitstream goes into
+the FPGA only: the flash is never written, and a power cycle boots whatever the flash holds.
+`rtl/firmware.hex` and `rtl/SOC.v` stay as they are. `UART_PORT` and `JTAG_TARGET` pick the
+board when the defaults (the one FT232R in `/dev/serial/by-id`, the one JTAG cable) do not.
+
+A capture is two files. `<demo>_bram.bin` holds the bytes as received, from the moment the
+bitstream starts to load. `<demo>_bram.times` is the timeline, in seconds since the port was
+opened: `PROGRAM_START` and `PROGRAM_END` around the load, a `READ <t> <count>` line for each
+read of the port (every millisecond, the bridge in low-latency mode, so a byte's time is good
+to about 2 ms), and `END`. The first bytes are from the design that was running before, up to
+the moment configuration stopped it; `board_figures.py` takes the loaded design's output to
+start after the longest silence during the load, while the FPGA was being configured.
+
+`board_figures.py` replays the bytes through a small terminal emulator, documented in its
+header, with LF taken as CR LF as `picocom --imap lfcrlf` does, the 16 colours in xterm's
+palette and the default background black. It prints `BOARD` lines with the measurements
+chapter 11 quotes, and fails unless mandelbrot's first frame is byte for byte the UART bytes of
+the golden trace. The riscv_logo capture can be checked against the program compiled natively
+in the same way as `docs/baseline.md` checks the golden frame; 54 is the byte at which
+`board_figures.py` reports the loaded design's output to begin:
+
+```sh
+gcc -O2 -w -o /tmp/logo fw/riscv_logo.c
+tail -c +55 docs/design/captures/riscv_logo_bram.bin > /tmp/board_logo.bin
+timeout 5 /tmp/logo | head -c $(stat -c %s /tmp/board_logo.bin) | cmp /tmp/board_logo.bin -
+```
+
+- Captured 2026-10-28 with `make captures`, Vivado 2025.2, on the owner's board: Genesys 2
+  revision H, through its own FT232R USB-UART bridge and Digilent USB-JTAG
 
 ## The report's module colours
 
