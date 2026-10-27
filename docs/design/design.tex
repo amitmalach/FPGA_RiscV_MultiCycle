@@ -1,17 +1,21 @@
-% design.tex -- design document for the multi-cycle RV32I SoC on the Digilent Genesys 2.
+% design.tex -- the final report on the multi-cycle RV32I SoC for the Digilent Genesys 2.
 %
-% Build: make (in this directory) -> build/design.pdf, two pdflatex passes.
+% Build: make (in this directory) -> build/design.pdf, two pdflatex passes, from the
+% committed figures; no Vivado or board needed. make figures regenerates the scriptable
+% figures; figures/README.md lists every figure and how it is made.
 %
 % Source material: notes.md in this directory holds the design rationale behind each
 % module (bugs, workarounds, timing subtleties, deliberate quirks), grouped by module
 % and naming the signal each note concerns.
-% Read the matching section of notes.md before writing each chapter below. The
-% current RTL (rtl/), the firmware (fw/), the simulation harness (sim/) and the
-% baseline numbers (docs/baseline.md) are the other inputs.
+% Read the matching section of notes.md before writing each chapter below, and cite it
+% instead of repeating it. The current RTL (rtl/), the firmware (fw/), the simulation
+% harness (sim/) and the baseline numbers (docs/baseline.md) are the other inputs.
 %
+% Each chapter not yet written holds one \planned note: what the chapter will hold.
 % Figures go in figures/ and are included with \includegraphics{figures/<name>}.
 
-\documentclass[11pt,a4paper]{article}
+\pdfminorversion=7  % the figures are PDF 1.7
+\documentclass[11pt,a4paper]{report}
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -19,7 +23,16 @@
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{titlesec}
 \usepackage[hidelinks]{hyperref}
+
+% Compact chapter headings: about 25 pages of body in 13 chapters.
+\titleformat{\chapter}{\normalfont\LARGE\bfseries}{\thechapter}{1em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{2ex}
+
+% What a chapter will hold, until it is written.
+\newcommand{\planned}[1]{\noindent{\color{gray}\itshape To hold: #1}\par}
 
 \title{A Multi-cycle RV32I System on Chip for the Digilent Genesys 2}
 \author{Amit Malach \\ Supervisor: Prof.\ Avi Mendelson \\ Technion -- Israel Institute of Technology}
@@ -27,32 +40,112 @@
 
 \begin{document}
 
+% The title page and the first contents page are both page 1: no anchor for the title page.
+\hypersetup{pageanchor=false}
 \maketitle
+\hypersetup{pageanchor=true}
 \tableofcontents
-\clearpage
 
-\section{Introduction and goals}
+\chapter{Introduction}
+\planned{what the system is and why it was built, the opening figure of the board, and the
+acknowledgement of Bruno Levy's \emph{From Blinker to RISC-V}~\cite{levy-learnfpga}.}
 
-\section{Board and toolchain}
+\chapter{Board and tools}
+\planned{the Genesys~2 parts the design touches, with cited excerpts of Digilent's
+schematic~\cite{digilent-genesys2-rm}, the I/O package view, and the tool versions.}
 
-\section{System architecture}
+\chapter{Repository tour}
+\planned{one table of folders and one of make entry points.}
 
-\section{Multi-cycle core}
+\chapter{System architecture}
+\planned{the SoC block diagram beside the top-level RTL schematic, the memory map, the
+address decode, and clocking and reset.}
 
-\section{Memory subsystem and bus timing}
+% The SoC block diagram, drawn in TikZ, goes beside this figure.
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/rtl_soc}
+  \caption{Vivado's RTL schematic of the SoC top level, \texttt{SOC}, elaborated from the
+    Verilog with \texttt{synth\_design -rtl}.}
+  \label{fig:rtl-soc}
+\end{figure}
 
-\section{Memory-mapped IO}
+\chapter{The multi-cycle core}
+\planned{the FSM state diagram, the datapath, the cycles per instruction class, the ALU RTL
+schematic, and a simulated waveform of one instruction passing through the FSM.}
 
-\section{Clocking and reset}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/rtl_alu}
+  \caption{Vivado's RTL schematic of the ALU, elaborated as its own top so that its ports
+    frame the drawing: the adder and subtractor, the shifters, the comparators and the
+    result multiplexer.}
+  \label{fig:rtl-alu}
+\end{figure}
 
-\section{Boot modes and SPI flash}
+\chapter{Memory and memory-mapped IO}
+\planned{the RAM's read and write timing, the LED register, the UART data and status
+registers, and a simulated waveform of a flash read stalling the core.}
 
-\section{Firmware and toolchain}
+\chapter{Boot modes and the SPI flash}
+\planned{BRAM boot against flash boot, the flash layout, the STARTUPE2 route to the flash
+clock pin~\cite{ug470}, and execute-in-place.}
 
-\section{Verification}
+\chapter{From C to the board}
+\planned{the mandelbrot demo from C source to UART output, with a real excerpt at each stage,
+and the flash-boot branch of the flow.}
 
-\section{Results}
+\chapter{Verification}
+\planned{the ALU unit bench, the golden trace, the regression and the gates.}
 
-\section{Conclusions}
+\chapter{Implementation results}
+\planned{per-module utilization, the timing result and the worst path, the device views, a
+logic-level or slack chart, and the power breakdown.}
+
+\chapter{Results on the board}
+\planned{the demos as captured from the board's UART, and the mandelbrot frame compared
+byte for byte with the golden trace.}
+
+\chapter{For the next student}
+\planned{the pitfalls checklist (symptom, cause, where it is handled) and a ranked list of
+extensions.}
+
+\chapter{Conclusions}
+\planned{what was built, what it shows, and what is left.}
+
+\appendix
+
+\chapter{Memory map}
+\planned{the full memory map, matching \texttt{rtl/defines.vh}.}
+
+\chapter{Make targets}
+\planned{every make target, what it runs and what it needs.}
+
+\chapter{ISA coverage}
+\planned{the RV32I instructions the core executes, and what it leaves out.}
+
+\begin{thebibliography}{9}
+\raggedright  % long URLs do not break
+\phantomsection\addcontentsline{toc}{chapter}{\bibname}
+
+\bibitem{levy-learnfpga}
+B.~Levy, \emph{learn-fpga}, ``From Blinker to RISC-V'', GitHub repository.
+\url{https://github.com/BrunoLevy/learn-fpga}
+
+\bibitem{riscv-isa}
+A.~Waterman and K.~Asanovi\'c (eds.), \emph{The RISC-V Instruction Set Manual, Volume~I:
+Unprivileged ISA}, document version 20191213, RISC-V Foundation.
+
+\bibitem{digilent-genesys2-rm}
+Digilent, \emph{Genesys~2 Reference Manual}.
+\url{https://digilent.com/reference/programmable-logic/genesys-2/reference-manual}
+
+\bibitem{ug470}
+AMD Xilinx, \emph{7 Series FPGAs Configuration User Guide}, UG470.
+
+\bibitem{ug835}
+AMD Xilinx, \emph{Vivado Design Suite Tcl Command Reference Guide}, UG835.
+
+\end{thebibliography}
 
 \end{document}

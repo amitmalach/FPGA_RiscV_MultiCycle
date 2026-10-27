@@ -19,7 +19,7 @@ Undergraduate project by Amit Malach, supervised by Prof. Avi Mendelson, Technio
 - [Building the bitstream](#building-the-bitstream)
 - [Running the demos](#running-the-demos)
 - [Simulation and checks](#simulation-and-checks)
-- [Design document](#design-document)
+- [Final report](#final-report)
 - [Results](#results)
 - [License](#license)
 
@@ -49,7 +49,7 @@ What it does, concretely:
 | UART | On-board USB-UART bridge, 115200 baud, 8N1, transmit only |
 | FPGA tools | Vivado, version TODO (the scripts were written against 2025.2; confirm the version used for the final bitstream) |
 | RISC-V toolchain | `riscv64-unknown-elf-gcc` with `-march=rv32i -mabi=ilp32` (a 64-bit-named toolchain builds RV32I code); the committed firmware image reproduces with GCC 13.2.0 |
-| Host tools | GNU make, a C++ compiler for the ELF-to-hex converter, `pdflatex` for the design document |
+| Host tools | GNU make, a C++ compiler for the ELF-to-hex converter, `pdflatex` for the final report |
 | Simulators | xsim (installed with Vivado) and Icarus Verilog; the root `Makefile` header says which gate needs which |
 
 ## Block diagram
@@ -135,7 +135,7 @@ controller sends a 24-bit address.
 | `sim/` | SoC-level testbench, golden trace, regression script; `ALUBench.v`, the ALU unit bench, and `run_unit.sh`; `sim/asm/` is a Verilog-macro assembler for test programs |
 | `constraints/` | `Genesys-2-Master.xdc`: pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: regenerate the project, build the bitstream, run the non-project baseline, with `common.tcl` shared by all three; `rtl_sources.txt` is the file list every script shares |
-| `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (design document sources and notes) |
+| `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (final report sources, figures and their scripts, design notes) |
 | `scripts/` | `lint.sh`, the pre-commit hook that runs it, the commit-msg hook that checks cited gate logs, and `quote_comment.sh` for moving RTL comments into the design notes |
 | `build/` | Everything generated: the Vivado project, run directories, `SOC.bit`, gate logs. Not tracked |
 
@@ -270,17 +270,19 @@ the regression passes only when a new run is byte-identical to it, cycle count i
 `sim/README.md`. Coding conventions and the rules the lint enforces are in
 `docs/CONTRIBUTING.md`.
 
-## Design document
+## Final report
 
-The design document is a LaTeX project under `docs/design/`. It explains the design choices
+The final report is a LaTeX project under `docs/design/`. It explains the design choices
 and how the core, memory subsystem, SoC and firmware fit together.
 
 ```sh
-make -C docs/design     # pdflatex -> docs/design/build/design.pdf
+make -C docs/design           # pdflatex -> docs/design/build/design.pdf from the committed figures
+make -C docs/design figures   # regenerate the scriptable figures: Vivado, xvfb-run, Ghostscript
 ```
 
 The sources are [`docs/design/design.tex`](docs/design/design.tex) and
-`docs/design/figures/`; the built PDF is not committed until the document has content.
+`docs/design/figures/`, whose README lists every figure, the script behind it, and the recipes
+for the manual ones. The built PDF is not committed until the report has content.
 TODO: link the published PDF here once it exists.
 
 ## Results

@@ -44,10 +44,10 @@ Thumbs.db
 .idea/
 .vs/
 
-# Design document: `make -C docs/design` writes to docs/design/build/ (covered by
+# Final report: `make -C docs/design` writes to docs/design/build/ (covered by
 # build/ above). A pdflatex run started by hand next to the sources leaves these
 # and design.log behind; lint rule 1 flags them. The PDF itself is not ignored:
-# it is committed once the document has content.
+# it is committed once the report has content.
 docs/design/*.aux
 docs/design/*.toc
 docs/design/*.out
