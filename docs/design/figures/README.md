@@ -14,8 +14,8 @@ hand-made drawing (for example `.svg`) next to its exported PDF.
 | `board.jpg` | Title page | by hand: the owner's photo, notes below |
 | `rtl_soc.pdf` | 4, System architecture | `make figures`: `docs/design/scripts/rtl_schematics.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
-| `vivado_routed_worst_path.png` | 10, Implementation results | by hand, recipe below; not taken yet |
-| `vivado_io_package.png` | 2, Board and tools | by hand, recipe below; not taken yet |
+| `vivado_routed_worst_path.png` | 10, Implementation results | by hand, recipe below |
+| `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
 
 ## Scripted figures: `make figures`
 
@@ -91,6 +91,8 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 - File: `vivado_routed_worst_path.png`, chapter 10
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
 - View: Device window, routing resources shown, zoomed to the worst path
+- Taken 2026-10-27 by the owner: the maximised Device panel, 1827x872 at screen scale
+  (GNOME on a 1920x1080 display), zoomed in until the interconnect tiles' names show
 
 1. Common steps 1 to 3. The Device window zooms to the selected path when Auto-fit Selection
    is on in its toolbar; turn it on if the view did not move.
@@ -98,19 +100,23 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 3. In the Device window's toolbar, turn on Routing Resources, so the path follows its routed
    wires instead of straight lines. Zoom out a step if the path touches the border.
 4. Leave the path selected: its wires and cells show white against the module colours.
-5. Take a full-screen screenshot; save it as `docs/design/figures/vivado_routed_worst_path.png`.
+5. Screenshot the maximised panel at screen scale (GNOME: Print, then drag over the panel);
+   save it as `docs/design/figures/vivado_routed_worst_path.png`.
 
 ### I/O package view
 
 - File: `vivado_io_package.png`, chapter 2
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
-- View: Package window of the I/O Planning layout, with the design's 15 bonded pins
-  (`docs/baseline.md`; the sixteenth port, `uart_tx_in`, has no load)
+- View: Package window of the I/O Planning layout, with all 16 ports on their pins in their
+  modules' colours: the 15 bonded IOBs of `docs/baseline.md`, and `uart_tx_in` on Y20, which
+  has no load and so no IOB but keeps its pin from the constraints file
+- Taken 2026-10-27 by the owner, as above: the maximised Package panel, 1827x872
 
 1. Common steps 1 to 3. The helper has coloured the ports with their modules' colours.
 2. Type `unselect_objects` in the Tcl Console, so the path selection colours nothing.
 3. Choose Layout > I/O Planning, maximise the Package window and zoom to fit.
-4. Take a full-screen screenshot and save it as `docs/design/figures/vivado_io_package.png`.
+4. Screenshot the maximised panel as above and save it as
+   `docs/design/figures/vivado_io_package.png`.
 
 ## The board photo
 
