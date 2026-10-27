@@ -11,6 +11,7 @@ hand-made drawing (for example `.svg`) next to its exported PDF.
 
 | File in `docs/design/figures/` | Chapter | Made by |
 |---|---|---|
+| `board.jpg` | Title page | by hand: the owner's photo, notes below |
 | `rtl_soc.pdf` | 4, System architecture | `make figures`: `docs/design/scripts/rtl_schematics.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
 | `vivado_routed_worst_path.png` | 10, Implementation results | by hand, recipe below; not taken yet |
@@ -110,3 +111,12 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 2. Type `unselect_objects` in the Tcl Console, so the path selection colours nothing.
 3. Choose Layout > I/O Planning, maximise the Package window and zoom to fit.
 4. Take a full-screen screenshot and save it as `docs/design/figures/vivado_io_package.png`.
+
+## The board photo
+
+- File: `board.jpg`, the title page, under the TikZ labels
+- iPhone 14, the board's top side, powered on and running Digilent's factory demo (DONE, PGOOD,
+  LD0 to LD2 and the OLED lit), room light, no flash
+- Cropped on the phone to 1964x1507 (3.0 MP), with a slight tilt. Issue #18 asked for a
+  straight top-down daylight shot of at least 12 MP; the owner accepted this one. A retake
+  replaces the file under the same name.
