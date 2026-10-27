@@ -2,11 +2,11 @@
 
 The rationale behind the RTL and the firmware, in the words of the long comments that once
 sat in the sources, kept close to verbatim (lines over 100 characters are re-wrapped and old
-file names are rewritten) so the design document can draw on it. Each entry names the
+file names are rewritten) so the final report can draw on it. Each entry names the
 module and the signal or construct the comment sat next to. Comments explaining Verilog
 syntax were dropped without record. Signal names in the quoted text are those of the time.
 
-This file is the declared input of the design document.
+This file is the declared input of the final report.
 
 ## SOC (`rtl/SOC.v`)
 
