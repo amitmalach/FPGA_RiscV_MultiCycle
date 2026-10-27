@@ -26,7 +26,17 @@
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
 \usepackage[hidelinks]{hyperref}
+
+% Callouts on board photos: a label in the margin, an arrow with a white halo, so that it
+% shows on the black board and on the white page alike.
+\tikzset{
+  callout/.style={-{Stealth[length=2.2mm]}, line width=0.8pt, draw=red!80!black,
+    preaction={draw=white, line width=2.4pt, -{Stealth[length=2.8mm]}}},
+  callout label/.style={font=\footnotesize, text width=3cm, inner sep=1pt},
+}
 
 % The report's module colours, the same as in scripts/gui_helper.tcl and figures/README.md.
 \definecolor{modcore}{RGB}{0,114,178}
@@ -64,6 +74,57 @@ acknowledgement of Bruno Levy's \emph{From Blinker to RISC-V}~\cite{levy-learnfp
 \chapter{Board and tools}
 \planned{the Genesys~2 parts the design touches, with cited excerpts of Digilent's
 schematic~\cite{digilent-genesys2-rm}, the I/O package view, and the tool versions.}
+
+% The top view, figures/board.jpg, is the title page's photo. The callouts below point in the
+% photo's pixels, measured on a 1400-pixel-wide copy: one unit is 9.2 cm / 1400.
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[x=9.2cm/1400, y=-9.2cm/1400]
+    \node[anchor=north west, inner sep=0] at (0,0)
+      {\includegraphics[width=9.2cm]{figures/board_bottom}};
+    % Left margin, top to bottom.
+    \node[callout label, anchor=east, align=flush right] (sd) at (-40,250)
+      {microSD slot (J3)};
+    \node[callout label, anchor=east, align=flush right] (ina) at (-40,410)
+      {INA219 current\\monitors};
+    \node[callout label, anchor=east, align=flush right] (dec) at (-40,570)
+      {FPGA decoupling\\capacitors};
+    \node[callout label, anchor=east, align=flush right] (pcb) at (-40,730)
+      {board PB200-300,\\revision~H};
+    \node[callout label, anchor=east, align=flush right] (oled) at (-40,890)
+      {OLED display's\\flex cable};
+    % Right margin, top to bottom.
+    \node[callout label, anchor=west, align=flush left] (tmds) at (1440,120)
+      {HDMI buffer,\\TMDS141};
+    \node[callout label, anchor=west, align=flush left] (uart) at (1440,270)
+      {\textbf{UART} micro-USB\\port (J15)};
+    \node[callout label, anchor=west, align=flush left] (qspi) at (1440,420)
+      {\textbf{QSPI flash},\\S25FL256S (IC26)};
+    \node[callout label, anchor=west, align=flush left] (otg) at (1440,610)
+      {USB OTG port (J6),\\TUSB1210 PHY (IC5)};
+    \node[callout label, anchor=west, align=flush left] (jtag) at (1440,800)
+      {\textbf{JTAG} micro-USB\\port (J17)};
+    \draw[callout] (sd.east) -- (122,293);
+    \draw[callout] (ina.east) -- (271,414);
+    \draw[callout] (ina.east) -- (584,231);
+    \draw[callout] (dec.east) -- (560,470);
+    \draw[callout] (pcb.east) -- (800,553);
+    \draw[callout] (oled.east) -- (645,820);
+    \draw[callout] (tmds.west) -- (885,225);
+    \draw[callout] (uart.west) -- (1285,310);
+    \draw[callout] (qspi.west) -- (953,343);
+    \draw[callout] (otg.west) -- (1265,452);
+    \draw[callout] (otg.west) -- (1130,458);
+    \draw[callout] (jtag.west) -- (1255,700);
+  \end{tikzpicture}
+  \caption{The underside of the Genesys~2, the top view mirrored: the UART and JTAG ports,
+    on the left edge from above, are on the right here. Bold labels name the parts this design
+    uses: the QSPI flash, which holds the bitstream, the demo data and the flash-boot program
+    (Chapter~\ref{ch:flash}), and the two micro-USB ports that carry its UART output and its
+    programming. The parts are named from their markings and Digilent's
+    schematic~\cite{digilent-genesys2-sch}.}
+  \label{fig:board-bottom}
+\end{figure}
 
 \begin{table}[htbp]
   \centering
@@ -134,6 +195,7 @@ schematic, and a simulated waveform of one instruction passing through the FSM.}
 registers, and a simulated waveform of a flash read stalling the core.}
 
 \chapter{Boot modes and the SPI flash}
+\label{ch:flash}
 \planned{BRAM boot against flash boot, the flash layout, the STARTUPE2 route to the flash
 clock pin~\cite{ug470}, and execute-in-place.}
 
@@ -234,6 +296,9 @@ Unprivileged ISA}, document version 20191213, RISC-V Foundation.
 \bibitem{digilent-genesys2-rm}
 Digilent, \emph{Genesys~2 Reference Manual}.
 \url{https://digilent.com/reference/programmable-logic/genesys-2/reference-manual}
+
+\bibitem{digilent-genesys2-sch}
+Digilent, \emph{Genesys~2 Schematic}, 22 pages, 2015.
 
 \bibitem{ug470}
 AMD Xilinx, \emph{7 Series FPGAs Configuration User Guide}, UG470.

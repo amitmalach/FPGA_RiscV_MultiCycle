@@ -10,9 +10,14 @@ to the repository root.
 Formats: PDF for vector drawings, PNG for screenshots, JPEG for photos. Keep the source of a
 hand-made drawing (for example `.svg`) next to its exported PDF.
 
+A photo is committed without its metadata: a phone writes the GPS position into the EXIF
+block, and the repository is public. Keep only the JFIF header, the ICC colour profile and the
+image data; dropping segments, rather than re-saving, leaves every pixel as it was.
+
 | File in `docs/design/figures/` | Chapter | Made by |
 |---|---|---|
 | `board.jpg` | Title page | by hand: the owner's photo, notes below |
+| `board_bottom.jpg` | 2, Board and tools | by hand: the owner's photo, notes below |
 | `rtl_soc.pdf` | 4, System architecture | `make figures`: `docs/design/scripts/rtl_schematics.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
 | `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
@@ -132,7 +137,9 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 4. Screenshot the maximised panel as above and save it as
    `docs/design/figures/vivado_io_package.png`.
 
-## The board photo
+## The board photos
+
+### Top side
 
 - File: `board.jpg`, the title page, under the TikZ labels
 - iPhone 14, the board's top side, powered on and running Digilent's factory demo (DONE, PGOOD,
@@ -140,3 +147,18 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 - Cropped on the phone to 1964x1507 (3.0 MP), with a slight tilt. Issue #18 asked for a
   straight top-down daylight shot of at least 12 MP; the owner accepted this one. A retake
   replaces the file under the same name.
+- Metadata stripped on 2026-10-27, after the first commit of the photo: the Git history keeps
+  that first version, with its GPS position.
+
+### Underside
+
+- File: `board_bottom.jpg`, chapter 2, figure `fig:board-bottom`, under TikZ callouts in
+  `design.tex` that point at photo pixels (measured on a 1400-pixel-wide copy)
+- iPhone 14, taken the same evening as the top side, held by hand at its lower left corner,
+  room light; 2519x1948 (4.9 MP) as committed, metadata stripped
+- The parts are named from their markings and Digilent's Genesys 2 schematic: IC26 the
+  S25FL256S QSPI flash (schematic page 15, with the QSPI and CCLK nets), IC5 the TUSB1210 USB
+  PHY with its oscillator IC4, a TMDS141 HDMI buffer (IC2 or IC3), IC33, IC34 and their
+  look-alikes the INA219 current monitors, J3 the microSD slot. The decoupling capacitors are
+  the dense field directly below the FPGA's place on the top side.
+- A retake must keep the framing, or the callout coordinates in `design.tex` move with it.
