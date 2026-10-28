@@ -25,6 +25,7 @@
 \usepackage{subcaption}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{enumitem}
 \usepackage{xcolor}
 \usepackage{titlesec}
 \usepackage{tikz}
@@ -64,6 +65,10 @@
 \renewcommand{\textfraction}{0.07}
 \renewcommand{\floatpagefraction}{0.85}
 
+% Long file names in \texttt do not hyphenate: let a paragraph that cannot otherwise be set
+% stretch its spaces rather than run into the margin.
+\setlength{\emergencystretch}{3em}
+
 % What a chapter will hold, until it is written.
 \newcommand{\planned}[1]{\noindent{\color{gray}\itshape To hold: #1}\par}
 
@@ -78,6 +83,19 @@
 % A citation of the design notes, docs/design/notes.md, by section heading: the notes hold
 % the full reasoning, the report states the choice.
 \newcommand{\notes}[1]{(\texttt{notes.md}, ``#1'')}
+
+% A pitfall of Chapter 12, numbered P1, P2, ... so that the module chapters can cite it by its
+% label: \pitfall{label}{title}{symptom}{cause}{where it is handled}.
+\newcounter{pitfall}
+\renewcommand{\thepitfall}{P\arabic{pitfall}}
+\newcommand{\pitfall}[5]{%
+  \par\medskip\noindent\refstepcounter{pitfall}\label{#1}%
+  \textbf{\thepitfall\quad #2}\par\nopagebreak
+  \begin{description}[nosep, leftmargin=1.5em, font=\normalfont\itshape]
+    \item[Symptom.] #3
+    \item[Cause.] #4
+    \item[Handled.] #5
+  \end{description}}
 
 \title{A Multi-cycle RV32I System on Chip for the Digilent Genesys 2}
 \author{Amit Malach \\ Supervisor: Prof.\ Avi Mendelson \\ Technion -- Israel Institute of Technology}
@@ -191,7 +209,7 @@ the LED register lights it.
 take the PC's view for TX and RX and the FPGA's for in and out: \texttt{UART\_TX\_IN} is the
 PC's transmit line, buffered by IC25D, into the FPGA, and \texttt{UART\_RX\_OUT} is the
 FPGA's transmit line into the bridge's RXD. The design only transmits, on
-\texttt{uart\_rx\_out}; mixing the two up is a pitfall of Chapter~\ref{ch:next}
+\texttt{uart\_rx\_out}; mixing the two up is pitfall~\ref{pit:uart-pins}
 \notes{UART port names and the pin-direction trap}.
 
 \paragraph{QSPI flash.} The flash sits on the FPGA's configuration pins, so the FPGA can
@@ -321,7 +339,95 @@ so the numbers of Chapter~\ref{ch:results} hold for 2025.2.
 \end{table}
 
 \chapter{Repository tour}
-\planned{one table of folders and one of make entry points.}
+\label{ch:repo}
+
+The repository is a plain source tree. Its Vivado project is not committed but generated, by
+\texttt{vivado/create\_project.tcl}, into \texttt{build/vivado/}, and refers to the sources
+where they are; what the tools generate, git ignores, nearly all of it under a \texttt{build/}
+directory. Table~\ref{tab:folders} gives the folders and Table~\ref{tab:entry-points} the make
+commands a change starts from; Appendix~\ref{app:make} lists every target, with what it needs.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.5cm}
+      >{\raggedright\arraybackslash}p{11.4cm}@{}}
+    \toprule
+    Folder & What it holds \\
+    \midrule
+    \texttt{rtl/} & The synthesisable Verilog, one module per file: \texttt{SOC.v}, the top;
+      \texttt{Processor.v} with \texttt{Decoder.v}, \texttt{ALU.v}, \texttt{RegisterFile.v}
+      and \texttt{Control.v}; \texttt{IOBus.v}, \texttt{Memory.v}, \texttt{UartTx.v},
+      \texttt{SPIFlash.v} and \texttt{Clockworks.v}; \texttt{defines.vh}, the memory map and
+      the bus widths; \texttt{firmware.hex}, the one firmware image \\
+    \texttt{fw/} & The demos, in C and assembly, their start-up code and linker scripts, the
+      \texttt{Makefile}, the ELF-to-hex converter and \texttt{write\_mcs.tcl}; \texttt{tests/}
+      holds the firmware check \\
+    \texttt{sim/} & The SoC testbench, \texttt{bench.v}, the golden trace in \texttt{golden/}
+      and \texttt{run\_regression.sh}; the ALU unit bench, \texttt{ALUBench.v}, and
+      \texttt{run\_unit.sh}; \texttt{asm/}, a Verilog-macro assembler for test programs \\
+    \texttt{constraints/} & \texttt{Genesys-2-Master.xdc}: the pins and the 200~MHz clock \\
+    \texttt{vivado/} & The Tcl scripts that regenerate the project, build the bitstream and
+      run the non-project baseline, with \texttt{common.tcl} shared by all three;
+      \texttt{rtl\_sources.txt}, the file list every script reads \\
+    \texttt{docs/} & \texttt{CONTRIBUTING.md}, the coding conventions and the gates;
+      \texttt{baseline.md}, the baseline trace and synthesis numbers; \texttt{design/}, this
+      report's sources, its figures and their scripts, the board captures, the design notes,
+      and \texttt{scripts/flashregs/}, a small FPGA design that reads and sets the flash's
+      Quad Enable bit \\
+    \texttt{scripts/} & \texttt{lint.sh}, the pre-commit hook that runs it, the commit-msg hook
+      that checks cited gate logs, and \texttt{quote\_comment.sh}, which moves an RTL comment
+      into the design notes \\
+    \texttt{build/} & Everything generated: the Vivado project, run directories,
+      \texttt{SOC.bit}, the gates' logs. Not tracked \\
+    \bottomrule
+  \end{tabular}
+  \caption{The folders, as the README's ``Repository layout'' lists them.}
+  \label{tab:folders}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.3cm}
+      >{\raggedright\arraybackslash}p{9.6cm}@{}}
+    \toprule
+    Command & What it does \\
+    \midrule
+    \texttt{make lint} & The tool-free checks of \texttt{scripts/lint.sh}, in seconds \\
+    \texttt{make unit} & The ALU unit bench, under iverilog, in seconds \\
+    \texttt{make smoke} & \texttt{unit}, the firmware check, then the regression's first
+      4~million cycles: about 25~s \\
+    \texttt{make -j2 check} & \texttt{unit}, then the firmware check, the full regression
+      and Vivado synthesis: about 6~minutes. Its parts run alone as \texttt{check-fw},
+      \texttt{check-sim} and \texttt{check-synth} \\
+    \texttt{make golden} & Re-captures the golden trace, for an intended change of behaviour
+      only \\
+    \texttt{make check-moves BASE=}\emph{rev} & Every file moved since \emph{rev} is a
+      byte-identical rename \\
+    \texttt{make bitstream} & Synthesis, implementation and \texttt{build/SOC.bit}, in flash
+      boot \\
+    \texttt{make baseline} & The non-project run behind \texttt{docs/baseline.md}, with its
+      reports in \texttt{build/baseline/}: about a minute \\
+    \midrule
+    \texttt{make -C fw} & Mandelbrot in BRAM boot, written to \texttt{rtl/firmware.hex};
+      \texttt{PROG=} picks another demo and \texttt{TARGET=flash} builds for flash boot \\
+    \texttt{make -C docs/design} & This report, from the committed figures; \texttt{figures}
+      regenerates them \\
+    \bottomrule
+  \end{tabular}
+  \caption{The make entry points. The first eight are the targets of the root
+    \texttt{Makefile}, whose header says what each runs; Chapter~\ref{ch:verif} says when each
+    one runs.}
+  \label{tab:entry-points}
+\end{table}
+
+A first reading of the sources can follow the bus outwards: \texttt{rtl/defines.vh} for the
+memory map, \texttt{rtl/SOC.v} for the wiring, \texttt{rtl/Control.v} and
+\texttt{rtl/Processor.v} for the core, then \texttt{fw/start.S} and \texttt{fw/mandelbrot.c}
+for the program the regression runs. The design notes, \texttt{docs/design/notes.md}, are
+grouped by module, and each \texttt{notes.md} citation in this report names one of their
+sections.
 
 \chapter{System architecture}
 \label{ch:arch}
@@ -531,15 +637,12 @@ configuration already in its reset state and starts without a press of the butto
 none and configure to zero: the LEDs dark, and the UART in its idle state, whose first
 clock raises the line and \texttt{ready}. In flash boot a press is still needed on the
 board, for a reason that lies in the flash controller's start-up, not here
-(Chapter~\ref{ch:board}).
+(pitfall~\ref{pit:first-fetch}).
 
-The one subtlety of the reset is where the FSM lands. Reset puts the core in
-\texttt{WAIT\_DATA}, not \texttt{FETCH\_INSTR}, because \texttt{FETCH\_INSTR} asserts the
-read strobe for as long as it lasts, and a reset held for many cycles with \texttt{pc} in
-flash space would restart the SPI transaction on every cycle with chip select held low.
-\texttt{WAIT\_DATA} asserts nothing, and falls through to \texttt{FETCH\_INSTR} in the first
-cycle after the button is released: one cycle at boot buys a correctly framed first
-transaction \notes{Reset lands in WAIT\_DATA, not FETCH\_INSTR}.
+The one subtlety of the reset is where the FSM lands: in \texttt{WAIT\_DATA}, which asserts
+no strobe and falls through to \texttt{FETCH\_INSTR} in the first cycle after the button is
+released, and not in \texttt{FETCH\_INSTR} itself. Pitfall~\ref{pit:reset-wait-data} gives
+the reason \notes{Reset lands in WAIT\_DATA, not FETCH\_INSTR}.
 
 \chapter{The multi-cycle core}
 \label{ch:core}
@@ -662,8 +765,8 @@ either way, \texttt{funct3} picks one of the eight operations, and a second case
 \texttt{funct3} computes the six branch conditions on \texttt{rs1} and \texttt{rs2}, with a
 default of zero so that no latch is inferred \notes{Branch comparator default arm}. Both
 arms of the right shift are signed: with one of them unsigned, Verilog's \texttt{>>>} shifts
-logically, and \texttt{SRA} behaved as \texttt{SRL} until the golden trace caught it
-(Chapters~\ref{ch:verif} and~\ref{ch:next}).
+logically, and \texttt{SRA} behaved as \texttt{SRL} until the golden trace's frame was compared
+with the C program (pitfall~\ref{pit:sra}).
 
 \begin{figure}[tbp]
   \centering
@@ -688,8 +791,9 @@ land in and lets the byte mask select \notes{Store data is broadcast to every la
 mask selects}. The write-back multiplexer gives \texttt{rd} its value: \texttt{pc + 4} for
 the jumps, the U-immediate for \texttt{LUI}, \texttt{pc} plus it for \texttt{AUIPC}, the
 aligned load data, or the ALU result. The worst timing path of the design runs through
-this glue, from the instruction register through the decoder and the ALU's carry chain to
-the register file's write port (Chapter~\ref{ch:results}).
+this glue, from the instruction register through the load-store address adder, the region
+decode and the load lanes to the register file's write port (Chapter~\ref{ch:results},
+pitfall~\ref{pit:worst-path}).
 
 \section{One instruction through the states}
 
@@ -752,7 +856,7 @@ with \texttt{\$readmemh} when the bitstream is synthesised, so a BRAM-boot progr
 the bitstream and a new program is a new bitstream (Chapter~\ref{ch:flash}). The file is
 read by bare name, relative to the working directory of the tool
 \notes{Bare file name in \$readmemh}, and a missing file leaves the RAM undefined with no
-error, as the header of \texttt{rtl/Memory.v} warns: a pitfall of Chapter~\ref{ch:next}.
+error, as the header of \texttt{rtl/Memory.v} warns: pitfall~\ref{pit:bare-name}.
 
 \section{The LED register and the UART}
 
@@ -937,7 +1041,7 @@ bit~24 selects flash space (Section~\ref{sec:memmap}); the upper 16~MB of the ch
 need a four-byte address. Flash boot writes only the code window, with
 ``Configuration File Only'', and never offset~0, and the design is loaded over JTAG: the
 board keeps booting the bitstream it booted before, provided the write keeps the flash's
-Quad Enable bit (Chapter~\ref{ch:board}, ``The Quad Enable bit'').
+Quad Enable bit (pitfall~\ref{pit:quad-enable}).
 
 \section{CCLK and STARTUPE2}
 \label{sec:cclk}
@@ -954,8 +1058,8 @@ to \texttt{USRCCLKO}, holds \texttt{USRCCLKTS} low so the pin stays driven, and 
 controller only once \texttt{EOS} is high \notes{SPI flash CCLK access through STARTUPE2}
 \notes{Flash read strobe gated by end-of-startup; 22-bit word address}.
 
-The hand-over is not immediate, and this is where flash boot meets the pitfall of
-Chapter~\ref{ch:board}. Vivado's simulation model of \texttt{STARTUPE2} keeps CCLK high
+The hand-over is not immediate, and this is where flash boot meets
+pitfall~\ref{pit:first-fetch}. Vivado's simulation model of \texttt{STARTUPE2} keeps CCLK high
 after end of startup until \texttt{USRCCLKO} has risen twice, and follows it only from
 then on. The simulation behind Figure~\ref{fig:wave-flash} shows what that does to the first
 transaction: \texttt{EOS} is high 100~ns into the run, before the first read strobe, so
@@ -964,9 +1068,10 @@ misreads the command, and the core latches a word of ones and undriven bits in p
 \texttt{lui gp,0x400}, the first instruction of \texttt{fw/start\_spiflash.S}; the second
 and later fetches are correct. This is the fetch the board most likely loses after
 configuration, and in the simulation the \texttt{EOS} gate plays no part: the CCLK
-hand-over alone loses it. Chapter~\ref{ch:next} lists the pitfall and the candidate fix.
+hand-over alone loses it. Pitfall~\ref{pit:first-fetch} gives the candidate fix.
 
 \section{Execute-in-place}
+\label{sec:xip}
 
 In flash boot the code is not copied into the RAM: the core fetches each instruction from
 the flash, one transaction per word, and \texttt{.text} and \texttt{.rodata} stay there
@@ -1119,7 +1224,116 @@ is shown as the same program.
 
 \chapter{Verification}
 \label{ch:verif}
-\planned{the ALU unit bench, the golden trace, the regression and the gates.}
+
+The design is checked at three levels: one module against values worked out by hand, the whole
+SoC against a recorded trace, and the repository against mechanical rules. A make target runs
+each check, and each target, a gate, leaves a log that a commit cites.
+
+\section{The ALU unit bench}
+
+\texttt{sim/ALUBench.v} drives the ports of \texttt{rtl/ALU.v} directly and compares ten right
+shifts with results worked out by hand from the RV32I specification~\cite{riscv-isa}, not from
+the RTL: \texttt{SRL}, \texttt{SRA}, \texttt{SRLI} and \texttt{SRAI} on negative, positive and
+most-negative operands, by 0, 4, 9 and~31 places, and with the upper bits of the shift operand
+set, which the ALU must ignore. The operand the instruction does not use is set to
+\texttt{0xDEADBEEF}, so that a wrong operand choice shows. \texttt{make unit} runs the bench
+under iverilog in seconds, and passes only on its final \texttt{PASS} line, so a bench that
+stops early fails too.
+
+The bench covers what the golden trace cannot. The golden trace records what the RTL did when
+it was captured, right or wrong, so a bug present at capture is part of the reference.
+\texttt{SRA} shifted logically when the first trace was captured, and the trace agreed with it
+until its frame was compared with the C program compiled natively (pitfall~\ref{pit:sra}). The
+bench holds the shifts to the specification, whatever the trace says. It checks the shifts
+only; the rest of the ALU is held by the golden trace alone.
+
+\section{The golden trace}
+
+\texttt{sim/bench.v} instantiates \texttt{SOC} in BRAM boot, with \texttt{BOOT\_ADDR} set
+to~0, and records only what an observer outside the chip could see: every byte on the UART
+line, decoded from the pin as a receiver decodes it, each bit sampled in its middle, and every
+change of the LEDs, with its time. It reads no internal signal, so the RTL can be restructured
+freely and the same trace still applies. It writes one line per event: a \texttt{UART} line
+for each byte, a \texttt{LEDS} line for each change, with its time in nanoseconds, and an
+\texttt{END} line that says why and when the run stopped. The golden trace opens with ESC and
+closes with its one LED change:
+
+\begin{center}
+  \small
+  \begin{tabular}{@{}l@{}}
+    \texttt{UART 1b} \\
+    \quad\vdots \\
+    \texttt{LEDS 1031464038 01} \\
+    \texttt{END stop\_leds cycles=206292808 uart\_bytes=11014 leds=01} \\
+  \end{tabular}
+\end{center}
+
+The run stops when the LED register becomes~1, which the mandelbrot demo writes at the top of
+its second frame, so the trace holds exactly one frame. The committed trace,
+\texttt{sim/golden/mandelbrot\_bram.txt}, is 206\,292\,808 cycles, 1.031~s of simulated time,
+with 11\,014 UART bytes and one LED change (\texttt{docs/baseline.md}). Its \texttt{END} line
+carries the cycle count on purpose: a change that keeps every byte but alters the timing of a
+single instruction fails, so the trace holds the cycle counts of Table~\ref{tab:cycles} as
+well as the results.
+
+Two comparisons tie the trace to things outside the simulation. Its UART bytes are, byte for
+byte, the first frame \texttt{fw/mandelbrot.c} prints when compiled natively for the PC, so the
+trace is what the C source means; and they are, byte for byte, the first frame the real board
+sent, whose time matches the cycle count within the board's timestamps' accuracy, about 2~ms
+(Chapter~\ref{ch:board}), so the trace is what the hardware does.
+
+\section{The regression}
+
+\texttt{sim/run\_regression.sh} compiles the files of \texttt{vivado/rtl\_sources.txt} and the
+bench in xsim, links the committed firmware image into its build directory, since
+\texttt{Memory.v} reads it by bare name (pitfall~\ref{pit:bare-name}), simulates, and compares
+the new trace with the golden one. It passes only when the two are byte-identical; the full
+run takes five to six minutes. With \texttt{--max-cycles} it is the smoke run: the simulation
+stops after that many cycles, and the truncated trace must be a prefix of the golden one,
+which catches most mistakes in 25~seconds. \texttt{make golden} overwrites the golden trace
+with a new run. It is the one way to change the reference, and is meant for an intended change
+of behaviour only, whose commit says why and which also redoes \texttt{make baseline}.
+
+The regression runs one program in one boot mode, so it covers what mandelbrot does in BRAM
+boot and nothing else. Mandelbrot's code holds 24 of the 37 RV32I instructions other than
+\texttt{FENCE}, \texttt{ECALL} and \texttt{EBREAK}; it never executes \texttt{SLL},
+\texttt{SRA}, \texttt{SLT}, \texttt{SLTU}, \texttt{XOR}, \texttt{SLTI}, \texttt{SLTIU},
+\texttt{XORI}, \texttt{ORI}, \texttt{LB}, \texttt{LH}, \texttt{LHU} or \texttt{SH}, and no
+gate runs them through the core; the unit bench checks the ALU's \texttt{SRA} alone. The flash
+is not covered either: the bench has no flash model. Flash boot is simulated only by the
+report's own bench, \texttt{docs/design/scripts/waves/WaveBench.v}, for the waveforms of
+Figure~\ref{fig:wave-flash}, and no gate runs it.
+
+\section{The gates}
+
+The gates are the targets of the root \texttt{Makefile} (Table~\ref{tab:entry-points};
+Appendix~\ref{app:make} gives what each runs and needs). Each but \texttt{check}, which only
+runs its three parts, writes its output to a log in \texttt{build/logs/}, named after the gate
+and the time and ending in \texttt{PASS} or \texttt{FAIL}, and \texttt{docs/CONTRIBUTING.md},
+``Gates and evidence'', says which a change needs: \texttt{make lint} before every commit,
+\texttt{make smoke} after each RTL edit, \texttt{make -j2 check} once per change, after its
+review and before any push, and \texttt{make baseline} as well when the change must show that
+timing still holds. A commit
+message cites the log of each gate it ran. The commit-msg hook in \texttt{scripts/hooks}
+refuses a citation of a log that does not exist or did not pass, and a message that claims a
+pass without citing a log; the pre-commit hook runs \texttt{make lint}, and GitHub Actions runs
+it again on every push.
+
+\texttt{make check} stops after synthesis and reports no timing; only \texttt{make baseline}
+and \texttt{make bitstream} route the design.
+
+\texttt{make lint} holds what no reviewer should have to check by eye. Rule~1 finds tool
+by-products beside the sources, which is how a tool run from the wrong directory shows
+(pitfall~\ref{pit:bare-name}); rule~2 finds retired paths and vocabulary; rule~3 limits
+Markdown prose to 100 characters a line; rule~4 holds \texttt{vivado/rtl\_sources.txt} equal
+to the files in \texttt{rtl/}, since a file missing from it would compile nowhere and fail
+nowhere; rules 5, 6, 7 and~9 hold the naming and banner conventions of
+\texttt{docs/CONTRIBUTING.md}.
+Two rules hold copies equal to their source. Rule~8 holds every firmware copy of the memory
+map, and the README's tables, equal to \texttt{rtl/defines.vh} (Section~\ref{sec:memmap});
+rule~10 holds the trace numbers of \texttt{docs/baseline.md} equal to the golden trace. Each
+of the two has a self-test, which changes or deletes every value the rule checks and expects
+it to fail, and lint runs both self-tests every time.
 
 \chapter{Implementation results}
 \label{ch:results}
@@ -1195,7 +1409,7 @@ load, so the write in \texttt{WAIT\_DATA} waits on the whole adder again. Of the
 in the routing between them, and a clock skew of \implPathSkew~ns counts against it too.
 Routing dominates, as it usually does on an FPGA: fewer levels, not faster cells, would shorten
 the path. Registering the load-store address, or only its region bit, would take the adder off
-it; Chapter~\ref{ch:next} lists the path among its pitfalls. Figures~\ref{fig:device-zoom}
+it (pitfall~\ref{pit:worst-path}). Figures~\ref{fig:device-zoom}
 and~\ref{fig:worst-path} show it on the device.
 
 \begin{figure}[htbp]
@@ -1416,30 +1630,19 @@ capture, the capture script reads the code window back and compares it with the 
 nothing and the LEDs stayed dark: in the capture behind Figure~\ref{fig:board-tinyraytracer},
 no byte arrived in the 44~s between the end of the load and a press of the CPU reset button.
 From the press on, the demo ran to the end, so flash boot works on this board with the reset
-button pressed once after each load. Everything points to the core losing its first fetch
-from the flash straight after configuration: that fetch is \texttt{li gp, IO\_BASE}, the first
-instruction of \texttt{fw/start\_spiflash.S}, and without it the UART writes go to RAM
-address~8, over the code that start-up has just copied there. Two parts of the design can
-lose it. \texttt{STARTUPE2} hands the CCLK pin to user logic only after a few cycles of
-\texttt{USRCCLKO}, as Vivado's simulation model of the primitive shows, so the first SPI
-transaction can miss its first clock edges; and \texttt{IOBus} drops a flash read requested
-before end of startup instead of stalling it, while the core starts fetching as soon as
-configuration releases the flip-flops. In simulation the first alone loses the fetch
-(Section~\ref{sec:cclk}). The pitfall and its fix belong to Chapter~\ref{ch:next}.
+button pressed once after each load. The core most likely loses its first fetch from the flash
+straight after configuration; pitfall~\ref{pit:first-fetch} gives the mechanism and a
+candidate fix.
 
-\paragraph{The Quad Enable bit.} Writing the image cost the board its power-on boot. The
-write, with Vivado's \texttt{hw\_cfgmem} property \texttt{PROGRAM.SKIP\_QE\_BIT\_ERASE} at its
-default, cleared the flash's non-volatile Quad Enable bit (S25FL256S configuration register~1,
-bit~1), and a second write of the image with an SPIx4 \texttt{.prm} did not set it back. The
-factory bitstream reads the flash four bits wide (opcode
-\texttt{0x6C} in its BSPI register) and needs the bit: at the next power-on the FPGA stalled in
-configuration, DONE low and no error flag set, with every byte of the flash intact. Vivado's
-Tcl reads no flash register, so a small design of its own,
-\texttt{docs/design/scripts/flashregs/FlashRegs.v}, loaded over JTAG, read the register
-(\texttt{0x00}: the bit clear), wrote it back to \texttt{0x02}, and the FPGA configured from
-the flash again over JTAG, DONE high; a further write of the image with the property set kept
-the bit, and at the next power-on the board booted Digilent's factory demo again. This pitfall
-belongs to Chapter~\ref{ch:next} too.
+\paragraph{The Quad Enable bit.} Writing the image cost the board its power-on boot: the
+write cleared the Quad Enable bit, bit~1 of the flash's non-volatile configuration
+register~1, which the factory bitstream needs, and at the next power-on the FPGA stalled in
+configuration, DONE low and no error flag set, with every byte of the flash intact. A small
+design loaded over JTAG, \texttt{FlashRegs.v} in \texttt{docs/design/scripts/flashregs/}, read
+the register and set the bit again, and the FPGA configured from the flash once more. A further
+write of the image with \texttt{PROGRAM.SKIP\_QE\_BIT\_ERASE} set kept the bit, and at the
+next power-on the board booted Digilent's factory demo again. Pitfall~\ref{pit:quad-enable}
+gives the cause.
 
 \paragraph{The picture.} Figure~\ref{fig:board-tinyraytracer} shows what the board sent:
 48 by 24 pixels, each one terminal cell, a space on one of xterm's 256 colours.
@@ -1475,8 +1678,188 @@ hex digits, which \texttt{fw/print.c} prints in upper case.
 
 \chapter{For the next student}
 \label{ch:next}
-\planned{the pitfalls checklist (symptom, cause, where it is handled) and a ranked list of
-extensions.}
+
+This chapter is for whoever extends the design next: the traps this project fell into, and
+where to go from here.
+
+\section{Pitfalls}
+
+Each pitfall below cost time once. Each gives the symptom as it showed, or would show, the
+cause, and where the design or the repository now handles it; the other chapters cite them by
+number.
+
+\pitfall{pit:uart-pins}{The UART pin-direction trap}
+{Not one byte reaches the PC and the bridge's activity LED, LD12, never blinks, while the
+design looks healthy inside, in simulation as well.}
+{The board's net names mix two points of view: TX and RX are the PC's, \texttt{\_in} and
+\texttt{\_out} the FPGA's. \texttt{uart\_rx\_out} is the FPGA's transmit line. Reading
+\texttt{\_in} as ``into the PC'' swaps the two pins, and the transmitter drives Y20 against
+the bridge's own TXD. A testbench that prints what the core handed the UART, instead of
+decoding the pin, cannot see it.}
+{The ports of \texttt{SOC} keep their names and directions, which the constraints file and
+the testbench bind to (\texttt{docs/CONTRIBUTING.md}), and \texttt{sim/bench.v} decodes the
+\texttt{uart\_rx\_out} pin as a receiver does. Chapter~\ref{ch:board-tools} follows the nets
+through the schematic \notes{UART port names and the pin-direction trap}.}
+
+\pitfall{pit:bare-name}{The firmware image read by bare file name}
+{In simulation the program does nothing: the LEDs stay at zero and the RAM reads
+\texttt{x}, with only a warning in xsim's log. After a Vivado run, \texttt{.Xil/} and
+\texttt{clockInfo.txt} appear beside the sources.}
+{\texttt{Memory.v} reads \texttt{firmware.hex} with \texttt{\$readmemh} by bare name,
+relative to the working directory of whichever tool runs, and a missing file leaves the RAM
+undefined without an error. A tool started in the wrong directory either finds no image or
+leaves its by-products there.}
+{Every script that simulates or synthesises runs in a directory of its own with the image
+linked or copied in: \texttt{sim/run\_regression.sh} links it into \texttt{sim/build/}, the
+root \texttt{Makefile} starts Vivado in \texttt{build/}, and the Vivado project lists the image
+in both its filesets. Lint rule~1 fails on by-products beside the sources
+(Chapter~\ref{ch:verif}), and the header of \texttt{rtl/Memory.v} warns
+\notes{Bare file name in \$readmemh}.}
+
+\pitfall{pit:init-values}{The simulation hang without initial values}
+{The simulation runs but the flash controller never starts its clock, and the testbench
+hangs; the same RTL works on the board.}
+{A register with no initial value starts as \texttt{x} in simulation, and
+$\texttt{x} + 1$ stays \texttt{x}: the clock divider of \texttt{SPIFlash} never counted.
+Configuration loads a definite value into every flip-flop of the FPGA, so the silicon never
+shows the problem.}
+{\texttt{div} and \texttt{sclk} in \texttt{rtl/SPIFlash.v} declare initial values
+\notes{Explicit initial values on div and sclk (simulation hang)}, and the core's registers
+declare their reset values as initial values (Section~\ref{sec:clock}). The register file and
+the RAM declare none, hence the \texttt{x} in Figure~\ref{fig:wave-fsm}. A new counter needs
+an initial value too.}
+
+\pitfall{pit:sra}{SRA behaving as SRL}
+{The golden trace's frame diverged from the C program compiled natively at row~8, pixel~36, and held
+8\,368 bytes instead of 11\,014: \texttt{-1544416 >> 9} gave \texttt{0x007FF437} where
+\texttt{0xFFFFF437} was right.}
+{In Verilog an expression's operands decide its signedness together. In
+\texttt{funct7[5] ? (\$signed(a) >>> s) : (a >> s)} the unsigned arm makes the whole
+conditional unsigned, and \texttt{>>>} then shifts logically.}
+{Both arms of the shift in \texttt{rtl/ALU.v} are signed; \texttt{sim/ALUBench.v} checks
+\texttt{SRA}, \texttt{SRAI}, \texttt{SRL} and \texttt{SRLI} on negative operands
+(Chapter~\ref{ch:verif}); the golden trace was captured again. The sign fill cost 54 LUTs,
+930 to 984 (\texttt{docs/baseline.md}) \notes{SRL versus SRA, as the comment described it}.}
+
+\pitfall{pit:first-fetch}{Flash boot loses its first fetch}
+{With the flash-boot bitstream loaded over JTAG, no byte arrives on the UART and the LEDs
+stay dark. One press of the CPU RESET button, and the demo runs from then on
+(Chapter~\ref{ch:board}).}
+{Most likely the core's first fetch from the flash is lost straight after configuration. That
+fetch is \texttt{lui gp,0x400}, the first instruction of \texttt{fw/start\_spiflash.S}, which
+sets \texttt{gp} to \texttt{IO\_BASE}; without it the UART writes, at \texttt{gp + 8}, land in
+RAM address~8, over the code start-up has just copied there. Two parts of the design can lose
+it. \texttt{STARTUPE2} passes \texttt{USRCCLKO} to the CCLK pin only after a few edges, so the
+first transaction misses clock edges and the flash misreads its command; in simulation this
+alone loses the fetch (Section~\ref{sec:cclk}). And \texttt{IOBus} gates
+\texttt{spiflash\_rstrb} with \texttt{eos}, so a fetch requested before end of startup is
+dropped instead of stalled.}
+{On the board only: press the reset button once after each load (the README's ``Flash
+boot''). The RTL is unchanged in this report. A candidate fix, not kept in the repository,
+made the board print straight after the load: \texttt{eos} moves from \texttt{IOBus} into
+\texttt{SPIFlash}, which makes one throwaway read as soon as \texttt{eos} rises, and holds a
+read requested before that read is
+done, busy, until it can start it. The throwaway read's address is all ones, so a frame that
+loses its first clock edges shows the flash only shifted read opcodes, never a write enable,
+a program or an erase. An implementation run that was most likely of this fix used about
+25 LUTs and 25 flip-flops more than the committed design, and met timing with 0.334~ns of
+slack.}
+
+\pitfall{pit:reset-wait-data}{Reset landing in WAIT\_DATA}
+{With the reset state changed to \texttt{FETCH\_INSTR}, the obvious choice, nothing shows in
+BRAM boot, where the regression runs; in flash boot the first fetch after a press of the reset
+button would go wrong.}
+{\texttt{FETCH\_INSTR} asserts the read strobe for as long as it lasts. Held in reset there,
+with \texttt{pc} in flash space, the core would restart the SPI transaction on every cycle,
+chip select held low: the flash would see a command it never finishes, and no deselect to
+resynchronise on.}
+{\texttt{rtl/Control.v} resets into \texttt{WAIT\_DATA}, which asserts nothing and falls
+through to \texttt{FETCH\_INSTR} in the first cycle after reset (Section~\ref{sec:clock}).
+Its write-back is harmless, because the instruction register resets to a no-op whose
+destination is \texttt{x0} \notes{Reset lands in WAIT\_DATA, not FETCH\_INSTR}.}
+
+\pitfall{pit:worst-path}{The worst path ends in the register-file write}
+{A small change on the load path, one more term in the address decode of \texttt{IOBus} or in
+the load lanes, can miss the 5~ns of the 200~MHz clock: the worst path has \implWNS~ns of
+slack.}
+{The load-store address, \texttt{rs1 + imm}, is not registered, so every cycle of a load
+computes it again. The path runs from \texttt{instr\_reg[3]}, an opcode bit that picks the
+immediate, through \implPathCarry{} \texttt{CARRY4} of the adder to bit~24, the region decode,
+the read-data multiplexer and the load lanes, into the register file's write data:
+\implPathLevels{} levels and \implPathDelay~ns, \implPathNet~ns of it routing
+(Chapter~\ref{ch:results}).}
+{Not yet: a comment at \texttt{loadstore\_addr} in \texttt{rtl/Processor.v} marks it. Register
+the address in \texttt{EXECUTE}, or only its region bit, and the adder leaves the path.
+\texttt{LOAD} and \texttt{STORE} follow \texttt{EXECUTE}, so the register costs no cycle.}
+
+\pitfall{pit:quad-enable}{Writing the flash clears the Quad Enable bit}
+{After a flash write with ``Configuration File Only'', the board no longer boots at
+power-on: PROG lit, DONE off, the OLED blank, no CRC, ID or bad-packet error, the mode pins
+right, and every byte of the flash intact.}
+{Vivado's \texttt{program\_hw\_cfgmem}, with \texttt{PROGRAM.SKIP\_QE\_BIT\_ERASE} at its
+default,~0, clears the S25FL256S's non-volatile Quad Enable bit, bit~1 of configuration
+register~1. The factory bitstream reads the flash four bits wide (opcode \texttt{0x6C} in its
+BSPI register) and needs it. A write with an SPIx4 \texttt{.prm} does not set it back:
+Vivado's width-specific part names for this chip are for Zynq only, and on a Kintex-7 it
+accepts only \texttt{s25fl256sxxxxxx0-spi-x1\_x2\_x4}. Vivado's Tcl has no command that reads
+the flash's registers.}
+{In \texttt{docs/design/scripts/}, \texttt{board\_flash.tcl write} sets
+\texttt{SKIP\_QE\_BIT\_ERASE} to~1, and a write with it kept the bit;
+\texttt{flashregs/FlashRegs.v}, loaded over JTAG, prints SR1, CR1, the chip's ID and the sync
+word at \texttt{0x30} on the UART; built with \texttt{WRITE\_REGS=1} it writes CR1 back to
+\texttt{0x02}, which repaired the owner's board (``The Quad Enable bit'' in
+\texttt{docs/design/figures/README.md}).}
+
+\pitfall{pit:stack}{The stack runs into the program}
+{A program that has grown wanders off into garbage after a while, or prints nonsense, with
+no warning from the build.}
+{In BRAM boot the 6~KB of RAM hold the code, the data and the stack, and the stack grows down
+from \texttt{0x1800} into the same space; in flash boot it shares the RAM with the copied code
+(Chapter~\ref{ch:flash}). Nothing checks how deep the stack goes.}
+{In part. \texttt{firmware\_words} prints how much of the RAM the image fills and refuses one
+past \texttt{-max\_addr}, which \texttt{fw/Makefile} sets to the RAM size; set lower, it
+reserves room for the stack \notes{firmware\_words arguments; -max\_addr as a stack guard}.
+The stack itself is not checked.}
+
+\section{Extensions, ranked}
+
+The list is ranked by what each extension gains for the work it takes, the ones others build
+on first. None is begun; each names where it enters the design and which pitfalls lie on the
+way.
+
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+  \item \textbf{Pipelining.} An instruction takes four to six cycles
+    (Table~\ref{tab:cycles}); a five-stage pipeline retires close to one a cycle, a gain of four
+    to six on code bound by computation. It needs a second memory port, which the block RAM
+    has, forwarding and a stall after a load, a flush on a taken branch, and a stall of the
+    whole pipeline while \texttt{mem\_rbusy} is high. The stages split the worst path
+    (pitfall~\ref{pit:worst-path}). The golden trace's cycle count will change, and its bytes
+    must not: a new golden trace, with \texttt{make golden} and the reason. In flash boot every
+    fetch costs 382 cycles, so there a small instruction cache in front of \texttt{SPIFlash}
+    gains more than a pipeline.
+  \item \textbf{The M extension.} Every \texttt{*}, \texttt{/} and \texttt{\%} in C is a call
+    into \texttt{libgcc} today (Section~\ref{sec:xip}), and
+    mandelbrot multiplies in its inner loop. The device's DSP blocks, none of them used, multiply
+    32 by 32 bits in a few cycles, and a divider fits the FSM as one more state that holds like
+    the waits. The firmware then builds with \texttt{-march=rv32im}.
+  \item \textbf{UART receive.} \texttt{uart\_tx\_in}, pin Y20, is wired and unused. A receiver
+    mirrors \texttt{UartTx}, and a data register and a ready bit take the next IO address bit,
+    bit~5 (Section~\ref{sec:memmap}), with their firmware copies added to lint rule~8. It allows
+    a serial boot loader: a new program in the RAM without a new bitstream or a flash write.
+    Mind the pin names (pitfall~\ref{pit:uart-pins}).
+  \item \textbf{Interrupts.} They need the control and status registers of Zicsr, at least
+    \texttt{mstatus}, \texttt{mtvec}, \texttt{mepc} and \texttt{mcause}; today their opcode
+    stops the core (Appendix~\ref{app:isa}). A timer and the UART receiver are the natural first
+    sources. They touch \texttt{Decoder}, \texttt{Control}, which needs a trap state, and the
+    \texttt{pc} multiplexer of \texttt{Processor}.
+  \item \textbf{DDR3.} The board's 1~GB comes through AMD's Memory Interface Generator, with a
+    clock domain of its own and a latency of tens of cycles. The bus already waits on reads,
+    through \texttt{mem\_rbusy}, but has no way to stall a write, and without a cache every
+    access pays the latency.
+  \item \textbf{HDMI.} A pixel clock, TMDS encoding through the output serialisers, and a frame
+    buffer: 300~KB for 640 by 480 pixels at 8 bits, which fits in the device's 2~MB of block RAM
+    but belongs in DDR3, which is why it comes last.
+\end{enumerate}
 
 \chapter{Conclusions}
 \planned{what was built, what it shows, and what is left.}
@@ -1484,14 +1867,210 @@ extensions.}
 \appendix
 
 \chapter{Memory map}
-\planned{the full memory map, matching \texttt{rtl/defines.vh}.}
+\label{app:memmap}
+
+Table~\ref{tab:app-defines} gives every memory-map constant of \texttt{rtl/defines.vh}, the
+one place the map is defined, and Table~\ref{tab:app-decode} the decode \texttt{IOBus} makes of
+an address. The firmware's copies of these values, in \texttt{fw/io.h}, \texttt{fw/putchar.S},
+\texttt{fw/blinker.S}, \texttt{fw/start*.S}, \texttt{fw/memory.ld} and \texttt{fw/Makefile},
+are held equal to them by lint rule~8.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Constant & Value & Meaning \\
+    \midrule
+    \texttt{RAM\_BASE} & \texttt{0x0000\_0000} & the RAM: no region bit set \\
+    \texttt{RAM\_WORDS} & 1536 & RAM depth in words, 6~KB, up to \texttt{0x0000\_17FF} \\
+    \texttt{IO\_BASE} & \texttt{0x0040\_0000} & the IO registers: bit~22 \\
+    \texttt{IO\_LEDS} & \texttt{0x04} & write: the LED register, bit~2 \\
+    \texttt{IO\_UART\_DAT} & \texttt{0x08} & write: send one byte, bit~3 \\
+    \texttt{IO\_UART\_CNTL} & \texttt{0x10} & read: the UART status, bit~4 \\
+    \texttt{UART\_BUSY\_BIT} & 9 & status bit: the transmitter is busy \\
+    \texttt{SPIFLASH\_BASE} & \texttt{0x0100\_0000} & the SPI flash: bit~24 \\
+    \texttt{SPIFLASH\_ADDR\_W} & 24 & address bits inside the flash: 16~MB \\
+    \texttt{SPIFLASH\_CODE\_OFFSET} & \texttt{0x00D0\_0000} & the code window in the chip, 13~MB
+      in \\
+    \texttt{BOOT\_ADDR\_FLASH} & \texttt{0x01D0\_0000} & flash boot's reset vector \\
+    \texttt{BOOT\_ADDR\_BRAM} & \texttt{0x0000\_0000} & BRAM boot's reset vector \\
+    \bottomrule
+  \end{tabular}
+  \caption{The memory-map constants of \texttt{rtl/defines.vh}. IO offsets are from
+    \texttt{IO\_BASE}.}
+  \label{tab:app-defines}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.7cm}
+      >{\raggedright\arraybackslash}p{10.2cm}@{}}
+    \toprule
+    Address & Decoded as \\
+    \midrule
+    bit~24 set & Flash, whatever the other bits: byte offset \texttt{addr[23:0]}, word
+      \texttt{addr[23:2]}. Reads and fetches stall for one SPI transaction, once end of startup
+      has passed (before it, pitfall~\ref{pit:first-fetch}); writes do nothing \\
+    bit~24 clear, bit~22 set & IO. A store writes the LED register if bit~2 is set and sends
+      a byte if bit~3 is set, both at once if both are; a load returns the status word if
+      bit~4 is set, else zero \\
+    neither & RAM, word \texttt{addr[31:2]}. Above \texttt{0x0000\_17FF} the access is
+      undefined; in simulation it reads \texttt{x} \\
+    \bottomrule
+  \end{tabular}
+  \caption{The address decode of \texttt{rtl/IOBus.v}: one bit tested per region and per IO
+    register, no address refused (Section~\ref{sec:memmap}).}
+  \label{tab:app-decode}
+\end{table}
+
+The flash chip itself (Figure~\ref{fig:flash-layout}) holds the bitstream from
+\texttt{0x000000} to \texttt{0xAE9E0F}, ST\_NICCC's scene data from \texttt{0xC00000}, and the
+code window from \texttt{0xD00000} to \texttt{0xFFFFFF}; the core cannot reach the chip's upper
+16~MB. In both boot modes the stack starts at the top of the RAM, \texttt{0x1800}, and grows
+down
+(pitfall~\ref{pit:stack}).
 
 \chapter{Make targets}
-\planned{every make target, what it runs and what it needs.}
+\label{app:make}
+
+Four Makefiles, each documented in its header. The root one holds the gates
+(Chapter~\ref{ch:verif}); Tables~\ref{tab:app-make} and~\ref{tab:app-make-docs} list every
+target of all four.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.4cm}
+      >{\raggedright\arraybackslash}p{6.6cm}>{\raggedright\arraybackslash}p{2.9cm}@{}}
+    \toprule
+    Target & What it does & Needs \\
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Root \texttt{Makefile}: the gates, each but \texttt{check} with a
+      log in \texttt{build/logs/}}} \\
+    \texttt{lint} & \texttt{scripts/lint.sh}, seconds & bash, git \\
+    \texttt{unit} & The ALU unit bench, seconds & iverilog \\
+    \texttt{check-fw} & \texttt{make -C fw check} & RISC-V gcc \\
+    \texttt{smoke} & \texttt{unit}, \texttt{check-fw}, 4 million cycles of regression, about
+      25~s & all of the above, Vivado \\
+    \texttt{check-sim} & \texttt{check-fw}, the full regression, five to six minutes & gcc,
+      Vivado \\
+    \texttt{check-synth} & \texttt{check-fw}, synthesis in project mode, under a minute & gcc,
+      Vivado \\
+    \texttt{check} & \texttt{unit}, \texttt{check-sim}, \texttt{check-synth}; \texttt{-j2} runs the
+      last two side by side & iverilog, gcc, Vivado \\
+    \texttt{golden} & \texttt{check-fw}, a full run that overwrites the golden trace & gcc,
+      Vivado \\
+    \texttt{check-moves BASE=}\emph{rev} & Moved files are byte-identical renames & git \\
+    \texttt{bitstream} & The project's synthesis, implementation and \texttt{build/SOC.bit}, with
+      WNS, WHS and \texttt{timing=MET} or \texttt{FAILED} & Vivado \\
+    \texttt{baseline} & Non-project implementation and reports into \texttt{build/baseline/},
+      about a minute & Vivado \\
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{\texttt{fw/Makefile}; \texttt{PROG} picks the demo,
+      \texttt{TARGET} the boot mode}} \\
+    \texttt{all} (default) & \texttt{bram} or \texttt{flash}, as \texttt{TARGET} says & RISC-V
+      gcc \\
+    \texttt{bram} & The demo's image, written to \texttt{HEX\_OUT}, by default
+      \texttt{rtl/firmware.hex} & gcc, g++ \\
+    \texttt{flash} & \texttt{build/}\emph{prog}\texttt{.spiflash.\{elf,bin,mcs\}}, the code at
+      \texttt{0xD00000} & gcc, Vivado \\
+    \texttt{build/}\emph{prog}\texttt{.s} & The demo's assembly, for the reader & gcc \\
+    \texttt{check} & The memory-map copies, then the image rebuilt from clean and compared &
+      gcc, g++ \\
+    \texttt{print-hex-path}, \texttt{clean} & Print \texttt{HEX\_OUT}; remove \texttt{build/}
+      & \\
+    \bottomrule
+  \end{tabular}
+  \caption{The make targets of the root \texttt{Makefile} and of \texttt{fw/Makefile}, which
+    also takes \texttt{BUILD}, \texttt{HEX\_OUT}, \texttt{RAM\_SIZE}, \texttt{CROSS} and
+    \texttt{XILINX\_RV32\_ROOT}.}
+  \label{tab:app-make}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.4cm}
+      >{\raggedright\arraybackslash}p{6.6cm}>{\raggedright\arraybackslash}p{2.9cm}@{}}
+    \toprule
+    Target & What it does & Needs \\
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{\texttt{docs/design/Makefile}: this report}} \\
+    \texttt{all} (default) & \texttt{build/design.pdf}, from the committed figures & pdf\LaTeX \\
+    \texttt{figures} & Every scriptable figure: the five below and the RTL schematics &
+      Vivado, xvfb-run, and the below \\
+    \texttt{board-figures} & The figures of the board captures & Python, Pillow \\
+    \texttt{waves} & The three waveforms & iverilog, gcc, Vivado's models, Ghostscript \\
+    \texttt{flow} & The excerpts of the C-to-board figure & gcc, Vivado, Pillow \\
+    \texttt{impl} & Chapter~\ref{ch:results}'s numbers and worst-path schematic & Vivado,
+      xvfb-run, Ghostscript \\
+    \texttt{schematics} & The excerpts of the board schematic, from a local copy & pdftoppm \\
+    \texttt{captures} & The BRAM-boot board captures, recorded again & the board, Vivado, gcc,
+      pyserial \\
+    \texttt{clean} & Remove \texttt{build/} & \\
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{\texttt{sim/asm/Makefile}}} \\
+    \texttt{program.hex} (default) & The sample program, assembled by the Verilog assembler;
+      \texttt{DEFS=-DBENCH} for full speed in simulation & iverilog \\
+    \texttt{clean} & Remove its outputs & \\
+    \bottomrule
+  \end{tabular}
+  \caption{The make targets of \texttt{docs/design/Makefile}, which also takes
+    \texttt{SCHEMATIC}, the path of the board schematic, and of \texttt{sim/asm/Makefile}.}
+  \label{tab:app-make-docs}
+\end{table}
 
 \chapter{ISA coverage}
 \label{app:isa}
-\planned{the RV32I instructions the core executes, and what it leaves out.}
+
+The core executes the RV32I base integer instruction set~\cite{riscv-isa}, and the firmware is
+built with \texttt{-march=rv32i -mabi=ilp32}, so the compiler emits nothing else.
+Table~\ref{tab:app-isa} gives each instruction of RV32I and what the core does with it.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.9cm}
+      >{\raggedright\arraybackslash}p{6.5cm}>{\raggedright\arraybackslash}p{4.5cm}@{}}
+    \toprule
+    Class & Instructions & In this core \\
+    \midrule
+    Register & \texttt{ADD SUB SLL SLT SLTU XOR SRL SRA OR AND} & executed, 4 cycles \\
+    Immediate & \texttt{ADDI SLTI SLTIU XORI ORI ANDI SLLI SRLI SRAI} & executed, 4 cycles \\
+    Upper immediate & \texttt{LUI AUIPC} & executed, 4 cycles \\
+    Jump & \texttt{JAL JALR} & executed, 4 cycles \\
+    Branch & \texttt{BEQ BNE BLT BGE BLTU BGEU} & executed, 4 cycles \\
+    Load & \texttt{LB LH LW LBU LHU} & executed, 6 cycles \\
+    Store & \texttt{SB SH SW} & executed, 5 cycles \\
+    Fence & \texttt{FENCE} & a no-op, without being decoded \\
+    System & \texttt{ECALL EBREAK} & stop the core \\
+    \bottomrule
+  \end{tabular}
+  \caption{RV32I in this core. The cycles are from the RAM (Table~\ref{tab:cycles}); a word
+    fetched or loaded from the flash adds an SPI transaction.}
+  \label{tab:app-isa}
+\end{table}
+
+\paragraph{FENCE.} Its opcode sets none of \texttt{Decoder}'s class flags, so the core treats
+it as an ALU instruction: \texttt{EXECUTE} advances \texttt{pc} and writes the ALU's output to
+the instruction's \texttt{rd} field, which is \texttt{x0} in a \texttt{FENCE}. With one core,
+no cache and memory accessed in program order, a no-op is all a \texttt{FENCE} has to do.
+\texttt{FENCE.I} shares the opcode, and is a no-op too, also correctly: instructions and data
+come from the same memory, uncached.
+
+\paragraph{ECALL and EBREAK.} \texttt{EXECUTE} leaves \texttt{pc} unchanged for the SYSTEM
+opcode, so the core fetches the instruction again, forever: a halt that the reset button
+ends. The start-up code ends with \texttt{EBREAK}, should \texttt{main} return.
+
+\paragraph{Left out.} No extension: no M, A, F, D or C, and no Zicsr. The CSR instructions
+share the SYSTEM opcode and stop the core as \texttt{ECALL} does, though one whose \texttt{rd}
+is not \texttt{x0} also writes the ALU's output to it on every pass. No privilege modes, no
+exceptions and no interrupts: an illegal instruction is executed as \texttt{FENCE} is, its ALU
+output written to its \texttt{rd} field, and a misaligned load or store is not trapped either.
+It takes its lanes from the aligned word around its address, so its result is wrong, though
+code built from C never makes one for aligned data.
 
 \begin{thebibliography}{9}
 \raggedright  % long URLs do not break
