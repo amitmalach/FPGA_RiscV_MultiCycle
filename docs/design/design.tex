@@ -265,12 +265,13 @@ logic-level or slack chart, and the power breakdown.}
 \label{ch:board}
 
 Everything in this chapter was captured from the real board. Each demo's bitstream is loaded
-into the FPGA over JTAG and never written to the flash, which keeps Digilent's factory demo:
-the board boots it again at the next power-on. From the moment the bitstream starts to load, the host
-records the UART at 115\,200~baud, 8N1, with a timestamp on every read, accurate to about
-2~ms. The raw
-captures are committed in \texttt{docs/design/captures/}, and \texttt{make figures} renders
-the figures below from them; \texttt{docs/design/figures/README.md} gives the procedure.
+into the FPGA over JTAG and never written to the flash, which keeps Digilent's factory
+bitstream at offset~0: the board boots its demo again at the next power-on. Flash boot writes
+only the program, at the flash's code offset, over part of the factory demo's data. From the
+moment the bitstream starts to load, the host records the UART at 115\,200~baud, 8N1, with a
+timestamp on every read, accurate to about 2~ms. The raw captures are committed in
+\texttt{docs/design/captures/}, and \texttt{make figures} renders the figures below from them;
+\texttt{docs/design/figures/README.md} gives the procedure.
 
 \section{Mandelbrot in BRAM boot}
 
@@ -345,10 +346,77 @@ the way to the host.
   \label{fig:board-riscv-logo-animated}
 \end{figure}
 
-\planned{tinyraytracer in flash boot, ST\_NICCC if it runs, and a line each on the blinker
-and sieve demos.}
+\section{tinyraytracer in flash boot}
+
+tinyraytracer is 29\,016 bytes of code and constants, almost five times the 6~KB RAM, so it
+runs only in flash boot, executed in place from the flash (Chapter~\ref{ch:flash}). Its flash
+image was written to the code window at \texttt{0xD00000} with ``Configuration File Only''. A
+readback of the whole 32~MB chip afterwards differed from the one taken before only in the
+image's own 29\,016 bytes: the factory bitstream at offset~0 was not touched. Before each
+capture, the capture script reads the code window back and compares it with the binary.
+
+\paragraph{The reset button.} With the flash-boot bitstream loaded over JTAG, the core printed
+nothing and the LEDs stayed dark: in the capture behind Figure~\ref{fig:board-tinyraytracer},
+no byte arrived in the 44~s between the end of the load and a press of the CPU reset button.
+From the press on, the demo ran to the end, so flash boot works on this board with the reset
+button pressed once after each load. Everything points to the core losing its first fetch
+from the flash straight after configuration: that fetch is \texttt{li gp, IO\_BASE}, the first
+instruction of \texttt{fw/start\_spiflash.S}, and without it the UART writes go to RAM
+address~8, over the code that start-up has just copied there. Two parts of the design can
+lose it. \texttt{STARTUPE2} hands the CCLK pin to user logic only after a few cycles of
+\texttt{USRCCLKO}, as Vivado's simulation model of the primitive shows, so the first SPI
+transaction can miss its first clock edges; and \texttt{IOBus} drops a flash read requested
+before end of startup instead of stalling it, while the core starts fetching as soon as
+configuration releases the flip-flops. The pitfall and its fix belong to
+Chapter~\ref{ch:next}.
+
+\paragraph{The Quad Enable bit.} Writing the image cost the board its power-on boot. The
+write, with Vivado's \texttt{hw\_cfgmem} property \texttt{PROGRAM.SKIP\_QE\_BIT\_ERASE} at its
+default, cleared the flash's non-volatile Quad Enable bit (S25FL256S configuration register~1,
+bit~1), and a second write of the image with an SPIx4 \texttt{.prm} did not set it back. The
+factory bitstream reads the flash four bits wide (opcode
+\texttt{0x6C} in its BSPI register) and needs the bit: at the next power-on the FPGA stalled in
+configuration, DONE low and no error flag set, with every byte of the flash intact. Vivado's
+Tcl reads no flash register, so a small design of its own,
+\texttt{docs/design/scripts/flashregs/FlashRegs.v}, loaded over JTAG, read the register
+(\texttt{0x00}: the bit clear), wrote it back to \texttt{0x02}, and the FPGA configured from
+the flash again over JTAG, DONE high; a further write of the image with the property set kept
+the bit. This pitfall belongs to Chapter~\ref{ch:next} too.
+
+\paragraph{The picture.} Figure~\ref{fig:board-tinyraytracer} shows what the board sent:
+48 by 24 pixels, each one terminal cell, a space on one of xterm's 256 colours.
+The run is 21\,412 bytes long and is, byte for byte, what \texttt{fw/tinyraytracer.c} prints
+when compiled natively, with \texttt{libm} and floating point in software on the board and in
+the host's hardware on the PC. The picture took 126.8~s, 110~ms a pixel: every
+floating-point operation is a call into \texttt{libgcc}, and every instruction outside the RAM
+is fetched from the flash, one SPI transaction each.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.45\textwidth]{figures/board_tinyraytracer}
+  \caption{tinyraytracer in flash boot, rendered from the board's UART capture: four spheres,
+    of ivory, glass, red rubber and mirror, over a chequered floor and lit by three lights, at
+    48 by 24 terminal cells.}
+  \label{fig:board-tinyraytracer}
+\end{figure}
+
+\section{ST\_NICCC}
+
+ST\_NICCC was not run. It needs the 640~KB scene data at \texttt{0xC00000} and its own
+program in the code window, two more writes over the factory demo's data, and the reset
+button as above.
+
+\section{blinker and sieve}
+
+Both ran in BRAM boot. The blinker alternates LEDs 0 and 2 with LEDs 1 and 3 every 5.24~ms
+in simulation, about 95 times a second: too fast to see, and on the board LD0 to LD3 glowed
+steadily at about half brightness while LD4 to LD7 stayed dark. sieve printed the 31 primes
+below 128 and its checksum, \texttt{1772A48F OK}, every 96~ms; the 59 rounds captured are,
+byte for byte, what \texttt{fw/sieve.c} prints when compiled natively, but for the checksum's
+hex digits, which \texttt{fw/print.c} prints in upper case.
 
 \chapter{For the next student}
+\label{ch:next}
 \planned{the pitfalls checklist (symptom, cause, where it is handled) and a ranked list of
 extensions.}
 

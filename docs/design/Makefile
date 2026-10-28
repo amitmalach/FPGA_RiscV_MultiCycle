@@ -7,9 +7,10 @@
 #   make board-figures
 #                   only the figures rendered from the board captures in captures/ (part of
 #                   make figures, which also needs Pillow for them)
-#   make captures   record the board captures again, then commit them: the demos in BRAM boot,
-#                   loaded over JTAG; needs the board, Vivado's settings64.sh sourced,
-#                   riscv64-unknown-elf-gcc and pyserial
+#   make captures   record the BRAM-boot board captures again, then commit them: each demo's
+#                   bitstream loaded over JTAG; needs the board, Vivado's settings64.sh
+#                   sourced, riscv64-unknown-elf-gcc and pyserial. The flash-boot captures
+#                   need a flash write first: figures/README.md, "Board captures"
 #   make clean      remove build/
 #
 # Source material for the content: docs/design/notes.md, the design rationale
@@ -48,11 +49,12 @@ figures: board-figures | $(BUILD)
 board-figures:
 	scripts/board_figures.py captures figures
 
-# Seconds recorded after each load: mandelbrot's first frames, and riscv_logo's 64-frame turn
-# with a few frames to spare.
+# Seconds recorded after each load: mandelbrot's first frames, riscv_logo's 64-frame turn
+# with a few frames to spare, and sieve's first rounds.
 captures:
-	scripts/board_capture.sh mandelbrot 5 captures/mandelbrot_bram
-	scripts/board_capture.sh riscv_logo 40 captures/riscv_logo_bram
+	scripts/board_capture.sh mandelbrot bram 5 captures/mandelbrot_bram
+	scripts/board_capture.sh riscv_logo bram 40 captures/riscv_logo_bram
+	scripts/board_capture.sh sieve bram 5 captures/sieve_bram
 
 $(BUILD):
 	mkdir -p $@

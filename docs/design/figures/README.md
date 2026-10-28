@@ -26,6 +26,7 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `board_mandelbrot.pdf` | 11, Results on the board | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
 | `board_riscv_logo.pdf` | 11, Results on the board: the filmstrip (pages 1, 9, ..., 57) and the animation | `make figures`, as above |
 | `board_riscv_logo.gif` | The README, "Running the demos" | `make figures`, as above |
+| `board_tinyraytracer.pdf` | 11, Results on the board: flash boot | `make figures`, as above |
 
 ## Scripted figures: `make figures`
 
@@ -70,29 +71,98 @@ source ~/Xilinx/2025.2/Vivado/settings64.sh
 make -C docs/design captures    # then make figures; review and commit captures and figures
 ```
 
-For each demo, `docs/design/scripts/board_capture.sh` builds the firmware image and a BRAM-boot
+`make captures` records the BRAM-boot demos, mandelbrot, riscv_logo and sieve. For each,
+`docs/design/scripts/board_capture.sh <demo> bram` builds the firmware image and a BRAM-boot
 bitstream in `docs/design/build/board/<demo>/`, the bitstream only when the image, the RTL, the
 constraints or `board_bitstream.tcl` changed (`board_bitstream.tcl`: synthesis and
 implementation as in `vivado/baseline.tcl`, with `BOOT_ADDR` set to 0 as `sim/bench.v` sets
 it; it fails unless timing is met). It then opens the UART, loads the bitstream over
 JTAG (`board_program.tcl`) and records the output (`uart_capture.py`). The bitstream goes into
-the FPGA only: the flash is never written, and a power cycle boots whatever the flash holds.
+the FPGA only: the flash is not written, and a power cycle boots whatever the flash holds.
 `rtl/firmware.hex` and `rtl/SOC.v` stay as they are. `UART_PORT` and `JTAG_TARGET` pick the
 board when the defaults (the one FT232R in `/dev/serial/by-id`, the one JTAG cable) do not.
 
-A capture is two files. `<demo>_bram.bin` holds the bytes as received, from the moment the
-bitstream starts to load. `<demo>_bram.times` is the timeline, in seconds since the port was
-opened: `PROGRAM_START` and `PROGRAM_END` around the load, a `READ <t> <count>` line for each
-read of the port (every millisecond, the bridge in low-latency mode, so a byte's time is good
-to about 2 ms), and `END`. The first bytes are from the design that was running before, up to
-the moment configuration stopped it; `board_figures.py` takes the loaded design's output to
-start after the longest silence during the load, while the FPGA was being configured.
+### Flash boot
+
+A flash-boot capture needs the demo in the flash's code window first, and the code window holds
+one demo at a time, so `make captures` leaves these out. Each write is the owner's call. With
+Vivado's `settings64.sh` sourced, from `docs/design/`:
+
+```sh
+make -C ../../fw PROG=tinyraytracer TARGET=flash
+# write fw/build/tinyraytracer.spiflash.mcs: the README's "Flash boot", step 2
+scripts/board_capture.sh tinyraytracer flash 360 captures/tinyraytracer_flash
+```
+
+`board_flash.tcl` refuses an image with a byte below `0xC00000`, where the bitstream the board
+boots at power-on lives. `board_capture.sh <demo> flash` reads the code window back first and
+stops unless it holds the demo's binary, then builds the flash-boot bitstream, the `SOC`
+default, in `docs/design/build/board/flash/` with a copy of `rtl/firmware.hex` that the core
+never runs, and records as above. It prints a reminder just before the load: once the load has
+ended, about half a minute after the script starts, press the board's CPU RESET button. After
+configuration the core prints nothing until a reset (chapter 11 says why), and tinyraytracer
+then takes about two minutes to draw its picture; 360 seconds leaves time for both.
+`board_figures.py` draws the last complete run in the capture, so a second press does no harm.
+
+Before the first write, `board_flash.tcl read 0x0 0x2000000 <file>` backs up the whole chip
+in about two minutes. The owner's board was not blank above its factory bitstream: Digilent's
+factory demo also holds data from `0x600000` to `0x69FFFF` and from `0x800000` to `0xDEFFFF`.
+That backup, from 2026-10-28, is in the owner's snapshot of the original project; issue #21
+records the readback. A full readback after the tinyraytracer write differed from the backup
+only in the 29 016 bytes of the image, at `0xD00000` to `0xD07157`, and so did one after the
+third write of the same image, below.
+
+### The Quad Enable bit
+
+The first tinyraytracer write, with the `hw_cfgmem` property `PROGRAM.SKIP_QE_BIT_ERASE` at its
+default, 0, cleared the S25FL256S's non-volatile Quad Enable bit (configuration register 1,
+bit 1), and a second write of the same image with an SPIx4 `.prm` did not set it back. The
+factory bitstream reads the flash four bits wide (opcode `0x6C` in its BSPI register) and needs
+the bit: without it the FPGA stalls in configuration at power-on, DONE low and no error flag
+set, every byte of the flash intact.
+
+Vivado's Tcl reads no flash register, so `scripts/flashregs/FlashRegs.v` is a small design for
+the board that does: it reads status register 1, configuration register 1, the chip's ID and the
+four bytes at `0x30` (a bitstream's sync word, `AA995566`, as a check that the bits line up),
+prints them on the UART once a second and shows CR1 on the LEDs. Built with `WRITE_REGS=1` it
+also writes SR1 `0x00` and CR1 `0x02` once, which sets the bit, and reads them again. On the
+owner's board it read `CR1=00`, wrote, read `CR1=02`, and the FPGA configured from the flash
+again (`boot_hw_device`, Vivado's reconfigure-from-flash over JTAG: DONE high). The third
+write of the image, through `board_flash.tcl write` with `SKIP_QE_BIT_ERASE 1`, kept the bit.
+From `docs/design/`:
+
+```sh
+mkdir -p build/flashregs && cd build/flashregs
+vivado -mode batch -nojournal -nolog -source ../../scripts/flashregs/build.tcl -tclargs 0
+python3 ../../scripts/uart_capture.py /dev/serial/by-id/usb-FTDI_FT232R_* 5 regs -- \
+    vivado -mode batch -nojournal -nolog -source ../../scripts/board_program.tcl \
+    -tclargs FlashRegs_w0.bit
+cat regs.bin    # SR1=00 CR1=02 ID=010219 D30=AA995566, one line a second
+cd -
+```
+
+`-tclargs 1` builds the writing one, `FlashRegs_w1.bit`, which is a write to the chip: the
+owner's call, as above. `FlashRegsBench.v` runs the writing tool against `FlashModel.v`, a
+model of the register commands, under iverilog with Vivado's unisim models; its header gives
+the command.
+
+### Captures, figures and checks
+
+A capture is two files, named for the demo and the boot mode. `<demo>_<boot>.bin` holds the
+bytes as received, from the moment the bitstream starts to load. `<demo>_<boot>.times` is the
+timeline, in seconds since the port was opened: `PROGRAM_START` and `PROGRAM_END` around the
+load, a `READ <t> <count>` line for each read of the port (every millisecond, the bridge in
+low-latency mode, so a byte's time is good to about 2 ms), and `END`. The first bytes are from
+the design that was running before, up to the moment configuration stopped it;
+`board_figures.py` takes the loaded design's output to start after the longest silence during
+the load, while the FPGA was being configured.
 
 `board_figures.py` replays the bytes through a small terminal emulator, documented in its
-header, with LF taken as CR LF as `picocom --imap lfcrlf` does, the 16 colours in xterm's
-palette and the default background black. It prints `BOARD` lines with the measurements
+header, with LF taken as CR LF as `picocom --imap lfcrlf` does, the 16 and the 256 colours in
+xterm's palette and the default background black. It prints `BOARD` lines with the measurements
 chapter 11 quotes, and fails unless mandelbrot's first frame is byte for byte the UART bytes of
-the golden trace. The riscv_logo capture can be checked against the program compiled natively
+the golden trace, every sieve round captured ends in `OK`, and a complete tinyraytracer run
+is in its capture. The riscv_logo capture can be checked against the program compiled natively
 in the same way as `docs/baseline.md` checks the golden frame; 54 is the byte at which
 `board_figures.py` reports the loaded design's output to begin:
 
@@ -102,8 +172,31 @@ tail -c +55 docs/design/captures/riscv_logo_bram.bin > /tmp/board_logo.bin
 timeout 5 /tmp/logo | head -c $(stat -c %s /tmp/board_logo.bin) | cmp /tmp/board_logo.bin -
 ```
 
-- Captured 2026-10-28 with `make captures`, Vivado 2025.2, on the owner's board: Genesys 2
-  revision H, through its own FT232R USB-UART bridge and Digilent USB-JTAG
+sieve is checked the same way, with an empty `wait()` and the checksum's hex digits in upper
+case, as `fw/print.c` prints them:
+
+```sh
+echo 'void wait(void) {}' > /tmp/wait.c && gcc -O2 -w -o /tmp/sieve fw/sieve.c /tmp/wait.c
+timeout 5 /tmp/sieve | sed 's/1772a48f/1772A48F/' \
+    | head -c $(stat -c %s docs/design/captures/sieve_bram.bin) \
+    | cmp docs/design/captures/sieve_bram.bin -
+```
+
+tinyraytracer's run, the bytes `board_figures.py` names, against the program compiled natively
+with a stub `io.h`, whose LED writes do nothing (TRT_START and TRT_END are the first and last
+byte it reports):
+
+```sh
+mkdir -p /tmp/trt && cp fw/tinyraytracer.c /tmp/trt/
+echo '#define IO_OUT(port, val) ((void)(val))' > /tmp/trt/io.h
+gcc -O2 -w -o /tmp/trt/trt /tmp/trt/tinyraytracer.c -lm
+tail -c +$((TRT_START + 1)) docs/design/captures/tinyraytracer_flash.bin \
+    | head -c $((TRT_END - TRT_START + 1)) | cmp - <(/tmp/trt/trt)
+```
+
+- Captured 2026-10-28, the BRAM-boot demos with `make captures` and tinyraytracer as above,
+  Vivado 2025.2, on the owner's board: Genesys 2 revision H, through its own FT232R USB-UART
+  bridge and Digilent USB-JTAG
 
 ## The report's module colours
 
