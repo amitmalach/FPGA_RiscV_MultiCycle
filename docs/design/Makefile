@@ -2,6 +2,8 @@
 #
 #   make            build the PDF from the committed figures (two passes, so the table of
 #                   contents and cross references settle); no Vivado, no board
+#   make publish    build the PDF, then copy it to design.pdf beside the sources: the
+#                   committed copy, refreshed with the sources that changed it
 #   make figures    regenerate the scriptable figures into figures/, then commit them; needs
 #                   Vivado's settings64.sh sourced, xvfb-run, Ghostscript, pdftoppm, iverilog,
 #                   riscv64-unknown-elf-gcc, Pillow and a local copy of the board schematic
@@ -41,7 +43,7 @@
 #
 # The PDF and every by-product go to build/ (ignored by git), including the scratch
 # directory Vivado runs in, so nothing Vivado writes lands beside the sources. The
-# only tracked output is the regenerated figures in figures/.
+# tracked outputs are the regenerated figures in figures/ and design.pdf (make publish).
 
 TEX      = design.tex
 BUILD    = build
@@ -57,10 +59,13 @@ FLOW     = $(abspath $(BUILD)/flow)
 IMPL     = $(abspath $(BUILD)/impl)
 SCHEMATIC ?= $(BUILD)/genesys2_sch.pdf
 
-.PHONY: all figures board-figures waves flow impl schematics captures clean
+.PHONY: all publish figures board-figures waves flow impl schematics captures clean
 .DELETE_ON_ERROR:
 
 all: $(PDF)
+
+publish: $(PDF)
+	cp $(PDF) design.pdf
 
 $(PDF): $(TEX) $(wildcard figures/*) | $(BUILD)
 	$(PDFLATEX) $(TEX)
