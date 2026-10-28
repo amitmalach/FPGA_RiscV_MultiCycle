@@ -128,8 +128,9 @@ prints them on the UART once a second and shows CR1 on the LEDs. Built with `WRI
 also writes SR1 `0x00` and CR1 `0x02` once, which sets the bit, and reads them again. On the
 owner's board it read `CR1=00`, wrote, read `CR1=02`, and the FPGA configured from the flash
 again (`boot_hw_device`, Vivado's reconfigure-from-flash over JTAG: DONE high). The third
-write of the image, through `board_flash.tcl write` with `SKIP_QE_BIT_ERASE 1`, kept the bit.
-From `docs/design/`:
+write of the image, through `board_flash.tcl write` with `SKIP_QE_BIT_ERASE 1`, kept the bit,
+and at the next power-on the board booted Digilent's factory demo, DONE lit and the demo on
+the OLED. From `docs/design/`:
 
 ```sh
 mkdir -p build/flashregs && cd build/flashregs
