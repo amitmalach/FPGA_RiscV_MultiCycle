@@ -330,17 +330,18 @@ the regression passes only when a new run is byte-identical to it, cycle count i
 The final report is a LaTeX project under `docs/design/`. It explains the design choices
 and how the core, memory subsystem, SoC and firmware fit together.
 
+The built PDF is committed: [`docs/design/design.pdf`](docs/design/design.pdf).
+
 ```sh
 make -C docs/design           # pdflatex -> docs/design/build/design.pdf from the committed figures
+make -C docs/design publish   # the same, then copied to docs/design/design.pdf, the committed copy
 make -C docs/design figures   # regenerate the scriptable figures: Vivado, xvfb-run, Ghostscript
 make -C docs/design captures  # record the board captures again: the board, Vivado, RISC-V gcc
 ```
 
 The sources are [`docs/design/design.tex`](docs/design/design.tex) and
 `docs/design/figures/`, whose README lists every figure, the script behind it, the recipes
-for the manual ones, and what each target needs. The built PDF is not committed until the
-report has content.
-TODO: link the published PDF here once it exists.
+for the manual ones, and what each target needs.
 
 ## Results
 

@@ -428,12 +428,17 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 
 ### Top side
 
-- File: `board.jpg`, the title page, under the TikZ labels
+- File: `board.jpg`, the title page, under TikZ callouts in `design.tex` that point at the
+  photo's own pixels (1964 by 1507): red labels for the parts the design uses, grey for
+  notable unused ones. The 200 MHz oscillator, IC23, is the small package left of the fan's
+  frame, below its decoupling capacitors C159 and C160; the QSPI flash is on the underside,
+  and its callout is dashed, placed from the underside photo's callout mirrored
 - iPhone 14, the board's top side, powered on and running Digilent's factory demo (DONE, PGOOD,
   LD0 to LD2 and the OLED lit), room light, no flash
 - Cropped on the phone to 1964x1507 (3.0 MP), with a slight tilt. Issue #18 asked for a
   straight top-down daylight shot of at least 12 MP; the owner accepted this one. A retake
-  replaces the file under the same name.
+  replaces the file under the same name and must keep the framing, or the title page's
+  callouts move with it.
 - Metadata stripped on 2026-10-27, after the first commit of the photo: the Git history keeps
   that first version, with its GPS position.
 
