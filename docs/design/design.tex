@@ -1821,6 +1821,23 @@ past \texttt{-max\_addr}, which \texttt{fw/Makefile} sets to the RAM size; set l
 reserves room for the stack \notes{firmware\_words arguments; -max\_addr as a stack guard}.
 The stack itself is not checked.}
 
+\pitfall{pit:debug-data}{Debug data loaded into the RAM}
+{None at run time: mandelbrot runs as it should. The image is larger than its code, though:
+\texttt{firmware\_words} reports 852 words, 3\,408 bytes, and \texttt{objdump -D} shows runs of
+\texttt{.insn} nonsense after \texttt{\_\_mulsi3} and after \texttt{\_\_modsi3}.}
+{\texttt{fw/bram.ld} keeps the catch-all \texttt{*(.*)} of~\cite{levy-learnfpga}, which
+places every section of every input file in the RAM. Ubuntu's \texttt{libgcc.a} carries
+DWARF debug sections in its members, so those of \texttt{muldi3.o} and \texttt{div.o} land
+right after their code: 1\,084 bytes, almost a third of the image and 18\,\% of the 6~KB,
+never fetched but taken from the room the stack grows into (pitfall~\ref{pit:stack}). The
+\texttt{/DISCARD/} line drops only \texttt{.riscv.attributes} and \texttt{.comment}, which
+caused the same trouble before. \texttt{fw/spiflash.ld} names its input sections and is not
+affected.}
+{Not handled; the committed image is the one this report describes. Adding
+\texttt{*(.debug*)} to \texttt{/DISCARD/} gives a 2\,324-byte image; only \texttt{div.o}'s
+routines move, \texttt{\_\_divsi3} from \texttt{0xaa0} to \texttt{0x860}, and the calls to
+them with it \notes{bram.ld line by line; the /DISCARD/ workaround}.}
+
 \section{Extensions, ranked}
 
 The list is ranked by what each extension gains for the work it takes, the ones others build
