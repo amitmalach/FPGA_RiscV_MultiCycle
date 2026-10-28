@@ -3,8 +3,9 @@
 #   make            build the PDF from the committed figures (two passes, so the table of
 #                   contents and cross references settle); no Vivado, no board
 #   make figures    regenerate the scriptable figures into figures/, then commit them; needs
-#                   Vivado's settings64.sh sourced, xvfb-run, Ghostscript, iverilog,
-#                   riscv64-unknown-elf-gcc and Pillow
+#                   Vivado's settings64.sh sourced, xvfb-run, Ghostscript, pdftoppm, iverilog,
+#                   riscv64-unknown-elf-gcc, Pillow and a local copy of the board schematic
+#                   (figures/README.md, "Schematic excerpts")
 #   make board-figures
 #                   only the figures rendered from the board captures in captures/ (part of
 #                   make figures, which also needs Pillow for them)
@@ -17,6 +18,15 @@
 #                   rtl/firmware.hex) and a BRAM-boot bitstream built from it, with the
 #                   mandelbrot capture in captures/ read as it is; part of make figures, needs
 #                   Vivado's settings64.sh sourced, riscv64-unknown-elf-gcc and Pillow
+#   make impl       only chapter 10's report data and worst-path schematic: the routed design
+#                   rebuilt into build/impl/ by vivado/baseline.tcl when the RTL, the image or
+#                   the constraints changed, its reports written by scripts/impl_reports.tcl
+#                   and turned into figures/impl_results.tex by scripts/impl_results.py, which
+#                   fails unless they match docs/baseline.md; part of make figures, needs
+#                   Vivado's settings64.sh sourced, xvfb-run and Ghostscript
+#   make schematics only chapter 2's excerpts of Digilent's Genesys 2 schematic, cropped from
+#                   the local copy SCHEMATIC (default build/genesys2_sch.pdf) by
+#                   scripts/schematic_crops.sh; part of make figures, needs pdftoppm
 #   make captures   record the BRAM-boot board captures again, then commit them: each demo's
 #                   bitstream loaded over JTAG; needs the board, Vivado's settings64.sh
 #                   sourced, riscv64-unknown-elf-gcc and pyserial. The flash-boot captures
@@ -44,8 +54,10 @@ RTL_SCHEMATICS = rtl_soc rtl_alu
 WAVES    = $(abspath $(BUILD)/waves)
 VCD_WAVE = scripts/vcd_wave.py
 FLOW     = $(abspath $(BUILD)/flow)
+IMPL     = $(abspath $(BUILD)/impl)
+SCHEMATIC ?= $(BUILD)/genesys2_sch.pdf
 
-.PHONY: all figures board-figures waves flow captures clean
+.PHONY: all figures board-figures waves flow impl schematics captures clean
 .DELETE_ON_ERROR:
 
 all: $(PDF)
@@ -55,7 +67,7 @@ $(PDF): $(TEX) $(wildcard figures/*) | $(BUILD)
 	$(PDFLATEX) $(TEX)
 	@echo "PDF $(abspath $@)"
 
-figures: board-figures waves flow | $(BUILD)
+figures: board-figures waves flow impl schematics | $(BUILD)
 	scripts/vivado_xvfb.sh $(SCRATCH) scripts/rtl_schematics.tcl $(SCRATCH)
 	for f in $(RTL_SCHEMATICS); do scripts/crop_pdf.sh $(SCRATCH)/$$f.pdf figures/$$f.pdf || exit 1; done
 
@@ -104,6 +116,31 @@ $(FLOW_BIT): $(FLOW)/bram/firmware.hex $(RTL_SOURCES) ../../constraints/Genesys-
 	    -source $(abspath scripts/flow_bram.tcl) -tclargs $(FLOW)/bram > build.out \
 	    || { tail -n 20 build.out; exit 1; }
 	grep -E '^(BOARD|FLOW)' $(FLOW)/bram/build.out
+
+# Chapter 10's numbers come from a routed design built here by vivado/baseline.tcl, the script
+# behind docs/baseline.md, so that they are the baseline's and not those of whatever checkpoint
+# build/baseline/ last held. It is rebuilt only when the RTL, the image, the constraints or the
+# script changed, in about a minute.
+IMPL_DCP = $(IMPL)/post_route.dcp
+$(IMPL_DCP): ../../rtl/firmware.hex $(RTL_SOURCES) ../../constraints/Genesys-2-Master.xdc \
+	    ../../vivado/baseline.tcl ../../vivado/common.tcl
+	mkdir -p $(IMPL)
+	cd $(IMPL) && vivado -mode batch -nojournal -nolog \
+	    -source $(abspath ../../vivado/baseline.tcl) -tclargs $(IMPL) > baseline.out \
+	    || { tail -n 20 baseline.out; exit 1; }
+	grep '^BASELINE' $(IMPL)/baseline.out
+
+impl: $(IMPL_DCP) | $(BUILD)
+	mkdir -p $(IMPL)/reports
+	cd $(IMPL)/reports && vivado -mode batch -nojournal -nolog \
+	    -source $(abspath scripts/impl_reports.tcl) -tclargs $(IMPL_DCP) $(IMPL)/reports \
+	    > impl_reports.out || { tail -n 20 impl_reports.out; exit 1; }
+	scripts/impl_results.py $(IMPL)/reports ../baseline.md figures/impl_results.tex
+	scripts/vivado_xvfb.sh $(SCRATCH) scripts/path_schematic.tcl $(IMPL_DCP) $(SCRATCH)
+	scripts/crop_pdf.sh $(SCRATCH)/timing_worst_path.pdf figures/timing_worst_path.pdf
+
+schematics:
+	scripts/schematic_crops.sh $(SCHEMATIC) figures
 
 # Seconds recorded after each load: mandelbrot's first frames, riscv_logo's 64-frame turn
 # with a few frames to spare, and sieve's first rounds.

@@ -24,7 +24,10 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `wave_fsm.pdf` | 5, The multi-cycle core: four instructions through the FSM states | `make figures`: `docs/design/scripts/waves/WaveBench.v` under iverilog, rendered by `docs/design/scripts/vcd_wave.py`; "Waveforms" below |
 | `wave_flash.pdf`, `wave_flash_end.pdf` | 6, Memory and memory-mapped IO: an instruction fetched from the flash, whole and its end | `make figures`, as `wave_fsm.pdf` |
 | `flow_excerpts.tex` | 8, From C to the board: the excerpts of the flow figure, drawn in `design.tex` | `make figures`: `docs/design/scripts/flow_excerpts.py`; "The C-to-board flow" below |
+| `sch_oscillator.png`, `sch_reset.png`, `sch_leds.png`, `sch_uart.png`, `sch_config.png`, `sch_mode.png` | 2, Board and tools: excerpts of Digilent's schematic | `make figures`: `docs/design/scripts/schematic_crops.sh`, from a local copy of the schematic; "Schematic excerpts" below |
 | `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
+| `impl_results.tex` | 10, Implementation results: its numbers, the utilization table's rows and the data of the slack, logic-level and power charts, drawn in `design.tex` | `make figures`: `docs/design/scripts/impl_reports.tcl` and `docs/design/scripts/impl_results.py`; "Implementation results" below |
+| `timing_worst_path.pdf` | 10, Implementation results: the worst setup path | `make figures`: `docs/design/scripts/path_schematic.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
 | `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
 | `board_mandelbrot.pdf` | 11, Results on the board | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
@@ -39,7 +42,8 @@ source ~/Xilinx/2025.2/Vivado/settings64.sh
 make -C docs/design figures     # then review and commit the changed figures
 ```
 
-Needs Vivado, `xvfb-run` (package `xvfb`), Ghostscript, and Python 3 with Pillow for the
+Needs Vivado, `xvfb-run` (package `xvfb`), Ghostscript, `pdftoppm` (package `poppler-utils`),
+the local copy of the board schematic ("Schematic excerpts" below), and Python 3 with Pillow for the
 figures rendered from the board captures (`make board-figures` makes only those, and needs
 nothing else). `docs/design/scripts/vivado_xvfb.sh`
 runs each Vivado script in the GUI on a private X server, never on your display, from the
@@ -62,6 +66,63 @@ Facts about Vivado 2025.2 behind these scripts:
   LUTs in the ALU, so the schematics come from the elaborated RTL (`synth_design -rtl`).
 - Every Vivado run works in a scratch directory (the firmware image is read by bare name), and a
   checkpoint is opened from a copy, so the original is never written.
+
+## Implementation results: `make impl`
+
+Chapter 10's numbers are generated, so they follow a change to the RTL. `make impl` (part of
+`make figures`) runs four steps, from `docs/design/`:
+
+1. `vivado/baseline.tcl`, the script behind `docs/baseline.md`, builds the routed design into
+   `docs/design/build/impl/`, in about a minute, and only when `rtl/firmware.hex`, the RTL, the
+   constraints or the script changed. The report has its own checkpoint, not the one in
+   `build/baseline/`, which holds whatever `make baseline` last built, possibly from an
+   uncommitted tree.
+2. `docs/design/scripts/impl_reports.tcl`, in batch, opens a copy of the checkpoint and writes
+   the hierarchical utilization (`-hierarchical_min_primitive_count 0`, or the small modules
+   are hidden), the power report, the worst setup path's properties and cells, the worst slack
+   and logic levels of every timed endpoint, and WNS, WHS and the endpoint counts, into
+   `docs/design/build/impl/reports/`.
+3. `docs/design/scripts/impl_results.py` turns them into `impl_results.tex`: one macro per
+   number the chapter quotes, the table's rows, the histogram's and the bar chart's
+   coordinates (pgfplots) and the pie's slices (pgf-pie). It fails unless WNS, WHS, Fmax, the
+   endpoint counts, LUTs, flip-flops, block RAM tiles and bonded IOBs all equal
+   `docs/baseline.md`: after a change that moves them, `make baseline` and the baseline
+   document come first.
+4. `docs/design/scripts/path_schematic.tcl`, in the GUI under Xvfb as the RTL schematics are,
+   draws the worst path from its pin pairs (`show_schematic -pin_pairs`), so each net shows
+   only its segment on the path, and `crop_pdf.sh` crops it into `timing_worst_path.pdf`.
+
+It also fails unless the reports agree with each other (the worst path's slack and the
+smallest endpoint slack are the WNS, its logic levels are its cells between the registers) and
+the path is still LUTs, one carry chain, then LUTs, the shape chapter 10 describes. A few facts
+in that chapter's prose are written by hand: that the worst path is the load path, and that its
+carry chain ends at bit 24, the flash region's bit. After a change that moves the path, read
+`docs/design/build/impl/reports/worst_path.txt` and check them.
+
+The power numbers are Vivado's vectorless estimate at its default toggle rates. Nothing in
+either file records a date, so an unchanged design regenerates them byte-identical.
+
+## Schematic excerpts: `make schematics`
+
+`docs/design/scripts/schematic_crops.sh` (part of `make figures`) crops six fixed regions of
+Digilent's Genesys 2 schematic, revision H.1 (22 pages, 828 x 612 pt), with `pdftoppm` at 300
+dpi into `sch_*.png`; the table at the end of the script lists each region's page and box, in
+points from the top left corner. Digilent's site refuses a scripted download (HTTP 403), so the
+script reads a local copy: download the schematic from the Genesys 2 Resource Center,
+<https://digilent.com/reference/programmable-logic/genesys-2/start>, as
+`docs/design/build/genesys2_sch.pdf`, or point `SCHEMATIC=<path>` at it. The script checks its
+SHA-256 (`73a6b396...c43`) and stops on any other file, since another revision would put other
+parts in the boxes. If Digilent publishes a new revision, measure the boxes again on it and
+update the hash with them.
+
+| File | Page | Shows |
+|---|---|---|
+| `sch_oscillator.png` | 13 | IC23, the 200 MHz LVDS oscillator, `SYSCLK_P` and `SYSCLK_N` |
+| `sch_reset.png` | 11 | BTN1, CPU RESET, and its pull-up, `CPU_RESET_N` |
+| `sch_leds.png` | 4 | LD0 to LD7 and their 330 ohm resistors |
+| `sch_uart.png` | 9 | IC16, the FT232RQ, behind the micro-USB port J15 |
+| `sch_config.png` | 15 | the FPGA's configuration bank, the QSPI flash IC26, and IC25D, the buffer of `UART_TX_IN` |
+| `sch_mode.png` | 15 | the mode jumper JP5 and its three positions |
 
 ## Waveforms: `make waves`
 
