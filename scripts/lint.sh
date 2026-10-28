@@ -21,11 +21,12 @@
 # 4. vivado/rtl_sources.txt lists exactly the tracked rtl/*.v and rtl/*.vh
 #    files: a file missing from the list compiles nowhere and fails nowhere.
 # 5. File name equals module name, one word without underscores, for every
-#    rtl/*.v, sim/*.v and docs/design/scripts/flashregs/*.v (docs/CONTRIBUTING.md).
-#    sim/asm/ is exempt: the third-party assembler and the sample program it assembles.
+#    rtl/*.v, sim/*.v and docs/design/scripts/*/*.v (the report's benches and the
+#    flash register tool; docs/CONTRIBUTING.md). sim/asm/ is exempt: the
+#    third-party assembler and the sample program it assembles.
 # 6. Active-low signals are declared with an _n suffix, never resetn/rstn.
 # 7. Section banners ("// ---- name ----...") in rtl/*.v, sim/*.v and
-#    docs/design/scripts/flashregs/*.v end at column 80.
+#    docs/design/scripts/*/*.v end at column 80.
 # 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S,
 #    fw/blinker.S, fw/start*.S, fw/memory.ld, fw/Makefile) and the README's
 #    memory-map tables equal rtl/defines.vh; start*.S and memory.ld take the RAM
@@ -33,7 +34,7 @@
 #    whose --selftest proves it detects a change or deletion of every value it
 #    checks.
 # 9. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v,
-#    sim/asm/*.v and docs/design/scripts/flashregs/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*, docs/CONTRIBUTING.md). The
+#    sim/asm/*.v and docs/design/scripts/*/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*, docs/CONTRIBUTING.md). The
 #    first name of each declaration is checked, with // and single-line /* */
 #    comments stripped. sim/asm/riscv_assembly.v is exempt: it is third-party
 #    (Bruno Levy's assembler, kept as upstream wrote it) and its lower-case
@@ -116,7 +117,7 @@ if [ "$listed" != "$tracked" ]; then
 fi
 
 echo "== module name equals file name"
-for f in $(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/flashregs/*.v' | grep -v '^sim/asm/'); do
+for f in $(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/*/*.v' | grep -v '^sim/asm/'); do
     want=$(basename "$f" .v)
     got=$(grep -oE '^\s*module\s+[A-Za-z_][A-Za-z0-9_]*' "$f" | awk '{print $2}')
     if [ "$got" != "$want" ]; then
@@ -129,7 +130,7 @@ for f in $(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/flashregs/*.v' 
 done
 
 echo "== active-low suffix"
-bad_n=$(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/flashregs/*.v' \
+bad_n=$(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/*/*.v' \
     | xargs grep -nE '^\s*(input|output|inout|wire|reg)\b.*\b[A-Za-z_]*(resetn|rstn|nreset|nrst)\b' 2>/dev/null || true)
 if [ -n "$bad_n" ]; then
     echo "FAIL: active-low signals take an _n suffix (reset_n), see docs/CONTRIBUTING.md:"
@@ -138,7 +139,7 @@ if [ -n "$bad_n" ]; then
 fi
 
 echo "== section banner width"
-bad_banner=$(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/flashregs/*.v' \
+bad_banner=$(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/*/*.v' \
     | xargs awk '/^[[:space:]]*\/\/ ----.*----$/ && length != 80 {print FILENAME":"FNR": "length" chars"}')
 if [ -n "$bad_banner" ]; then
     echo "FAIL: section banners end at column 80 (docs/CONTRIBUTING.md):"
@@ -151,7 +152,7 @@ fw/tests/check_memory_map.sh | grep -E '^(FAIL|PASS)' || fail=1
 fw/tests/check_memory_map.sh --selftest | grep -E '^(FAIL|PASS)' || fail=1
 
 echo "== UPPER_CASE macros, parameters and localparams"
-bad_case=$(git ls-files 'rtl/*.v' 'rtl/*.vh' 'sim/*.v' 'sim/asm/*.v' 'docs/design/scripts/flashregs/*.v' \
+bad_case=$(git ls-files 'rtl/*.v' 'rtl/*.vh' 'sim/*.v' 'sim/asm/*.v' 'docs/design/scripts/*/*.v' \
     | grep -v '^sim/asm/riscv_assembly\.v$' \
     | xargs perl -ne '
         s{//.*}{}; s{/\*.*?\*/}{}g;
