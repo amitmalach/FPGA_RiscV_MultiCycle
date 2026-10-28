@@ -45,6 +45,9 @@ import zlib
 
 from PIL import Image
 
+sys.dont_write_bytecode = True    # no __pycache__/ beside the sources (lint rule 1)
+from pdf_objects import write_pdf_objects
+
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 GOLDEN = os.path.join(ROOT, "sim", "golden", "mandelbrot_bram.txt")
 DEFINES = os.path.join(ROOT, "rtl", "defines.vh")
@@ -236,17 +239,7 @@ def write_pdf(path, pages, cell_w=4.0):
                        + stream + b"\nendstream")
     objects[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>".encode()
 
-    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
-    offsets = []
-    for number, body in enumerate(objects, 1):
-        offsets.append(len(pdf))
-        pdf += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
-    xref = len(pdf)
-    pdf += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
-    pdf += b"".join(f"{o:010d} 00000 n \n".encode() for o in offsets)
-    pdf += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
-    with open(path, "wb") as f:
-        f.write(pdf)
+    write_pdf_objects(path, objects)
 
 
 def write_gif(path, pages, durations_ms, cell_px=4):
