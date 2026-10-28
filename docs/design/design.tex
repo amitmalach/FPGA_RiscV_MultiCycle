@@ -381,7 +381,8 @@ Tcl reads no flash register, so a small design of its own,
 \texttt{docs/design/scripts/flashregs/FlashRegs.v}, loaded over JTAG, read the register
 (\texttt{0x00}: the bit clear), wrote it back to \texttt{0x02}, and the FPGA configured from
 the flash again over JTAG, DONE high; a further write of the image with the property set kept
-the bit. This pitfall belongs to Chapter~\ref{ch:next} too.
+the bit, and at the next power-on the board booted Digilent's factory demo again. This pitfall
+belongs to Chapter~\ref{ch:next} too.
 
 \paragraph{The picture.} Figure~\ref{fig:board-tinyraytracer} shows what the board sent:
 48 by 24 pixels, each one terminal cell, a space on one of xterm's 256 colours.
