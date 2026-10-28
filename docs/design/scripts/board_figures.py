@@ -4,14 +4,18 @@
     docs/design/scripts/board_figures.py <captures_dir> <figures_dir>
     (make figures runs it as board_figures.py captures figures, in docs/design/)
 
-Reads the captures that board_capture.sh recorded, <demo>_bram.bin and .times, and writes:
+Reads the captures that board_capture.sh recorded, <demo>_<boot>.bin and .times, and writes:
 
-    board_mandelbrot.pdf   mandelbrot's first frame
-    board_riscv_logo.pdf   riscv_logo's first 64 frames, one rotation, a page each
-    board_riscv_logo.gif   the same frames for the README, each shown as long as it took
+    board_mandelbrot.pdf      mandelbrot's first frame, BRAM boot
+    board_riscv_logo.pdf      riscv_logo's first 64 frames, one rotation, a page each, BRAM boot
+    board_riscv_logo.gif      the same frames for the README, each shown as long as it took
+    board_tinyraytracer.pdf   tinyraytracer's picture, flash boot: the last complete run in the
+                              capture, which starts when CPU RESET is pressed after the load
 
-It prints BOARD lines with the measurements chapter 11 quotes, and exits 1 unless mandelbrot's
-first frame is byte for byte the UART bytes of the golden trace, sim/golden/mandelbrot_bram.txt.
+It prints BOARD lines with the measurements chapter 11 quotes, sieve's included, and exits 1
+unless mandelbrot's first frame is byte for byte the UART bytes of the golden trace,
+sim/golden/mandelbrot_bram.txt, every sieve round captured ends in its checksum's OK, and the
+tinyraytracer capture holds a complete run.
 The PDFs are vector drawings; no figure records a date, so unchanged captures regenerate
 byte-identical figures. Needs Pillow.
 
@@ -19,15 +23,20 @@ The demos draw with ANSI escape sequences, every pixel two spaces on a coloured 
 Terminal replays what they send:
 
     ESC [ H               cursor to the top left corner
-    ESC [ <p> ; ... m     background colour (SGR): 49 the default, black; 40-47 and 100-107
-                          the 16 colours, in xterm's palette; 48;2;<r>;<g>;<b> 24-bit colour
+    ESC [ <r> ; <c> H     cursor to row <r>, column <c>, both counted from 1
+    ESC [ 2 J             erase the screen to the current background
+    ESC [ <p> ; ... m     background colour (SGR): 0 and 49 the default, black; 40-47 and
+                          100-107 the 16 colours, in xterm's palette; 48;5;<n> xterm's 256
+                          colours; 48;2;<r>;<g>;<b> 24-bit colour
     LF                    the next line's first column: the firmware sends no CR, and the
                           terminal maps LF to CR LF (picocom --imap lfcrlf)
     space                 one cell in the current background
 
 Anything else is an error, a printable glyph included: Terminal draws no font. A frame is what
-a demo sends from one ESC [ H to the next, which is how both demos redraw the screen. A
-terminal cell is twice as tall as it is wide, so a demo's pixel, two cells, is square.
+mandelbrot or riscv_logo sends from one ESC [ H to the next, which is how both redraw the
+screen. A terminal cell is twice as tall as it is wide, so their pixel, two cells, is square;
+tinyraytracer's pixel is one cell. tinyraytracer ends with a line of text below its picture,
+which is checked and not drawn.
 """
 import os
 import re
@@ -41,12 +50,17 @@ GOLDEN = os.path.join(ROOT, "sim", "golden", "mandelbrot_bram.txt")
 DEFINES = os.path.join(ROOT, "rtl", "defines.vh")
 
 HOME = b"\x1b[H"
+CSI = re.compile(rb"\x1b\[([0-9;]*)([A-Za-z])")
 BLACK = (0, 0, 0)
 # xterm's 16 colours: SGR 40-47 select the first eight as background, 100-107 the bright ones.
 XTERM = [(0, 0, 0), (205, 0, 0), (0, 205, 0), (205, 205, 0), (0, 0, 238), (205, 0, 205),
          (0, 205, 205), (229, 229, 229), (127, 127, 127), (255, 0, 0), (0, 255, 0),
          (255, 255, 0), (92, 92, 255), (255, 0, 255), (0, 255, 255), (255, 255, 255)]
 LOGO_FRAMES = 64    # riscv_logo turns once in 64 frames: its sine table has 64 entries
+# tinyraytracer's graphics_init(): black background, screen erased; and graphics_terminate():
+# cursor below the picture, colours reset, a line of text.
+RAYTRACER_START = b"\x1b[48;5;16m\x1b[2J"
+RAYTRACER_END = re.compile(rb"\x1b\[\d+;1H\x1b\[0m\nDone\.\n")
 
 
 # ---- captures ----------------------------------------------------------------
@@ -116,19 +130,16 @@ class Terminal:
     def __init__(self):
         self.cells = {}
         self.row = self.col = 0
-        self.bg = BLACK
+        self.bg = self.blank = BLACK
 
     def feed(self, data):
         i = 0
         while i < len(data):
-            if data.startswith(HOME, i):
-                self.row = self.col = 0
-                i += len(HOME)
-            elif data.startswith(b"\x1b[", i):
-                m = re.compile(rb"\x1b\[([0-9;]*)m").match(data, i)
+            if data[i] == 0x1B:
+                m = CSI.match(data, i)
                 if not m:
                     raise ValueError(f"unsupported escape sequence {data[i:i + 12]!r}")
-                self._sgr([int(p) for p in m.group(1).split(b";")])
+                self._csi(m.group(1), m.group(2))
                 i = m.end()
             elif data[i] == 0x0A:
                 self.row, self.col = self.row + 1, 0
@@ -140,11 +151,24 @@ class Terminal:
             else:
                 raise ValueError(f"unsupported byte {data[i]:#04x}: Terminal draws no glyphs")
 
+    def _csi(self, params, final):
+        if final == b"H":
+            row, col = (int(p) for p in params.split(b";")) if params else (1, 1)
+            self.row, self.col = row - 1, col - 1
+        elif final == b"J" and params == b"2":
+            self.cells, self.blank = {}, self.bg
+        elif final == b"m":
+            self._sgr([int(p) for p in params.split(b";")])
+        else:
+            raise ValueError(f"unsupported escape sequence ESC [ {(params + final).decode()}")
+
     def _sgr(self, params):
-        if params == [49]:
+        if params in ([0], [49]):
             self.bg = BLACK
         elif len(params) == 1 and (40 <= params[0] <= 47 or 100 <= params[0] <= 107):
             self.bg = XTERM[params[0] - 40 if params[0] < 100 else params[0] - 92]
+        elif len(params) == 3 and params[:2] == [48, 5]:
+            self.bg = xterm256(params[2])
         elif len(params) == 5 and params[:2] == [48, 2]:
             self.bg = tuple(params[2:])
         else:
@@ -154,7 +178,17 @@ class Terminal:
         """The screen as rows of colours, as far as the demo has drawn."""
         rows = 1 + max(r for r, _ in self.cells)
         cols = 1 + max(c for _, c in self.cells)
-        return [[self.cells.get((r, c), BLACK) for c in range(cols)] for r in range(rows)]
+        return [[self.cells.get((r, c), self.blank) for c in range(cols)] for r in range(rows)]
+
+
+def xterm256(n):
+    """xterm's 256-colour palette: the 16 colours, a 6 by 6 by 6 colour cube, 24 greys."""
+    if n < 16:
+        return XTERM[n]
+    if n < 232:
+        level = [0, 95, 135, 175, 215, 255]
+        return (level[(n - 16) // 36], level[(n - 16) // 6 % 6], level[(n - 16) % 6])
+    return (8 + 10 * (n - 232),) * 3
 
 
 def screens(capture, frames):
@@ -291,12 +325,47 @@ def riscv_logo(captures, figures):
               [10 * round(d / 10) for d in durations])
 
 
+def sieve(captures):
+    capture = Capture(os.path.join(captures, "sieve_bram"))
+    data = capture.data[capture.design_start:]
+    verdicts = re.findall(rb"checksum:\n   [0-9A-F]{8} (OK|ERROR)\n", data)
+    starts = [capture.design_start + m.start() for m in re.finditer(rb" 1st prime: 2\n", data)]
+    if not verdicts or verdicts.count(b"OK") != len(verdicts):
+        sys.exit(f"BOARD sieve: {verdicts.count(b'OK')} of {len(verdicts)} checksums OK")
+    period = (capture.time(starts[-1]) - capture.time(starts[0])) / (len(starts) - 1)
+    print(f"BOARD sieve: {len(verdicts)} complete rounds in {capture.name}.bin, every checksum OK, "
+          f"a round every {1e3 * period:.0f} ms")
+
+
+def tinyraytracer(captures, figures):
+    capture = Capture(os.path.join(captures, "tinyraytracer_flash"))
+    ends = list(RAYTRACER_END.finditer(capture.data, capture.design_start))
+    if not ends:
+        sys.exit(f"BOARD tinyraytracer: no run in {capture.name}.bin reaches graphics_terminate()'s "
+                 f"text; was CPU RESET pressed after the load, and the capture long enough?")
+    end = ends[-1]
+    start = capture.data.rfind(RAYTRACER_START, capture.design_start, end.start())
+    if start < 0:
+        sys.exit(f"BOARD tinyraytracer: the run that ends at byte {end.start()} has no start")
+    terminal = Terminal()
+    terminal.feed(capture.data[start:end.start()])
+    screen = terminal.screen()
+    took = capture.time(end.start()) - capture.time(start)
+    print(f"BOARD tinyraytracer: the last complete run is bytes {start} to {end.end() - 1} of "
+          f"{capture.name}.bin, {end.end() - start} bytes; the picture, {len(screen[0])} by "
+          f"{len(screen)} cells, took {took:.1f} s from the run's first byte to the closing text, "
+          f"{1e3 * took / (len(screen[0]) * len(screen)):.0f} ms a pixel")
+    write_pdf(os.path.join(figures, "board_tinyraytracer.pdf"), [screen])
+
+
 def main():
     if len(sys.argv) != 3:
         sys.exit(__doc__.split("\n\n")[1])
     captures, figures = sys.argv[1:]
     mandelbrot(captures, figures)
     riscv_logo(captures, figures)
+    sieve(captures)
+    tinyraytracer(captures, figures)
 
 
 if __name__ == "__main__":
