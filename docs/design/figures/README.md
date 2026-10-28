@@ -7,7 +7,8 @@ each with a recipe below. Each figure is committed once it exists, and `make -C 
 builds the PDF from the committed figures without Vivado or the board. Paths below are relative
 to the repository root.
 
-Formats: PDF for vector drawings, PNG for screenshots, JPEG for photos. Keep the source of a
+Formats: PDF for vector drawings, PNG for screenshots, JPEG for photos, and LaTeX for the
+excerpts a TikZ drawing in `design.tex` sets (`flow_excerpts.tex`). Keep the source of a
 hand-made drawing (for example `.svg`) next to its exported PDF.
 
 A photo is committed without its metadata: a phone writes the GPS position into the EXIF
@@ -22,6 +23,7 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
 | `wave_fsm.pdf` | 5, The multi-cycle core: four instructions through the FSM states | `make figures`: `docs/design/scripts/waves/WaveBench.v` under iverilog, rendered by `docs/design/scripts/vcd_wave.py`; "Waveforms" below |
 | `wave_flash.pdf`, `wave_flash_end.pdf` | 6, Memory and memory-mapped IO: an instruction fetched from the flash, whole and its end | `make figures`, as `wave_fsm.pdf` |
+| `flow_excerpts.tex` | 8, From C to the board: the excerpts of the flow figure, drawn in `design.tex` | `make figures`: `docs/design/scripts/flow_excerpts.py`; "The C-to-board flow" below |
 | `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
 | `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
 | `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
@@ -105,6 +107,37 @@ window again and update the `--start` value in `docs/design/Makefile`. The flash
 skips the first fetch on purpose: in the simulation it is lost, for the reason chapter 7
 gives in "CCLK and STARTUPE2". To add a waveform, add its signals to the bench's `$dumpvars`, write
 a spec file and add a render line to the `waves` target.
+
+## The C-to-board flow: `make flow`
+
+Figure `fig:flow` is drawn in TikZ in `design.tex`; its excerpts, one LaTeX macro each, are
+generated into `flow_excerpts.tex` from the real build, so they follow a change to the
+firmware or the RTL. `make flow` (part of `make figures`) runs three steps, from `docs/design/`:
+
+1. `make -C fw` builds mandelbrot into `docs/design/build/flow/`: the BRAM-boot ELF and firmware
+   image, the assembly (`build/mandelbrot.s`, the `fw/Makefile` rule for the reader), and the
+   flash build's ELF, binary and MCS. `fw/build/` and `rtl/firmware.hex` are left alone; the
+   MCS needs Vivado (`fw/tools/write_mcs.tcl`).
+2. `docs/design/scripts/flow_bram.tcl` builds the BRAM-boot bitstream from that image with
+   `board_bitstream.tcl`, about a minute and a half, and writes the routed block RAMs' `INIT`
+   strings to `bram_init.txt`. Make rebuilds it only when the image, the RTL, the constraints
+   or the scripts changed.
+3. `docs/design/scripts/flow_excerpts.py` cuts the excerpts: the line of `fw/mandelbrot.c` that
+   writes the LEDs, its four instructions in the assembly and in `objdump -d` (the store and
+   the three before it, the window of `wave_fsm.pdf`), the firmware image's lines, the block
+   RAMs' `INIT` string, the bitstream's header, the JTAG load and frame 0 from
+   `captures/mandelbrot_bram`, and the flash build's first instruction through the binary and
+   the MCS. The JTAG and flash lines are quoted from `board_program.tcl` and `board_flash.tcl`.
+   It also writes the numbers and words chapter 8's prose quotes, one macro each. It fails
+   unless each stage holds what the one before made: the image equals `rtl/firmware.hex`, its
+   words are the ELF's instructions, two 18-bit-wide block RAMs of one kind hold its low and
+   high halves, the binary begins with the flash ELF's first instruction, and the MCS holds
+   the binary at `SPIFLASH_CODE_OFFSET`.
+
+The window is found, not configured: the first store in `main` that `objdump` annotates with
+the LED register's address. It is the window of `wave_fsm.pdf` too, whose `--start` in
+`docs/design/Makefile` is configured: after a firmware change, check that both still agree.
+Nothing in the file records a date, so an unchanged build regenerates it byte-identical.
 
 ## Board captures: `make captures`
 

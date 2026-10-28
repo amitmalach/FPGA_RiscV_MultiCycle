@@ -3,6 +3,7 @@
 #   make                              mandelbrot demo, BRAM boot -> canonical firmware.hex
 #   make PROG=sieve                   another demo, BRAM boot
 #   make PROG=ST_NICCC TARGET=flash   flash boot: build/<prog>.spiflash.{elf,bin,mcs}
+#   make build/mandelbrot.s           a demo's assembly, for the reader: no firmware build uses it
 #   make check                        memory-map mirrors match rtl/defines.vh; rebuild from clean
 #                                     and compare against the committed image
 #   make clean
@@ -119,6 +120,11 @@ $(BUILD)/%.o: %.S | $(BUILD)
 
 $(BUILD)/%.o: %.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# The assembly gcc produces from a C file with the same flags. gcc -c makes it too and
+# assembles it within the same command, so the build never writes it out.
+$(BUILD)/%.s: %.c | $(BUILD)
+	$(CC) $(CFLAGS) -S $< -o $@
 
 # Only tinyraytracer uses <math.h> and libm.
 $(BUILD)/tinyraytracer.o:            CFLAGS     += $(MATH_INC)

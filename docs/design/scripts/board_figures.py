@@ -69,8 +69,9 @@ RAYTRACER_END = re.compile(rb"\x1b\[\d+;1H\x1b\[0m\nDone\.\n")
 # ---- captures ----------------------------------------------------------------
 
 class Capture:
-    """A capture: its bytes, the host time each arrived, and design_start, the offset of the
-    loaded design's first byte."""
+    """A capture: its bytes, the host time each arrived, the JTAG load's start and end
+    (program_start, program_end), and design_start, the offset of the loaded design's first
+    byte."""
 
     def __init__(self, base):
         self.name = os.path.basename(base)
@@ -81,15 +82,15 @@ class Capture:
         for line in open(base + ".times"):
             fields = line.split()
             if fields[0] == "PROGRAM_START":
-                program_start = float(fields[1])
+                self.program_start = float(fields[1])
             elif fields[0] == "PROGRAM_END":
-                program_end = float(fields[1])
+                self.program_end = float(fields[1])
             elif fields[0] == "READ":
                 self.reads.append((float(fields[1]), offset))
                 offset += int(fields[2])
         if offset != len(self.data):
             sys.exit(f"{base}.times counts {offset} bytes, {base}.bin holds {len(self.data)}")
-        self.design_start = self._design_start(program_start, program_end)
+        self.design_start = self._design_start(self.program_start, self.program_end)
 
     def _design_start(self, program_start, program_end):
         # While the FPGA is configured it runs nothing, for seconds: the longest silence on
