@@ -1466,6 +1466,17 @@ Line by line:
                       real functions.
 ```
 
+The same catch-all also loads debug data, not discarded today. Ubuntu's `libgcc.a`
+(`/usr/lib/gcc/riscv64-unknown-elf/13.2.0/rv32i/ilp32/`) carries DWARF sections in its members,
+and `*(.*)` places those of `muldi3.o` and `div.o` (`.debug_line`, `.debug_info`,
+`.debug_abbrev`, `.debug_aranges`, `.debug_str`, `.debug_line_str`) in RAM right after their
+code. In mandelbrot's BRAM image that is 576 bytes after `__mulsi3` and 508 after `__modsi3`:
+1084 of the image's 3408 bytes, never fetched, so the program runs the same, but taken from the
+room the stack grows into. Adding `*(.debug*)` to `/DISCARD/` gives a 2324-byte image, with
+`__divsi3` at `0x860` instead of `0xaa0`; the change is left out so that the image the report
+describes stays the one committed. `spiflash.ld` names its input sections and does not load
+them.
+
 ### Support objects every C program needs
 
 *Signals:* `putchar.S`, `memcpy.c`, `errno.c`

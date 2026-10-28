@@ -7,8 +7,8 @@
 // primitive that gives user logic the flash clock pin after configuration.
 // Memory map and boot addresses: defines.vh.
 module SOC #(
-    // Reset vector. Default = flash boot; the testbench overrides it with 0
-    // (BRAM boot, BOOT_ADDR_BRAM: no SPI-flash model in simulation).
+    // Reset vector. Default = flash boot; the regression testbench overrides it
+    // with 0 (BRAM boot, BOOT_ADDR_BRAM: that testbench has no SPI-flash model).
     parameter [`ADDR_W-1:0] BOOT_ADDR = `BOOT_ADDR_FLASH,
     // RAM depth in words; firmware must be built with the matching RAM_SIZE (fw/Makefile).
     parameter integer       RAM_WORDS = `RAM_WORDS,
