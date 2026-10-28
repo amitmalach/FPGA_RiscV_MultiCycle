@@ -135,7 +135,7 @@ controller sends a 24-bit address.
 | `sim/` | SoC-level testbench, golden trace, regression script; `ALUBench.v`, the ALU unit bench, and `run_unit.sh`; `sim/asm/` is a Verilog-macro assembler for test programs |
 | `constraints/` | `Genesys-2-Master.xdc`: pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: regenerate the project, build the bitstream, run the non-project baseline, with `common.tcl` shared by all three; `rtl_sources.txt` is the file list every script shares |
-| `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (final report sources, figures and their scripts, design notes) |
+| `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (final report sources, figures and their scripts, design notes, and `scripts/flashregs/`, a small FPGA design that reads and sets the flash's Quad Enable bit) |
 | `scripts/` | `lint.sh`, the pre-commit hook that runs it, the commit-msg hook that checks cited gate logs, and `quote_comment.sh` for moving RTL comments into the design notes |
 | `build/` | Everything generated: the Vivado project, run directories, `SOC.bit`, gate logs. Not tracked |
 
