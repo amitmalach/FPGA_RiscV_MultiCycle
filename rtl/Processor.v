@@ -139,6 +139,7 @@ module Processor #(
     // ---- load and store alignment -------------------------------------------
     // Memory moves whole words; funct3[1:0] (00 byte, 01 halfword, 10 word)
     // and the address low bits pick the lane.
+    // Not registered: the worst setup path runs from here to the rd write.
     wire [`ADDR_W-1:0] loadstore_addr = rs1 + (is_store ? imm_s : imm_i);
     wire        byte_access     = (funct3[1:0] == 2'b00);
     wire        halfword_access = (funct3[1:0] == 2'b01);
