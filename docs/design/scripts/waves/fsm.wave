@@ -1,0 +1,17 @@
+# The signals of chapter 5's FSM waveform, for scripts/vcd_wave.py: path, label, format and,
+# for the core's own signals, the report's colour for the core. The state names are the
+# two-letter codes of the FSM figure: a full name does not fit in one cycle.
+uut.clk                  clk          clock
+cpu.control.state        state        0=FI,1=WI,2=FR,3=EX,4=LD,5=WD,6=ST   0072b2
+cpu.control.latch_instr  latch_instr  bit                                  0072b2
+cpu.control.read_regs    read_regs    bit                                  0072b2
+cpu.control.update_pc    update_pc    bit                                  0072b2
+cpu.control.write_rd     write_rd     bit                                  0072b2
+cpu.pc                   pc           hex                                  0072b2
+cpu.instr                instr        hex                                  0072b2
+uut.mem_addr             mem_addr     hex
+uut.mem_rstrb            mem_rstrb    bit
+uut.mem_rdata            mem_rdata    hex
+uut.mem_wmask            mem_wmask    hex
+uut.mem_wdata            mem_wdata    hex
+uut.LEDS                 LEDS         hex

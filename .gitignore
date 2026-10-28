@@ -51,3 +51,4 @@ Thumbs.db
 docs/design/*.aux
 docs/design/*.toc
 docs/design/*.out
+__pycache__/

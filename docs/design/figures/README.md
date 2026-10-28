@@ -20,6 +20,7 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `board_bottom.jpg` | 2, Board and tools | by hand: the owner's photo, notes below |
 | `rtl_soc.pdf` | 4, System architecture | `make figures`: `docs/design/scripts/rtl_schematics.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
+| `wave_fsm.pdf` | 5, The multi-cycle core: four instructions through the FSM states | `make figures`: `docs/design/scripts/waves/WaveBench.v` under iverilog, rendered by `docs/design/scripts/vcd_wave.py`; "Waveforms" below |
 | `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
 | `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
 | `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
@@ -58,6 +59,40 @@ Facts about Vivado 2025.2 behind these scripts:
   LUTs in the ALU, so the schematics come from the elaborated RTL (`synth_design -rtl`).
 - Every Vivado run works in a scratch directory (the firmware image is read by bare name), and a
   checkpoint is opened from a copy, so the original is never written.
+
+## Waveforms: `make waves`
+
+The waveforms are rendered from a VCD of the simulated SoC, not drawn by hand, so they follow
+a change to the RTL or the firmware image. `make waves` (part of `make figures`) runs three
+steps, from `docs/design/`:
+
+1. `docs/design/scripts/waves/run_bench.sh` simulates `docs/design/scripts/waves/WaveBench.v`
+   under iverilog: the `SOC` top in BRAM boot with `rtl/firmware.hex`, driven as `sim/bench.v`
+   drives it, with Vivado's unisim models of `IBUFDS`, `BUFG` and `STARTUPE2` and its `glbl.v`
+   from the Vivado install (`XILINX_VIVADO`, else `~/Xilinx/2025.2/Vivado`); no Vivado tool
+   runs. The bench dumps the signals the waveforms draw and nothing else, the bench's header
+   lists them, for 3000 ns into `docs/design/build/waves/wave.vcd`. Nothing is checked.
+2. `docs/design/scripts/vcd_wave.py` renders one window of the VCD as a vector PDF. A spec
+   file names the signals, top to bottom, with a label and a format each (`bit`, `hex`,
+   `dec`, named values for an FSM, `clock` for the one signal whose rising edges number the
+   cycles, or `grid` for that signal when its row is not wanted); its header gives the
+   syntax. `--start` names the signal values that open the window, as a trigger does, and
+   `--cycles` its length, so the window moves with the firmware rather than with a
+   simulation time. A bus value is written in hex without leading zeros, and left blank where
+   it does not fit; `x` or `z` bits make the value `x`. In a long window the cycle numbers
+   and grid lines thin out to every 2nd, 5th, 10th, ... cycle, so they stay legible.
+   `--selftest` checks the VCD reader, the trigger and the spec parser against two built-in
+   VCDs; `make waves` runs it first.
+3. `docs/design/scripts/crop_pdf.sh` embeds the font, as for the RTL schematics.
+
+| Figure | Spec | Window |
+|---|---|---|
+| `wave_fsm.pdf` | `docs/design/scripts/waves/fsm.wave` | from `FETCH_INSTR` at `pc = 0x278`, 19 cycles: `lw s0,8(sp)`, `lui a5,0x400`, `lui a4,0x0`, `sw s0,4(a5)` at the end of `main`'s prologue in mandelbrot, where the frame counter goes to the LEDs |
+
+The pc comes from `riscv64-unknown-elf-objdump -d fw/build/mandelbrot.bram.elf`; after a
+change to the firmware image, find the window again and update the `--start` value in
+`docs/design/Makefile`. To add a waveform, add its signals to the bench's `$dumpvars`, write
+a spec file and add a render line to the `waves` target.
 
 ## Board captures: `make captures`
 

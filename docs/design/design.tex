@@ -27,7 +27,7 @@
 \usepackage{xcolor}
 \usepackage{titlesec}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta}
+\usetikzlibrary{arrows.meta,positioning}
 \usepackage{animate}
 \usepackage[hidelinks]{hyperref}
 \usepackage{qrcode}
@@ -54,8 +54,18 @@
 \titleformat{\chapter}{\normalfont\LARGE\bfseries}{\thechapter}{1em}{}
 \titlespacing*{\chapter}{0pt}{0pt}{2ex}
 
+% Two figures may share the top of a page with a few lines of text, instead of a float page
+% of their own and the lines on the next page.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.85}
+
 % What a chapter will hold, until it is written.
 \newcommand{\planned}[1]{\noindent{\color{gray}\itshape To hold: #1}\par}
+
+% A citation of the design notes, docs/design/notes.md, by section heading: the notes hold
+% the full reasoning, the report states the choice.
+\newcommand{\notes}[1]{(\texttt{notes.md}, ``#1'')}
 
 \title{A Multi-cycle RV32I System on Chip for the Digilent Genesys 2}
 \author{Amit Malach \\ Supervisor: Prof.\ Avi Mendelson \\ Technion -- Israel Institute of Technology}
@@ -167,32 +177,408 @@ schematic~\cite{digilent-genesys2-rm}, the I/O package view, and the tool versio
 \planned{one table of folders and one of make entry points.}
 
 \chapter{System architecture}
-\planned{the SoC block diagram beside the top-level RTL schematic, the memory map, the
-address decode, and clocking and reset.}
+\label{ch:arch}
 
-% The SoC block diagram, drawn in TikZ, goes beside this figure.
+The SoC is six modules in one clock domain, wired together by \texttt{SOC}, the top level
+(Figure~\ref{fig:soc}), with four more inside the core. The core sees one bus; everything else
+hangs off that bus.
+This chapter gives the bus and the modules, the memory map and its decode, and the clock and
+reset. Each section names the design-notes section that holds the full reasoning.
+
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\textwidth]{figures/rtl_soc}
-  \caption{Vivado's RTL schematic of the SoC top level, \texttt{SOC}, elaborated from the
-    Verilog with \texttt{synth\_design -rtl}.}
-  \label{fig:rtl-soc}
+  \begin{subfigure}{\textwidth}
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[x=1cm, y=1cm, font=\footnotesize, >=Stealth,
+        block/.style={draw, rounded corners=2pt, minimum height=0.9cm, align=center,
+          inner sep=3pt},
+        sub/.style={draw, fill=white, font=\scriptsize, inner sep=2pt, minimum height=0.45cm},
+        port/.style={font=\scriptsize\ttfamily, inner sep=1pt, align=center},
+        wire/.style={font=\scriptsize, inner sep=1pt, fill=white, align=center},
+        bus/.style={<->, line width=1.1pt},
+        sig/.style={->}]
+      % clock and reset, the left column, with the board's pins above and below
+      \node[block, fill=modclock!35, minimum width=1.7cm] (clk) at (0,2.1) {IBUFDS\\BUFG};
+      \node[block, fill=modclock!35, minimum width=1.7cm] (cw) at (0,0.5) {Clockworks};
+      \node[port, above=0.3cm of clk] (sysclk) {sysclk\_p, sysclk\_n};
+      \node[port, below=0.3cm of cw] (rst) {RESET};
+      \draw[sig] (sysclk) -- (clk);
+      \draw[sig] (rst) -- (cw);
+      % the core
+      \node[block, fill=modcore!15, minimum width=4.3cm, minimum height=2.7cm] (cpu)
+        at (4.95,1.3) {};
+      \node[anchor=north west, font=\footnotesize\bfseries, inner sep=3pt] at (cpu.north west)
+        {Processor};
+      \node[sub] (dec) at (4.05,1.35) {Decoder};
+      \node[sub] (ctl) at (5.9,1.35) {Control};
+      \node[sub] (alu) at (4.05,0.55) {ALU};
+      \node[sub, fill=modregfile!45] (rf) at (5.9,0.55) {RegisterFile};
+      \draw[sig] (clk.east) -- node[wire, above] {clk} (cpu.west |- clk.east);
+      \draw[sig] (cw.east) -- node[wire, above] {reset\_n} node[wire, below] {clk\_enable}
+        (cpu.west |- cw.east);
+      % the bus
+      \node[block, fill=modbus!45, minimum width=2.3cm, minimum height=2.7cm] (bus)
+        at (10,1.3) {\textbf{IOBus}\\address decode\\LED register\\read mux};
+      \draw[bus] (cpu.east |- bus.west) -- node[wire, above]
+        {mem\_addr\\mem\_rstrb\\mem\_wdata\\mem\_wmask} node[wire, below]
+        {mem\_rdata\\mem\_rbusy} (bus.west);
+      \node[port, right=0.5cm of bus] (leds) {LEDS[7:0]};
+      \draw[sig] (bus) -- (leds);
+      % memory and peripherals, the bottom row
+      \node[block, fill=modram!35, minimum width=2.6cm] (ram) at (4.95,-2.1)
+        {Memory\\6 KB block RAM};
+      \node[block, fill=moduart!35, minimum width=1.9cm] (uart) at (8.7,-2.1) {UartTx};
+      \node[block, fill=modflash!35, minimum width=1.9cm] (flash) at (11,-2.1) {SPIFlash};
+      \node[block, fill=modflash!35, minimum width=1.8cm] (su) at (14.1,-2.1) {STARTUPE2};
+      \draw[sig] (cpu.south -| 4.35,0) -- node[wire, left] {mem\_addr\\mem\_wdata}
+        (ram.north -| 4.35,0);
+      \draw[bus] (bus.south -| 9.05,0) -- ++(0,-0.45) -| node[wire, above, pos=0.5]
+        {ram\_rstrb, ram\_wmask} node[wire, below, pos=0.5] {ram\_rdata}
+        (ram.north -| 5.55,0);
+      \draw[bus] (bus.south -| 9.5,0) -- node[wire, left, pos=0.65] {valid, data\\ready}
+        (uart.north -| 9.5,0);
+      \draw[bus] (bus.south -| 10.8,0) -- node[wire, right, pos=0.65]
+        {rstrb, word\_addr\\rdata, rbusy} (flash.north -| 10.8,0);
+      \draw[sig] (flash.east) -- node[wire, above] {spi\_clk} (su.west);
+      \draw[sig] (su.north) |- node[wire, above, pos=0.75] {eos} (bus.east |- 0,0.2);
+      \node[port, below=0.3cm of uart] (txpin) {uart\_rx\_out};
+      \draw[sig] (uart) -- (txpin);
+      \node[port, below=0.3cm of flash] (fpins) {spiflash\_csn,\\\_mosi, \_miso};
+      \draw[<->] (flash) -- (fpins);
+      \node[port, below=0.3cm of su] (cclk) {CCLK pin};
+      \draw[sig] (su) -- (cclk);
+    \end{tikzpicture}}
+    \caption{The block diagram, from \texttt{rtl/SOC.v}, in the module colours of
+      Table~\ref{tab:module-colours}. The thick arrows are the core's bus and the handshakes
+      \texttt{IOBus} derives from it. \texttt{clk}, 200~MHz, reaches every block;
+      \texttt{reset\_n} and \texttt{clk\_enable}, drawn into the core only, also reach
+      \texttt{IOBus}, the RAM (\texttt{clk\_enable}) and the UART (\texttt{reset\_n}).}
+    \label{fig:soc-block}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}{\textwidth}
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/rtl_soc}
+    \caption{Vivado's RTL schematic of the same top level, elaborated from the Verilog with
+      \texttt{synth\_design -rtl}: the six instances under their names in \texttt{SOC.v},
+      and the three primitives, \texttt{IBUFDS} and \texttt{BUFG} on the clock and
+      \texttt{STARTUPE2} on the flash clock.}
+    \label{fig:rtl-soc}
+  \end{subfigure}
+  \caption{The SoC as drawn and as Vivado inferred it.}
+  \label{fig:soc}
 \end{figure}
 
+\section{The bus and the modules}
+
+The core, \texttt{Processor}, sees one bus and nothing else: a 32-bit byte address, a
+one-cycle read strobe, 32 bits of read data, 32 bits of write data with a four-bit byte
+mask, and a busy input. The bus has no acknowledge. A read requested with
+\texttt{mem\_rstrb} is answered on \texttt{mem\_rdata} in the next cycle, unless
+\texttt{mem\_rbusy} is high, and a write lands on the edge where \texttt{mem\_wmask} is
+non-zero. Every address falls in some region, so no access is refused
+\notes{Processor bus has no notion of RAM versus device}.
+
+Everything around the core follows from that contract. \texttt{IOBus} decodes the address
+into three regions, forwards the strobe and the mask to the RAM, holds the LED register,
+turns a store into the UART's send pulse and a flash read into an SPI transaction, and
+multiplexes the read data back. \texttt{Memory} is 6~KB of block RAM with one port, shared
+by instruction fetch and by loads and stores: there is no separate instruction memory. Its
+read is registered, which is why the core waits a cycle after every read, and its write
+lands on the same edge, which is why a store needs no wait
+\notes{Read and write timing are not symmetric}. \texttt{UartTx} sends 8N1 at 115\,200~baud
+and \texttt{SPIFlash} reads one 32-bit word per transaction, at a sixth of the system
+clock. The flash controller is the only block that stalls the core, by holding
+\texttt{mem\_rbusy} for the length of a transaction; the RAM and the IO registers always
+answer in the next cycle \notes{Only flash reads stall the core; read mux}.
+Chapters~\ref{ch:memio} and~\ref{ch:flash} give each module's timing.
+Figure~\ref{fig:rtl-soc} is what Vivado makes of \texttt{SOC.v} before synthesis: the same
+six instances. \texttt{Clockworks} is among them but contributes no cell to the netlist,
+as Section~\ref{sec:clock} explains.
+
+\section{Memory map and address decode}
+\label{sec:memmap}
+
+Table~\ref{tab:memory-map} is the memory map, defined once in \texttt{rtl/defines.vh}. The
+firmware carries copies of its values in \texttt{fw/io.h} and the start-up code, and a lint
+rule holds every copy equal to the defines (Chapter~\ref{ch:verif}).
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}llp{5.5cm}l@{}}
+    \toprule
+    Byte address & Selected by & Region or register & Access \\
+    \midrule
+    \texttt{0x0000\_0000}--\texttt{0x0000\_17FF} & no region bit & RAM, 6~KB (1536 words)
+      & read, write, fetch \\
+    \texttt{0x0040\_0000} & bit 22 & \texttt{IO\_BASE}, the IO registers & \\
+    \quad\texttt{+ 0x04} & bit 2 & \texttt{IO\_LEDS}, the LED register & write \\
+    \quad\texttt{+ 0x08} & bit 3 & \texttt{IO\_UART\_DAT}, send one byte & write \\
+    \quad\texttt{+ 0x10} & bit 4 & \texttt{IO\_UART\_CNTL}, status; bit 9 = busy & read \\
+    \texttt{0x0100\_0000}--\texttt{0x01FF\_FFFF} & bit 24 & SPI flash, a 16~MB window on
+      the chip & read, fetch \\
+    \quad\texttt{0x01D0\_0000}--\texttt{0x01FF\_FFFF} & & the code window, 3~MB, where
+      flash boot starts & \\
+    \bottomrule
+  \end{tabular}
+  \caption{The memory map (\texttt{rtl/defines.vh}). The reset vector is
+    \texttt{0x0000\_0000} in BRAM boot and \texttt{0x01D0\_0000} in flash boot
+    (Chapter~\ref{ch:flash}).}
+  \label{tab:memory-map}
+\end{table}
+
+A region is chosen by one address bit, not by a comparator: bit~24 selects the flash, bit~22
+selects the IO registers when bit~24 is clear, and an address with neither bit set is RAM.
+Inside the IO region each register owns one bit as well, bits~2, 3 and~4, so a store to
+\texttt{IO\_BASE + 4} lights the LEDs and a store to \texttt{IO\_BASE + 8} sends a byte. The
+whole decode is a few bit tests in \texttt{IOBus}, the address masked with a base and
+OR-reduced, and a register is as cheap as a region \notes{Address decode: one bit per
+region, one-hot IO registers, why bit 24}.
+
+The flash bit is the one that was chosen with care, because it fixes how much of the chip
+is reachable: everything below the selector bit is the offset inside the flash. Bit~23 would
+leave 8~MB, which does not reach past the 10.9~MB bitstream that sits at the start of the
+same chip; bit~24 leaves 24 bits, 16~MB, exactly the three address bytes of the flash's
+\texttt{03h} read command. The IO bit only has to lie between the RAM and the flash, and
+bit~22 does. The code window at 13~MB, and why, are in Chapter~\ref{ch:flash}.
+
+The decode has three consequences worth knowing before writing firmware. Nothing is
+rejected: an address with no region bit selects the RAM, past its 6~KB end as well, and what
+such an access does is undefined; in simulation it reads \texttt{x}. Only the UART
+status register answers a read; the LED and UART data registers, and any other IO address,
+read as zero. And a write to flash space does nothing: the controller only reads. To add a
+peripheral, give it the next free bit of the IO word address, bit~5 at byte offset
+\texttt{0x20}, decode it in \texttt{IOBus} as the three existing ones are decoded, add it to
+the read mux if it answers reads, and add its copy in \texttt{fw/io.h} to the lint rule.
+
+\section{Clock and reset}
+\label{sec:clock}
+
+The board's 200~MHz oscillator drives a differential pair, so the clock enters through
+\texttt{IBUFDS}, which turns the pair into one signal, and \texttt{BUFG}, which puts it on a
+global clock net \notes{Genesys 2 differential clock input}. That net, \texttt{clk}, is the
+only clock in the design; its 5~ns period is the one timing constraint, met with 0.219~ns to
+spare (Chapter~\ref{ch:results}).
+
+\texttt{Clockworks} derives two signals from the clock and the button. \texttt{clk\_enable}
+is a gearbox: with the parameter \texttt{SLOW} set to $n$, it is high for one cycle in
+$2^n$, and the core, the bus and the RAM advance only on those cycles, while the UART and
+the flash controller run every cycle, so the baud rate and the SPI clock stay right
+\notes{Gearbox counter}. With \texttt{SLOW} at 20 the core runs a million times slower and
+the LEDs can be watched; the shipped design sets it to~0, \texttt{clk\_enable} is the
+constant~1, and the module synthesises to nothing.
+
+\texttt{reset\_n} is the CPU RESET button, active-low on this board, forwarded as it is: no
+synchroniser and no debounce. Every reset in the design is synchronous, and three places
+have one: the core's \texttt{pc}, \texttt{instr} and FSM state, the LED register, and the
+UART's transmitter. The register file, the RAM and the flash controller have none; the
+register file because the core fetches an instruction before it reads any register. The
+core's and the LED register's resets are not gated by \texttt{clk\_enable}, so a slowed
+design still resets on the next edge \notes{Synchronous reset and the clock enable}.
+The core's three registers also declare their reset value as their initial value, which is
+what configuration loads into the flip-flop on a 7-series part, so the core leaves
+configuration already in its reset state and starts without a press of the button
+\notes{Power-on state matches the reset state}. The LED register and the UART declare
+none and configure to zero: the LEDs dark, and the UART in its idle state, whose first
+clock raises the line and \texttt{ready}. In flash boot a press is still needed on the
+board, for a reason that lies in the flash controller's start-up, not here
+(Chapter~\ref{ch:board}).
+
+The one subtlety of the reset is where the FSM lands. Reset puts the core in
+\texttt{WAIT\_DATA}, not \texttt{FETCH\_INSTR}, because \texttt{FETCH\_INSTR} asserts the
+read strobe for as long as it lasts, and a reset held for many cycles with \texttt{pc} in
+flash space would restart the SPI transaction on every cycle with chip select held low.
+\texttt{WAIT\_DATA} asserts nothing, and falls through to \texttt{FETCH\_INSTR} in the first
+cycle after the button is released: one cycle at boot buys a correctly framed first
+transaction \notes{Reset lands in WAIT\_DATA, not FETCH\_INSTR}.
+
 \chapter{The multi-cycle core}
-\planned{the FSM state diagram, the datapath, the cycles per instruction class, the ALU RTL
-schematic, and a simulated waveform of one instruction passing through the FSM.}
+\label{ch:core}
+
+\texttt{Processor} executes RV32I, the base integer instruction set, and nothing beyond it:
+no M extension, no interrupts, no control and status registers; \texttt{ECALL} and
+\texttt{EBREAK} stop the core (Appendix~\ref{app:isa}). It is a multi-cycle core: one
+instruction at a time, several clock cycles each, one FSM state per cycle. \texttt{Control}
+is the FSM; \texttt{Decoder}, \texttt{ALU} and \texttt{RegisterFile} are what their names
+say; \texttt{Processor} holds \texttt{pc}, the instruction register and the glue between
+the other four.
+
+\section{The state machine}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\textwidth]{figures/rtl_alu}
-  \caption{Vivado's RTL schematic of the ALU, elaborated as its own top so that its ports
-    frame the drawing: the adder and subtractor, the shifters, the comparators and the
-    result multiplexer.}
+  \begin{tikzpicture}[x=1cm, y=1cm, >=Stealth, font=\scriptsize,
+      state/.style={draw, rounded corners=3pt, fill=modcore!12, text width=2.8cm,
+        minimum height=1.1cm, align=center, inner sep=3pt},
+      lbl/.style={fill=white, inner sep=1.5pt}]
+    \node[state] (fi) at (0,0) {\textbf{FETCH\_INSTR} (FI)\\addr $=$ pc, read strobe};
+    \node[state] (wi) at (3.45,0) {\textbf{WAIT\_INSTR} (WI)\\instr $\leftarrow$ mem\_rdata;
+      holds while mem\_rbusy};
+    \node[state] (fr) at (6.9,0) {\textbf{FETCH\_REGS} (FR)\\read rs1 and rs2};
+    \node[state] (ex) at (10.35,0) {\textbf{EXECUTE} (EX)\\pc $\leftarrow$ next pc,
+      rd $\leftarrow$ result};
+    \node[state] (ld) at (10.35,-2.3) {\textbf{LOAD} (LD)\\addr $=$ rs1 $+$ imm, read strobe};
+    \node[state] (wd) at (6.9,-2.3) {\textbf{WAIT\_DATA} (WD)\\rd $\leftarrow$ loaded word;
+      holds while mem\_rbusy};
+    \node[state] (st) at (3.45,-2.3) {\textbf{STORE} (ST)\\addr, data and mask for one
+      cycle};
+    \draw[->] (fi) -- (wi);
+    \draw[->] (wi) -- (fr);
+    \draw[->] (fr) -- (ex);
+    \draw[->] (ex.north) -- ++(0,0.45) -| node[lbl, pos=0.25, above] {every other class}
+      (fi.north);
+    \draw[->] ([xshift=7mm]ex.south) -- node[lbl, right] {load} ([xshift=7mm]ld.north);
+    \draw[->] ([xshift=-8mm]ex.south) -- ++(0,-0.55) -| node[lbl, pos=0.25, above] {store}
+      (st.north);
+    \draw[->] (ld) -- (wd);
+    \draw[->] ([xshift=-7mm]wd.south) -- ++(0,-0.5) -| ([xshift=-3mm]fi.south);
+    \draw[->] (st.west) -| ([xshift=3mm]fi.south);
+    \draw[->] ([xshift=7mm, yshift=-0.85cm]wd.south) -- node[lbl, right] {reset}
+      ([xshift=7mm]wd.south);
+  \end{tikzpicture}
+  \caption{The control FSM of \texttt{rtl/Control.v}: seven states, one cycle each, except
+    the two waits, which hold while the flash controller is busy. The two-letter codes are
+    the ones Figure~\ref{fig:wave-fsm} uses.}
+  \label{fig:fsm}
+\end{figure}
+
+An instruction takes several cycles because the RAM answers a read one cycle after it is
+requested, and because the register file's read is synchronous too, so each of those
+needs its own state \notes{Why one instruction takes several cycles}.
+Figure~\ref{fig:fsm} shows the seven. \texttt{FETCH\_INSTR} drives \texttt{pc} on the bus
+with the read strobe; \texttt{WAIT\_INSTR} latches the word the RAM returns;
+\texttt{FETCH\_REGS} latches \texttt{rs1} and \texttt{rs2}; \texttt{EXECUTE} loads
+\texttt{pc} with its next value and writes \texttt{rd} for every instruction but a load, a
+store or a branch. A load goes on to \texttt{LOAD}, which drives the data address with the
+strobe, and \texttt{WAIT\_DATA}, which writes the returned word to \texttt{rd}. A store goes
+to \texttt{STORE}, which drives the address, the data and the byte mask for one cycle; the
+RAM writes on that same edge, so there is no wait after a store \notes{STORE needs no wait
+state}. The two waits are the only states that can last longer than a cycle: they hold
+while \texttt{mem\_rbusy} is high, which only the flash controller raises
+\notes{Instruction fetch stalls on mem\_rbusy}.
+
+\texttt{Control} decodes four one-cycle strobes from the state, \texttt{latch\_instr},
+\texttt{read\_regs}, \texttt{update\_pc} and \texttt{write\_rd}, already qualified with
+\texttt{clk\_enable} and \texttt{reset\_n}, so each datapath register tests only its
+strobe. \texttt{write\_rd} in \texttt{WAIT\_DATA} is gated by \texttt{mem\_rbusy} as well,
+or a stalled flash load would write the bus's garbage to \texttt{rd} on every stalled cycle
+\notes{Write-back enable gated by mem\_rbusy in WAIT\_DATA}. Table~\ref{tab:cycles} gives
+the cost per instruction class.
+
+\begin{table}[htbp]
+  \centering
+  \begin{tabular}{@{}p{6.4cm}lc@{}}
+    \toprule
+    Instruction class & States & Cycles \\
+    \midrule
+    ALU, register and immediate; LUI, AUIPC; JAL, JALR; branch & FI WI FR EX & 4 \\
+    Load: LB, LH, LW, LBU, LHU & FI WI FR EX LD WD & 6 \\
+    Store: SB, SH, SW & FI WI FR EX ST & 5 \\
+    SYSTEM: ECALL, EBREAK & FI WI FR EX, \texttt{pc} unchanged & 4, repeated \\
+    \bottomrule
+  \end{tabular}
+  \caption{Cycles per instruction class from the RAM. A SYSTEM instruction leaves
+    \texttt{pc} alone, so the core fetches it again, forever. Every instruction fetched from
+    the flash, and every load from it, adds the SPI transaction to its wait state
+    (Chapter~\ref{ch:memio}).}
+  \label{tab:cycles}
+\end{table}
+
+Two of the four cycles of the commonest class are the fetch. A pipelined core would
+overlap the fetch of one instruction with the execution of the last and retire close to one
+instruction per cycle: a gain of four to six on code bound by computation. The demos of
+Chapter~\ref{ch:board} are bound by the UART, which sets their pace at any clock, so for
+them the multi-cycle core costs nothing visible. Pipelining is the first extension in
+Chapter~\ref{ch:next}.
+
+\section{The datapath}
+
+\texttt{Decoder} is purely combinational on the instruction register: the ten class flags
+from the opcode, disjoint, so at most one is high and exactly one for every instruction the
+core implements; the register indices and
+the \texttt{funct3} and \texttt{funct7} fields, at fixed positions in every format; and the
+five immediates, sign-extended from bit~31. It also settles the two meanings of
+\texttt{funct7[5]}: a subtraction only in the register form, since there is no
+\texttt{SUBI} and an \texttt{ADDI} whose immediate happens to set bit~30 must still add,
+and an arithmetic shift in both forms \notes{ADD versus SUB: funct7[5] alone is not
+enough}.
+
+\texttt{RegisterFile} is the 32 integer registers, in LUT RAM: a synchronous read of
+\texttt{rs1} and \texttt{rs2} on \texttt{read\_regs}, a synchronous write of \texttt{rd} on
+\texttt{write\_rd}, and \texttt{x0} never written and read as zero explicitly
+\notes{x0 reads as zero explicitly}. \texttt{ALU} is combinational
+(Figure~\ref{fig:rtl-alu}): its second operand is \texttt{rs2} for register instructions and
+the I-immediate for everything else, the shift amount is the low five bits of that operand
+either way, \texttt{funct3} picks one of the eight operations, and a second case on
+\texttt{funct3} computes the six branch conditions on \texttt{rs1} and \texttt{rs2}, with a
+default of zero so that no latch is inferred \notes{Branch comparator default arm}. Both
+arms of the right shift are signed: with one of them unsigned, Verilog's \texttt{>>>} shifts
+logically, and \texttt{SRA} behaved as \texttt{SRL} until the golden trace caught it
+(Chapters~\ref{ch:verif} and~\ref{ch:next}).
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/rtl_alu}
+  \caption{Vivado's RTL schematic of \texttt{rtl/ALU.v}, elaborated as its own top so that
+    its ports frame the drawing. Upper half: the operand multiplexer on the left, then the
+    adder and subtractor, the shifters, the comparators and the logic operations, into the
+    result multiplexer on the right. Lower half: the branch comparators, into the
+    multiplexer that yields \texttt{take\_branch}. After synthesis nearly all of this merges
+    into the LUTs around the register file (Chapter~\ref{ch:results}).}
   \label{fig:rtl-alu}
 \end{figure}
 
+The rest of \texttt{Processor} is the glue between these. A multiplexer chooses the next
+\texttt{pc}: the branch target when a branch is taken, the jump target for \texttt{JAL},
+\texttt{rs1} plus the immediate with bit~0 cleared for \texttt{JALR}, otherwise
+\texttt{pc + 4} \notes{Why jalr\_target is a named wire}. An adder forms the load or store
+address from \texttt{rs1} and the I- or S-immediate. The memory moves whole words, so a byte
+or halfword load picks its lane by the address's low two bits and sign-extends unless
+\texttt{funct3[2]} says not to, and a store broadcasts \texttt{rs2} into every lane it could
+land in and lets the byte mask select \notes{Store data is broadcast to every lane; the
+mask selects}. The write-back multiplexer gives \texttt{rd} its value: \texttt{pc + 4} for
+the jumps, the U-immediate for \texttt{LUI}, \texttt{pc} plus it for \texttt{AUIPC}, the
+aligned load data, or the ALU result. The worst timing path of the design runs through
+this glue, from the instruction register through the decoder and the ALU's carry chain to
+the register file's write port (Chapter~\ref{ch:results}).
+
+\section{One instruction through the states}
+
+Figure~\ref{fig:wave-fsm} is the simulated core at the end of \texttt{main}'s prologue in
+the mandelbrot demo, where the frame counter, just stored to the stack, is loaded back and
+written to the LEDs: four instructions, 19 cycles, every state of Figure~\ref{fig:fsm}.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.88\textwidth]{figures/wave_fsm}
+  \caption{Four instructions of the mandelbrot demo in the simulated SoC, from the VCD of
+    \texttt{docs/design/scripts/waves/WaveBench.v}: \texttt{lw s0,8(sp)} at \texttt{0x278},
+    \texttt{lui a5,0x400}, \texttt{lui a4,0x0} and \texttt{sw s0,4(a5)}, the store to the
+    LED register. The core's signals are in blue, the bus in black; bus values are in hex
+    with leading zeros dropped, and a value is left blank where it does not fit its cycle.
+    \texttt{mem\_wdata} reads \texttt{x} while the instruction's \texttt{rs2} field names
+    a register no instruction has written yet: the register file has no reset.}
+  \label{fig:wave-fsm}
+\end{figure}
+
+The load takes cycles 0 to~5. In \texttt{FETCH\_INSTR} the bus address is \texttt{pc},
+\texttt{0x278}, with the strobe; in \texttt{WAIT\_INSTR} the RAM answers with the
+instruction word, \texttt{0x00812403}, and \texttt{latch\_instr} moves it into
+\texttt{instr} on the edge that ends the cycle. From then on the bus address is the
+load-store address, \texttt{sp + 8}. \texttt{EXECUTE} advances \texttt{pc} to
+\texttt{0x27c}; \texttt{LOAD} asserts the strobe at the data address; \texttt{WAIT\_DATA}
+sees the word,~0, and \texttt{write\_rd} writes it to \texttt{s0}. The two \texttt{LUI}s
+take four cycles each, cycles 6 to~13, writing \texttt{rd} in \texttt{EXECUTE}. The store,
+cycles 14 to~18, writes no register, so \texttt{write\_rd} stays low in its
+\texttt{EXECUTE}; in \texttt{STORE} the bus carries the LED register's address,
+\texttt{0x400004}, the byte mask \texttt{f} and the data, and the register takes the value
+on the edge that ends the window. Each read is answered one cycle after its strobe, and no
+cycle is spent on the store: the two facts about the memory that shaped the FSM.
+
 \chapter{Memory and memory-mapped IO}
+\label{ch:memio}
 \planned{the RAM's read and write timing, the LED register, the UART data and status
 registers, and a simulated waveform of a flash read stalling the core.}
 
@@ -206,9 +592,11 @@ clock pin~\cite{ug470}, and execute-in-place.}
 and the flash-boot branch of the flow.}
 
 \chapter{Verification}
+\label{ch:verif}
 \planned{the ALU unit bench, the golden trace, the regression and the gates.}
 
 \chapter{Implementation results}
+\label{ch:results}
 \planned{per-module utilization, the timing result and the worst path, the device views, a
 logic-level or slack chart, and the power breakdown.}
 
@@ -433,6 +821,7 @@ extensions.}
 \planned{every make target, what it runs and what it needs.}
 
 \chapter{ISA coverage}
+\label{app:isa}
 \planned{the RV32I instructions the core executes, and what it leaves out.}
 
 \begin{thebibliography}{9}

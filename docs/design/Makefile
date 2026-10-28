@@ -7,6 +7,9 @@
 #   make board-figures
 #                   only the figures rendered from the board captures in captures/ (part of
 #                   make figures, which also needs Pillow for them)
+#   make waves      only the waveforms: scripts/waves/WaveBench.v simulated under iverilog
+#                   with Vivado's unisim models, rendered by scripts/vcd_wave.py (part of
+#                   make figures; needs iverilog, the Vivado install and Ghostscript)
 #   make captures   record the BRAM-boot board captures again, then commit them: each demo's
 #                   bitstream loaded over JTAG; needs the board, Vivado's settings64.sh
 #                   sourced, riscv64-unknown-elf-gcc and pyserial. The flash-boot captures
@@ -31,8 +34,10 @@ SCRATCH  = $(abspath $(BUILD)/vivado)
 
 # RTL schematics written by scripts/rtl_schematics.tcl, cropped into figures/.
 RTL_SCHEMATICS = rtl_soc rtl_alu
+WAVES    = $(abspath $(BUILD)/waves)
+VCD_WAVE = scripts/vcd_wave.py
 
-.PHONY: all figures board-figures captures clean
+.PHONY: all figures board-figures waves captures clean
 .DELETE_ON_ERROR:
 
 all: $(PDF)
@@ -42,12 +47,22 @@ $(PDF): $(TEX) $(wildcard figures/*) | $(BUILD)
 	$(PDFLATEX) $(TEX)
 	@echo "PDF $(abspath $@)"
 
-figures: board-figures | $(BUILD)
+figures: board-figures waves | $(BUILD)
 	scripts/vivado_xvfb.sh $(SCRATCH) scripts/rtl_schematics.tcl $(SCRATCH)
 	for f in $(RTL_SCHEMATICS); do scripts/crop_pdf.sh $(SCRATCH)/$$f.pdf figures/$$f.pdf || exit 1; done
 
 board-figures:
 	scripts/board_figures.py captures figures
+
+# Each waveform is one window of the bench's VCD: --start names the values that open it
+# (an FSM state and a pc, from the disassembly of fw/build/mandelbrot.bram.elf) and
+# --cycles its length. The crop embeds the font and drops nothing else.
+waves:
+	$(VCD_WAVE) --selftest
+	scripts/waves/run_bench.sh $(WAVES)
+	$(VCD_WAVE) $(WAVES)/wave.vcd scripts/waves/fsm.wave $(WAVES)/wave_fsm.pdf \
+	    --start cpu.control.state=0,cpu.pc=278 --cycles 19
+	scripts/crop_pdf.sh $(WAVES)/wave_fsm.pdf figures/wave_fsm.pdf
 
 # Seconds recorded after each load: mandelbrot's first frames, riscv_logo's 64-frame turn
 # with a few frames to spare, and sieve's first rounds.
