@@ -34,6 +34,9 @@ import re
 import sys
 import zlib
 
+sys.dont_write_bytecode = True    # no __pycache__/ beside the sources (lint rule 1)
+from pdf_objects import write_pdf_objects
+
 # Helvetica's glyph widths for the printable ASCII characters, in thousandths of the font
 # size, from the Adobe font metrics: the figure needs them to know whether a value fits.
 HELVETICA = dict(zip(
@@ -224,18 +227,7 @@ class Page:
             + b"\nendstream",
             b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         ]
-        pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
-        offsets = []
-        for number, body in enumerate(objects, 1):
-            offsets.append(len(pdf))
-            pdf += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
-        xref = len(pdf)
-        pdf += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
-        pdf += b"".join(f"{o:010d} 00000 n \n".encode() for o in offsets)
-        pdf += (f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n"
-                f"%%EOF\n").encode()
-        with open(path, "wb") as f:
-            f.write(pdf)
+        write_pdf_objects(path, objects)
 
 
 def draw(vcd, rows, out, start, end, edges, width):

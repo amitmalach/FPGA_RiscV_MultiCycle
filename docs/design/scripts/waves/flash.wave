@@ -1,0 +1,15 @@
+# The signals of chapter 6's flash-stall waveform, for scripts/vcd_wave.py: path, label, format
+# and the report's colour for the core or the flash controller. The state names are the
+# two-letter codes of the FSM figure. CCLK is the pin as the STARTUPE2 model drives it.
+uut.clk                  clk           grid
+cpu.control.state        state         0=FI,1=WI,2=FR,3=EX,4=LD,5=WD,6=ST   0072b2
+cpu.pc                   pc            hex                                  0072b2
+cpu.instr                instr         hex                                  0072b2
+uut.mem_rstrb            mem_rstrb     bit
+uut.mem_rbusy            mem_rbusy     bit
+uut.mem_rdata            mem_rdata     hex
+cpu.control.latch_instr  latch_instr   bit                                  0072b2
+uut.spiflash_csn         spiflash_csn  bit                                  cc79a7
+glbl.CCLKO_GLBL          CCLK          bit                                  cc79a7
+uut.spiflash_mosi        spiflash_mosi bit                                  cc79a7
+uut.spiflash_miso        spiflash_miso bit                                  cc79a7

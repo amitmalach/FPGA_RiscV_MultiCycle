@@ -24,6 +24,7 @@
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{xcolor}
 \usepackage{titlesec}
 \usepackage{tikz}
@@ -579,13 +580,268 @@ cycle is spent on the store: the two facts about the memory that shaped the FSM.
 
 \chapter{Memory and memory-mapped IO}
 \label{ch:memio}
-\planned{the RAM's read and write timing, the LED register, the UART data and status
-registers, and a simulated waveform of a flash read stalling the core.}
+
+The core reaches everything through the bus of Chapter~\ref{ch:arch}, and to the core the
+three regions differ only in timing. The RAM and the IO registers answer every read in the
+next cycle and take every write on the edge it is presented; the flash answers a read about
+380 cycles later, and the core waits. This chapter gives each target's side of the bus, in
+the order of the memory map (Table~\ref{tab:memory-map}).
+
+\section{The RAM}
+
+\texttt{Memory} is 1536 words, 6~KB, of block RAM: two of the Kintex-7's 445 block RAM
+tiles. Its one port serves instruction fetch, loads and stores alike, so in BRAM boot the
+program, its data and its stack share it, the stack growing down from the top. The read
+is registered: the word addressed in the cycle of \texttt{ram\_rstrb} appears on
+\texttt{ram\_rdata} at the next edge, which is the one cycle every \texttt{WAIT} state of
+the FSM spends. A write needs no strobe and no wait: each of the four
+\texttt{ram\_wmask} bits writes its byte lane on the edge where it is high, so \texttt{SB}
+and \texttt{SH} change one byte or halfword and leave the rest of the word as it was
+\notes{Read and write timing are not symmetric} \notes{Per-byte write enables}. \texttt{IOBus}
+masks both strobes off outside RAM space, so a store to an IO register never also writes
+the RAM word with the same index \notes{RAM strobes masked outside RAM space}.
+
+The RAM's contents at configuration are the firmware image, \texttt{rtl/firmware.hex}, read
+with \texttt{\$readmemh} when the bitstream is synthesised, so a BRAM-boot program is part of
+the bitstream and a new program is a new bitstream (Chapter~\ref{ch:flash}). The file is
+read by bare name, relative to the working directory of the tool
+\notes{Bare file name in \$readmemh}, and a missing file leaves the RAM undefined with no
+error, as the header of \texttt{rtl/Memory.v} warns: a pitfall of Chapter~\ref{ch:next}.
+
+\section{The LED register and the UART}
+
+The IO registers are three addresses in the IO region, one address bit each, and none of
+them is memory: a store to one is an action and a load from one is a question.
+
+\paragraph{LEDs.} A store to \texttt{IO\_BASE + 4} sets the LED register to the low byte of
+the store data; \texttt{SW} and \texttt{SB} both work, since lane~0 carries the low byte of
+\texttt{rs2} in every store and \texttt{IOBus} ignores the byte mask. The register drives \texttt{LD0} to \texttt{LD7} directly, clears on reset, and
+reads as zero \notes{LED register: reset not gated by the clock enable}.
+
+\paragraph{UART data.} A store to \texttt{IO\_BASE + 8} turns into \texttt{uart\_valid}, a
+one-cycle pulse, with the low byte as \texttt{uart\_data}. \texttt{UartTx} drops
+\texttt{ready} on the same edge and sends the byte as one start bit, eight data bits LSB
+first and one stop bit, each 1736 cycles long: 115\,207~baud, 0.006\,\% above 115\,200. A
+byte takes 17\,360 cycles, 86.8~\textmu s. The transmitter has no FIFO and ignores
+\texttt{valid} while it sends, so a byte stored too early is lost without a trace
+\notes{UART send pulse and the status word (bit 9 convention)}.
+
+\paragraph{UART status.} A load from \texttt{IO\_BASE + 0x10} returns a word that is zero
+but for bit~9, which is \texttt{!ready}: the transmitter is busy. The word is not stored
+anywhere; \texttt{IOBus} computes it from the address and \texttt{ready} in the cycle the
+core reads it. It is the only IO address that answers a read. Bit~9 is a convention between
+\texttt{IOBus} and the firmware, held equal by the memory-map lint rule.
+\texttt{fw/putchar.S} is the whole driver: it stores the byte, then loads the status word
+until bit~9 is clear, so the next character never finds the transmitter busy. This wait is
+why the demos of Chapter~\ref{ch:board} run at the pace of the UART.
+
+\begin{figure}[tbp]
+  \centering
+  \begin{subfigure}{\textwidth}
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/wave_flash}
+    \caption{The whole instruction, 386 cycles: \texttt{FETCH\_INSTR} at cycle~0,
+      \texttt{WAIT\_INSTR} for 383 cycles, then \texttt{FETCH\_REGS} and
+      \texttt{EXECUTE}.}
+    \label{fig:wave-flash-all}
+  \end{subfigure}
+  \par\medskip
+  \begin{subfigure}{\textwidth}
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/wave_flash_end}
+    \caption{The end of the same transaction, 22 cycles from the last two data bits: chip
+      select rises, \texttt{mem\_rbusy} falls, the word is latched, and the next fetch
+      starts the next transaction.}
+    \label{fig:wave-flash-end}
+  \end{subfigure}
+  \caption{An instruction fetched from the flash, in the simulated SoC in flash boot
+    (\texttt{docs/design/scripts/waves/WaveBench.v} with a model of the flash's read
+    command, booting mandelbrot's flash build). The core's signals are in blue, the flash
+    controller's pins in purple; \texttt{CCLK} is the flash's clock pin as Vivado's model of
+    \texttt{STARTUPE2} drives it. While the word shifts in, \texttt{mem\_rdata} shows the
+    controller's shift register, byte-swapped. In \texttt{EXECUTE} the bus address is the
+    instruction's load-store address, in RAM space, and \texttt{mem\_rdata} reads the RAM's
+    output register, not yet loaded: \texttt{x}. \texttt{spiflash\_miso} is drawn mid-way
+    where the flash leaves it undriven.}
+  \label{fig:wave-flash}
+\end{figure}
+
+\section{The flash stall}
+
+A read in flash space is the one access the core waits for. In the cycle of the read
+strobe, \texttt{IOBus} passes it to \texttt{SPIFlash} with the word address, the low 22 bits
+of the word index; the controller drops chip select and raises \texttt{mem\_rbusy} at the
+next edge, and holds both for the whole SPI transaction. The FSM's two wait states hold
+while \texttt{mem\_rbusy} is high, and \texttt{write\_rd} in \texttt{WAIT\_DATA} is gated by
+it, so a stalled load writes nothing until its word has arrived
+\notes{Only flash reads stall the core; read mux}.
+
+Figure~\ref{fig:wave-flash} is one such stall, simulated: the third instruction of
+flash-boot start-up, fetched from \texttt{0x1D00008}. The transaction is 64 SPI clocks at a
+sixth of the system clock, 33.3~MHz: the opcode \texttt{03h}, the 24-bit byte address
+\texttt{0xD00008}, both on \texttt{spiflash\_mosi}, then 32 data bits on
+\texttt{spiflash\_miso}. That is 382 cycles of \texttt{mem\_rbusy}, and the instruction takes 386
+cycles, 1.93~\textmu s, where one fetched from the RAM takes 4. The word arrives lowest address
+first, each byte MSB first, as \texttt{13 01 01 80}; the controller swaps the bytes into
+\texttt{0x80010113}, \texttt{addi sp,sp,-2048}, little-endian as the RAM returns it
+\notes{Byte order of the received word}. Chip select rises right after the last bit, and
+\texttt{mem\_rbusy} with it; in that cycle \texttt{WAIT\_INSTR} sees the word and latches
+it, and the core moves on as after any fetch. The controller's clock is held low while chip
+select is high, as SPI mode~0 needs, and its divider is held too, so the first clock pulse
+of a transaction is as long as the others \notes{Divider held in reset while idle (short first pulse)}
+\notes{CLK forced low while idle}.
+
+There is no cache and no prefetch: every word read from the flash is a transaction of its
+own, an instruction fetch as much as a load. Code that runs from the flash therefore runs
+about a hundred times slower than from the RAM, which is what shapes flash boot in the next
+chapter.
 
 \chapter{Boot modes and the SPI flash}
 \label{ch:flash}
-\planned{BRAM boot against flash boot, the flash layout, the STARTUPE2 route to the flash
-clock pin~\cite{ug470}, and execute-in-place.}
+
+The core starts at its reset vector, the \texttt{SOC} parameter \texttt{BOOT\_ADDR}, and
+that one parameter is the boot mode. At \texttt{BOOT\_ADDR\_BRAM}, address~0, the core runs
+the firmware image held in the RAM; at \texttt{BOOT\_ADDR\_FLASH}, \texttt{0x01D0\_0000},
+it runs a program stored in the board's flash, in place. The hardware is otherwise the same
+\notes{Why the reset vector is a parameter, and why a jump at address 0 is not enough}.
+
+\section{BRAM boot against flash boot}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.6cm}
+      >{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{5.6cm}@{}}
+    \toprule
+    & BRAM boot & Flash boot \\
+    \midrule
+    Reset vector & \texttt{0x0000\_0000} & \texttt{0x01D0\_0000}, the default \\
+    Program held in & the RAM, from \texttt{rtl/firmware.hex} & the flash's code window \\
+    Room for code & 6~KB, shared with data and stack & 3~MB; data and stack in the RAM \\
+    New program & a new bitstream & a flash write; the bitstream stays \\
+    Start-up code & \texttt{fw/start.S}: \texttt{gp}, \texttt{sp}, \texttt{main} &
+      \texttt{fw/start\_spiflash.S}: also zeroes \texttt{.bss} and copies to the RAM \\
+    Speed & 4 to 6 cycles an instruction & 382 cycles more for each word read
+      from the flash \\
+    Simulated & yes: the golden trace & the start-up only (Figure~\ref{fig:wave-flash}) \\
+    \bottomrule
+  \end{tabular}
+  \caption{The two boot modes. \texttt{make -C fw} builds either (\texttt{TARGET=bram} or
+    \texttt{TARGET=flash}); the README's ``Running the demos'' gives the steps on the board.}
+  \label{tab:boot-modes}
+\end{table}
+
+Table~\ref{tab:boot-modes} compares the two. BRAM boot is the simple one, and the one every
+simulation of the regression runs: the program is in the bitstream, starts at full speed,
+and fits in 6~KB, which mandelbrot, riscv\_logo, sieve and the blinker do. Flash boot exists
+for the programs that do not fit: tinyraytracer is 29~KB of code and constants. The
+bitstream is built once, with the default \texttt{BOOT\_ADDR}, and any program written to
+the code window runs on it. \texttt{make bitstream} builds that default; the BRAM-boot
+bitstreams of Chapter~\ref{ch:board} override the parameter at synthesis, as the testbench
+does.
+
+\section{The flash layout}
+
+The flash is a 32~MB S25FL256S, and it also holds the bitstream the FPGA configures from at
+power-on, so a program has to fit around what is already there. Figure~\ref{fig:flash-layout}
+is the layout \texttt{rtl/defines.vh} and \texttt{fw/memory.ld} assume
+\notes{Flash memory map and boot address}.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[x=0.84cm, y=1cm, font=\scriptsize,
+      lbl/.style={align=center, inner sep=1pt},
+      tick/.style={font=\scriptsize\ttfamily, inner sep=1pt}]
+    % One unit is 1 MB (2^20 bytes) of the chip: the 16 MB the core can reach.
+    \filldraw[fill=modclock!35] (0,0) rectangle (10.914,1);
+    \node[lbl] at (5.46,0.5) {bitstream, 11\,443\,728 bytes, any design on this part};
+    \draw (10.914,0) rectangle (12,1);
+    \node[lbl] at (11.46,0.5) {free};
+    \filldraw[fill=moduart!35] (12,0) rectangle (12.625,1);
+    \draw (12.625,0) rectangle (13,1);
+    \filldraw[fill=modflash!40] (13,0) rectangle (16,1);
+    \node[lbl] at (14.5,0.5) {code window\\3~MB};
+    \draw[->] (12.31,1.45) node[above, lbl] {ST\_NICCC scene data, 640~KB} -- (12.31,1.05);
+    \foreach \mb in {0, 10.914, 12, 13, 16} \draw (\mb,0) -- (\mb,-0.15);
+    \node[tick, anchor=north] at (0,-0.15) {0x000000};
+    \node[tick, anchor=north east] at (10.914,-0.15) {0xAE9E10};
+    \node[tick, anchor=north] at (12,-0.55) {0xC00000};
+    \node[tick, anchor=north west] at (13,-0.15) {0xD00000};
+    \node[tick, anchor=north] at (16,-0.55) {0x1000000};
+    \draw[->] (14.5,-1.25) node[below, lbl] {flash boot's reset vector,\\
+      \texttt{0x0100\_0000 + 0xD0\_0000}} -- (13.05,-0.5);
+  \end{tikzpicture}
+  \caption{The flash layout of \texttt{rtl/defines.vh} and \texttt{fw/memory.ld}, to scale:
+    the 16~MB the core reaches, at \texttt{0x0100\_0000} in its address space, the lower half
+    of the 32~MB chip. The bitstream from offset~0, ST\_NICCC's 640~KB of scene
+    data at \texttt{0xC00000}, and the code window at \texttt{0xD00000}, which
+    \texttt{SPIFLASH\_CODE\_OFFSET} names. On the owner's board offset~0 holds Digilent's
+    factory demo, whose data reaches up to \texttt{0xDEFFFF}; a flash-boot write replaces
+    the part of it that the program covers (Chapter~\ref{ch:board}).}
+  \label{fig:flash-layout}
+\end{figure}
+
+Every boundary is forced. An uncompressed 7-series bitstream holds every configuration
+frame whatever the design, so it is 11\,443\,728 bytes, \texttt{0xAE9E10}, for any design on
+this part, and it starts at offset~0, where the FPGA looks at power-on. The flash erases in
+64~KB sectors, so a region written separately must start on a sector boundary: the scene data
+at 12~MB and the code at 13~MB leave a gap after each. The window ends at 16~MB because
+the controller sends the 24-bit address of the plain \texttt{03h} read, which is also why
+bit~24 selects flash space (Section~\ref{sec:memmap}); the upper 16~MB of the chip would
+need a four-byte address. Flash boot writes only the code window, with
+``Configuration File Only'', and never offset~0, and the design is loaded over JTAG: the
+board keeps booting the bitstream it booted before, provided the write keeps the flash's
+Quad Enable bit (Chapter~\ref{ch:board}, ``The Quad Enable bit'').
+
+\section{CCLK and STARTUPE2}
+\label{sec:cclk}
+
+Three of the flash's four pins, chip select and the two data lines, are multi-function
+pins of the FPGA: the configuration logic uses them at power-on and releases them to the
+design afterwards, so \texttt{spiflash\_csn}, \texttt{spiflash\_mosi} and
+\texttt{spiflash\_miso} are ordinary ports in the constraints file. The clock is different.
+CCLK is a dedicated configuration pin, and a design can reach it only through the
+\texttt{STARTUPE2} primitive~\cite{ug470}: whatever drives its \texttt{USRCCLKO} input
+reaches the pin once configuration has ended. \texttt{SOC} wires \texttt{SPIFlash}'s clock
+to \texttt{USRCCLKO}, holds \texttt{USRCCLKTS} low so the pin stays driven, and takes
+\texttt{EOS}, end of startup, back to \texttt{IOBus}, which passes a flash read to the
+controller only once \texttt{EOS} is high \notes{SPI flash CCLK access through STARTUPE2}
+\notes{Flash read strobe gated by end-of-startup; 22-bit word address}.
+
+The hand-over is not immediate, and this is where flash boot meets the pitfall of
+Chapter~\ref{ch:board}. Vivado's simulation model of \texttt{STARTUPE2} keeps CCLK high
+after end of startup until \texttt{USRCCLKO} has risen twice, and follows it only from
+then on. The simulation behind Figure~\ref{fig:wave-flash} shows what that does to the first
+transaction: \texttt{EOS} is high 100~ns into the run, before the first read strobe, so
+\texttt{IOBus} passes the read on, but the flash sees only 62 of the 64 clock edges. It
+misreads the command, and the core latches a word of ones and undriven bits in place of
+\texttt{lui gp,0x400}, the first instruction of \texttt{fw/start\_spiflash.S}; the second
+and later fetches are correct. This is the fetch the board most likely loses after
+configuration, and in the simulation the \texttt{EOS} gate plays no part: the CCLK
+hand-over alone loses it. Chapter~\ref{ch:next} lists the pitfall and the candidate fix.
+
+\section{Execute-in-place}
+
+In flash boot the code is not copied into the RAM: the core fetches each instruction from
+the flash, one transaction per word, and \texttt{.text} and \texttt{.rodata} stay there
+\notes{Instruction fetch stalls on mem\_rbusy}. What must be writable cannot stay in the
+flash, so \texttt{fw/spiflash.ld} places \texttt{.data} and \texttt{.bss} in the RAM, with
+the initial values of \texttt{.data} stored in the flash right after the code, and
+\texttt{fw/start\_spiflash.S} prepares the RAM before \texttt{main}: it sets \texttt{gp} to
+\texttt{IO\_BASE} and \texttt{sp} to the top of the RAM, zeroes \texttt{.bss}, and copies
+the stored values into place, one flash read and one store per word.
+
+The same copy moves the hottest code into the RAM. Every \texttt{*}, \texttt{/} and
+\texttt{\%} in C is a call into \texttt{libgcc} on RV32I, and every character goes through
+\texttt{putchar} and the print routines, so the linker script puts \texttt{libgcc}'s
+multiply and divide, \texttt{fw/putchar.S}, \texttt{fw/print.c} and any function marked
+\texttt{.fastcode} in the copied section. The linker gives them RAM addresses, so the code
+in the flash calls them there. For mandelbrot's flash build that is 1\,228 bytes copied,
+against 1\,172 bytes of code and constants left in the flash. The copy costs time at start-up, six flash
+transactions per word, the load and the five instructions of the loop, which are fetched
+from the flash too: a few milliseconds for mandelbrot. It also costs RAM for the rest of the
+run: what is copied shares the 6~KB with the data and the stack, and nothing checks that the
+stack stays clear of it.
 
 \chapter{From C to the board}
 \planned{the mandelbrot demo from C source to UART output, with a real excerpt at each stage,
@@ -755,8 +1011,8 @@ lose it. \texttt{STARTUPE2} hands the CCLK pin to user logic only after a few cy
 \texttt{USRCCLKO}, as Vivado's simulation model of the primitive shows, so the first SPI
 transaction can miss its first clock edges; and \texttt{IOBus} drops a flash read requested
 before end of startup instead of stalling it, while the core starts fetching as soon as
-configuration releases the flip-flops. The pitfall and its fix belong to
-Chapter~\ref{ch:next}.
+configuration releases the flip-flops. In simulation the first alone loses the fetch
+(Section~\ref{sec:cclk}). The pitfall and its fix belong to Chapter~\ref{ch:next}.
 
 \paragraph{The Quad Enable bit.} Writing the image cost the board its power-on boot. The
 write, with Vivado's \texttt{hw\_cfgmem} property \texttt{PROGRAM.SKIP\_QE\_BIT\_ERASE} at its
