@@ -20,7 +20,7 @@
 #                   rtl/firmware.hex) and a BRAM-boot bitstream built from it, with the
 #                   mandelbrot capture in captures/ read as it is; part of make figures, needs
 #                   Vivado's settings64.sh sourced, riscv64-unknown-elf-gcc and Pillow
-#   make impl       only chapter 10's report data and worst-path schematic: the routed design
+#   make impl       only chapter 11's report data and worst-path schematic: the routed design
 #                   rebuilt into build/impl/ by vivado/baseline.tcl when the RTL, the image or
 #                   the constraints changed, its reports written by scripts/impl_reports.tcl
 #                   and turned into figures/impl_results.tex by scripts/impl_results.py, which
@@ -122,7 +122,7 @@ $(FLOW_BIT): $(FLOW)/bram/firmware.hex $(RTL_SOURCES) ../../constraints/Genesys-
 	    || { tail -n 20 build.out; exit 1; }
 	grep -E '^(BOARD|FLOW)' $(FLOW)/bram/build.out
 
-# Chapter 10's numbers come from a routed design built here by vivado/baseline.tcl, the script
+# Chapter 11's numbers come from a routed design built here by vivado/baseline.tcl, the script
 # behind docs/baseline.md, so that they are the baseline's and not those of whatever checkpoint
 # build/baseline/ last held. It is rebuilt only when the RTL, the image, the constraints or the
 # script changed, in about a minute.
@@ -147,10 +147,10 @@ impl: $(IMPL_DCP) | $(BUILD)
 schematics:
 	scripts/schematic_crops.sh $(SCHEMATIC) figures
 
-# Seconds recorded after each load: mandelbrot's first frames, riscv_logo's 64-frame turn
-# with a few frames to spare, and sieve's first rounds.
+# Seconds recorded after each load: mandelbrot's 21-colour cycle with frames to spare,
+# riscv_logo's 64-frame turn with a few frames to spare, and sieve's first rounds.
 captures:
-	scripts/board_capture.sh mandelbrot bram 5 captures/mandelbrot_bram
+	scripts/board_capture.sh mandelbrot bram 24 captures/mandelbrot_bram
 	scripts/board_capture.sh riscv_logo bram 40 captures/riscv_logo_bram
 	scripts/board_capture.sh sieve bram 5 captures/sieve_bram
 

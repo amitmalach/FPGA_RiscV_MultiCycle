@@ -171,12 +171,12 @@ Demos and where they fit:
 | `sieve` | `fw/sieve.c` | prime numbers on the UART | BRAM, flash | BRAM boot |
 | `mandelbrot` | `fw/mandelbrot.c` | 46 by 46 Mandelbrot set in ANSI colour on the UART; frame counter on the LEDs | BRAM, flash | BRAM boot |
 | `riscv_logo` | `fw/riscv_logo.c` | rotating RISC-V logo on the UART | BRAM, flash | BRAM boot |
-| `ST_NICCC` | `fw/ST_NICCC.c` | the ST-NICCC polygon demo, rendered as ANSI characters; needs the scene data in flash | BRAM, flash | not yet |
+| `ST_NICCC` | `fw/ST_NICCC.c` | the ST-NICCC polygon demo, rendered as ANSI characters; needs the scene data in flash | BRAM, flash | BRAM boot, with the scene data in the flash |
 | `tinyraytracer` | `fw/tinyraytracer.c` | ray-traced scene on the UART | flash only (29 KB of code) | flash boot, started with the reset button |
 
 "Run on the board" is what has run on the owner's Genesys 2 so far, with the bitstream loaded
-over JTAG; the final report shows the results (`docs/design/design.tex`, "Results on the
-board").
+over JTAG; the final report shows the results (`docs/design/design.tex`, "What the board
+does").
 
 `tinyraytracer` needs `<math.h>` and `libm`, which the distribution toolchain does not ship;
 the firmware Makefile takes them from the RISC-V newlib bundled with Vivado (`XILINX_RV32_ROOT`).
@@ -227,8 +227,31 @@ codes. Use a terminal emulator that supports all three.
 
 `riscv_logo` on the board, in BRAM boot: one turn of 64 frames, each shown for as long as the
 board took to send it (to 10 ms), rendered from the UART capture in xterm's colours. The final
-report shows this and the other board results (`docs/design/design.tex`, "Results on the
-board").
+report shows this and the other board results (`docs/design/design.tex`, "What the board
+does").
+
+![mandelbrot, as the board drew it](docs/design/figures/board_mandelbrot.gif)
+
+`mandelbrot` on the board, in BRAM boot: the 23 frames of the capture, about a second each,
+the colours stepping by one each frame through a full cycle of the 21 colours. Frame 0 is byte
+for byte the golden trace's UART output.
+
+![tinyraytracer, as the board drew it](docs/design/figures/board_tinyraytracer.gif)
+
+`tinyraytracer` on the board, in flash boot: the picture after each of its 24 rows, played 20
+times faster than the board drew it (127 s), then held for three seconds.
+
+![sieve, as the board printed it](docs/design/figures/board_sieve.gif)
+
+`sieve` on the board, in BRAM boot: its first two rounds in a terminal 12 rows high, a frame a
+line, 50 times slower than the board sent them. A round is the 31 primes below 128 and their
+checksum, every 96 ms.
+
+![ST_NICCC, as the board drew it](docs/design/figures/board_st_niccc.gif)
+
+`ST_NICCC` on the board, in BRAM boot with its scene data in the flash: the screen every half
+second, in real time, from 70 s after its first byte to the end of the capture. The UART's
+115200 baud allows about a frame a second.
 
 Both boot modes below load the bitstream over JTAG: it lasts until the board is switched off,
 and the next power-on boots whatever bitstream the flash holds at offset `0x0` (on a board as
@@ -290,11 +313,14 @@ The program is written to the flash's code window; the bitstream, built once wit
    from `0x01D0_0000`.
 4. Press the reset button once the load has ended. Straight after configuration the core
    prints nothing and the LEDs stay dark, most likely because its first fetch from the flash
-   is lost (the final report, "Results on the board"). From the reset on, the demo runs, and
+   is lost (the final report, pitfall P5). From the reset on, the demo runs, and
    the reset button restarts it.
 
 `ST_NICCC` additionally needs the scene file (`scene1.dat`, the 640 KB polygon stream of the
-original demo, not included in this repository) written to the flash at `0xC00000`. The same
+original demo, not included in this repository) written to the flash at `0xC00000`, in either
+boot mode. On the owner's board it ran in BRAM boot, with no press of the reset button, but its
+first frame came out wrong: the first read from the flash after configuration goes wrong, as in
+step 4. The same
 Tcl helper wraps it: pass the file, the output name and the offset to `fw/tools/write_mcs.tcl`
 as the firmware Makefile does for the code image, then write it as in step 2.
 

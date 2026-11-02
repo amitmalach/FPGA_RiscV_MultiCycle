@@ -262,7 +262,7 @@ wire [31:0] IO_rdata =
                                      32'b0;
 ```
 
-### Flash read strobe gated by end-of-startup; 22-bit word address
+### Flash read strobe gated by end-of-startup, 22-bit word address
 
 *Signals:* `spiflash_rstrb`, `eos`, `spiflash.word_address`
 
@@ -294,7 +294,7 @@ bits = 32 bits per transaction, see SPIFlash.v) and bit 24 being the
 flash-space selector above (see the "Why bit 24, not bit 23" note).
 ```
 
-### Only flash reads stall the core; read mux
+### Only flash reads stall the core, read mux
 
 *Signals:* `mem_rbusy`, `mem_rdata`
 
@@ -612,7 +612,7 @@ FETCH_INSTR) so that mem_rstrb is low from the very first clock edge --
 see the reset block for the full reasoning.
 ```
 
-### Store data is broadcast to every lane; the mask selects
+### Store data is broadcast to every lane, the mask selects
 
 *Signals:* `mem_wdata`, `STORE_wmask`
 
@@ -1122,7 +1122,7 @@ the PREVIOUS transaction's rbusy has already dropped, so
 there's no risk of interrupting one read with another.)
 ```
 
-### Arming the receive counter on the last command bit; the trailing 1
+### Arming the receive counter on the last command bit, the trailing 1
 
 *Signals:* `snd_bitcount`, `rcv_bitcount`, `cmd_addr`
 
@@ -1348,7 +1348,7 @@ comes from standard tools instead, which is what makes it possible to compile
 C rather than hand-assemble everything.
 ```
 
-### Why the ELF-to-hex conversion exists; endianness
+### Why the ELF-to-hex conversion exists, endianness
 
 *Signals:* `$readmemh`, `firmware_words`
 
@@ -1432,7 +1432,7 @@ Get this wrong and every instruction fetched is byte-swapped garbage.
                    and noisy under modern gcc; the code itself is fine).
 ```
 
-### bram.ld line by line; the /DISCARD/ workaround
+### bram.ld line by line, the /DISCARD/ workaround
 
 *Signals:* `fw/bram.ld`
 
@@ -1650,7 +1650,7 @@ merely present on disk.
     There is no separate riscv32- package to look for.
 ```
 
-### firmware_words arguments; -max_addr as a stack guard
+### firmware_words arguments, -max_addr as a stack guard
 
 *Signals:* `firmware_words`
 
