@@ -6,18 +6,29 @@
 
 Reads the captures that board_capture.sh recorded, <demo>_<boot>.bin and .times, and writes:
 
-    board_mandelbrot.pdf      mandelbrot's first frame, BRAM boot
+    board_mandelbrot.pdf      mandelbrot's complete frames, a page each, BRAM boot: the colours
+                              step by one each frame, and page 1 is the frame the report checks
+    board_mandelbrot.gif      the same frames for the README, each shown as long as it took
     board_riscv_logo.pdf      riscv_logo's first 64 frames, one rotation, a page each, BRAM boot
     board_riscv_logo.gif      the same frames for the README, each shown as long as it took
-    board_tinyraytracer.pdf   tinyraytracer's picture, flash boot: the last complete run in the
-                              capture, which starts when CPU RESET is pressed after the load
+    board_tinyraytracer.pdf   tinyraytracer's picture after each of its rows, a page each, flash
+                              boot: the last complete run in the capture, which starts when
+                              CPU RESET is pressed after the load
+    board_tinyraytracer.gif   the same pages for the README, RAYTRACER_SPEEDUP times faster
+    board_sieve.tex           sieve's text screens, a terminal SIEVE_ROWS rows high after
+                              SIEVE_LINES lines of the first round, as LaTeX macros
+    board_sieve.gif           the first two rounds for the README, a frame a line, in DejaVu
+                              Sans Mono, SIEVE_SLOWDOWN times slower than the board sent them
+    board_st_niccc.pdf        ST_NICCC's screen at NICCC_FIGURE seconds, a page each, BRAM boot
+                              with the scene data in the flash
+    board_st_niccc.gif        its screen every NICCC_STEP seconds for the README, in real time
 
-It prints BOARD lines with the measurements chapter 11 quotes, sieve's included, and exits 1
-unless mandelbrot's first frame is byte for byte the UART bytes of the golden trace,
-sim/golden/mandelbrot_bram.txt, every sieve round captured ends in its checksum's OK, and the
-tinyraytracer capture holds a complete run.
-The PDFs are vector drawings; no figure records a date, so unchanged captures regenerate
-byte-identical figures. Needs Pillow.
+It prints BOARD lines with the measurements chapter 1 quotes, and exits 1 unless mandelbrot's
+first frame is byte for byte the UART bytes of the golden trace, sim/golden/mandelbrot_bram.txt,
+every sieve round captured ends in its checksum's OK, the tinyraytracer capture holds a complete
+run, and ST_NICCC's output begins with its greeting.
+The PDFs are vector drawings, and no figure records a date, so unchanged captures regenerate
+byte-identical figures. Needs Pillow, and FONT for the sieve GIF.
 
 The demos draw with ANSI escape sequences, every pixel two spaces on a coloured background.
 Terminal replays what they send:
@@ -32,12 +43,15 @@ Terminal replays what they send:
                           terminal maps LF to CR LF (picocom --imap lfcrlf)
     space                 one cell in the current background
 
-Anything else is an error, a printable glyph included: Terminal draws no font. A frame is what
-mandelbrot or riscv_logo sends from one ESC [ H to the next, which is how both redraw the
-screen. A terminal cell is twice as tall as it is wide, so their pixel, two cells, is square;
-tinyraytracer's pixel is one cell. tinyraytracer ends with a line of text below its picture,
+A printable character takes a cell as a space does, and Terminal keeps it as a glyph, which
+only the text writers draw. Anything else is an error. A frame is what mandelbrot or riscv_logo
+sends from one ESC [ H to the next, which is how both redraw the screen. A row or column of 0
+in ESC [ <r> ; <c> H is the first, as in xterm: ST_NICCC sends both. A terminal cell is twice
+as tall as it is wide, so their pixel, two cells, is square; tinyraytracer's and ST_NICCC's
+pixel is one cell. tinyraytracer ends with a line of text below its picture,
 which is checked and not drawn.
 """
+import bisect
 import os
 import re
 import sys
@@ -64,6 +78,23 @@ LOGO_FRAMES = 64    # riscv_logo turns once in 64 frames: its sine table has 64 
 # cursor below the picture, colours reset, a line of text.
 RAYTRACER_START = b"\x1b[48;5;16m\x1b[2J"
 RAYTRACER_END = re.compile(rb"\x1b\[\d+;1H\x1b\[0m\nDone\.\n")
+RAYTRACER_ROWS, RAYTRACER_COLS = 24, 48    # graphics_height and graphics_width
+RAYTRACER_SPEEDUP = 20                     # the GIF plays the picture's drawing this much faster
+# sieve prints text: its figure is a terminal of SIEVE_ROWS rows, after each of SIEVE_LINES
+# lines of the first round (a round is 31 primes and two lines of checksum), and its GIF plays
+# the first two rounds line by line, SIEVE_SLOWDOWN times slower than the board sent them.
+SIEVE_ROWS, SIEVE_COLS = 12, 16
+SIEVE_LINES = (6, 12, 18, 24, 33)
+SIEVE_SLOWDOWN = 50
+BAUD = 115200
+# ST_NICCC draws each frame's polygons over the last one and marks no frame in its output: its
+# figure is the screen, NICCC_ROWS by NICCC_COLS cells, at NICCC_FIGURE seconds after its first
+# byte, and its GIF the screen every NICCC_STEP seconds, in real time, from NICCC_GIF_FROM on.
+NICCC_ROWS, NICCC_COLS = 50, 128     # the scene's 256 by 200 points, x halved and y quartered
+NICCC_FIGURE = (76, 97, 118, 139, 145)
+NICCC_STEP = 0.5
+NICCC_GIF_FROM = 70
+FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 
 
 # ---- captures ----------------------------------------------------------------
@@ -129,10 +160,14 @@ class Capture:
 # ---- terminal ----------------------------------------------------------------
 
 class Terminal:
-    """The screen a terminal shows, as background colours: what the demos send, nothing more."""
+    """The screen a terminal shows: each cell's background colour and the glyph printed in it,
+    if any. Without <rows> the screen grows downwards as far as the demo writes; with it, a line
+    feed on the last row scrolls the screen up by one row, as a terminal of that height does."""
 
-    def __init__(self):
+    def __init__(self, rows=None):
         self.cells = {}
+        self.glyphs = {}
+        self.rows = rows
         self.row = self.col = 0
         self.bg = self.blank = BLACK
 
@@ -147,20 +182,33 @@ class Terminal:
                 i = m.end()
             elif data[i] == 0x0A:
                 self.row, self.col = self.row + 1, 0
+                if self.rows is not None and self.row == self.rows:
+                    self._scroll()
                 i += 1
-            elif data[i] == 0x20:
+            elif 0x20 <= data[i] <= 0x7E:
                 self.cells[self.row, self.col] = self.bg
+                if data[i] == 0x20:
+                    self.glyphs.pop((self.row, self.col), None)
+                else:
+                    self.glyphs[self.row, self.col] = chr(data[i])
                 self.col += 1
                 i += 1
             else:
-                raise ValueError(f"unsupported byte {data[i]:#04x}: Terminal draws no glyphs")
+                raise ValueError(f"unsupported byte {data[i]:#04x}")
+
+    def _scroll(self):
+        self.row -= 1
+        self.cells = {(r - 1, c): v for (r, c), v in self.cells.items() if r > 0}
+        self.glyphs = {(r - 1, c): v for (r, c), v in self.glyphs.items() if r > 0}
 
     def _csi(self, params, final):
         if final == b"H":
-            row, col = (int(p) for p in params.split(b";")) if params else (1, 1)
+            # A row or column of 0, or none, is the first, as in xterm.
+            row, col = ((max(1, int(p or 1)) for p in params.split(b";")) if params
+                        else (1, 1))
             self.row, self.col = row - 1, col - 1
         elif final == b"J" and params == b"2":
-            self.cells, self.blank = {}, self.bg
+            self.cells, self.glyphs, self.blank = {}, {}, self.bg
         elif final == b"m":
             self._sgr([int(p) for p in params.split(b";")])
         else:
@@ -178,11 +226,15 @@ class Terminal:
         else:
             raise ValueError(f"unsupported SGR {params}")
 
-    def screen(self):
-        """The screen as rows of colours, as far as the demo has drawn."""
-        rows = 1 + max(r for r, _ in self.cells)
-        cols = 1 + max(c for _, c in self.cells)
+    def screen(self, rows=None, cols=None):
+        """The screen as rows of colours: <rows> by <cols>, or as far as the demo has drawn."""
+        rows = rows or 1 + max(r for r, _ in self.cells)
+        cols = cols or 1 + max(c for _, c in self.cells)
         return [[self.cells.get((r, c), self.blank) for c in range(cols)] for r in range(rows)]
+
+    def text(self, rows, cols):
+        """The screen's glyphs as <rows> strings of <cols> characters, a space where none is."""
+        return ["".join(self.glyphs.get((r, c), " ") for c in range(cols)) for r in range(rows)]
 
 
 def xterm256(n):
@@ -258,6 +310,44 @@ def write_gif(path, pages, durations_ms, cell_px=4):
                    loop=0, optimize=False)
 
 
+def tex_line(line):
+    """A line of the screen as LaTeX for a typewriter font: a space is ~, which there is as
+    wide as a glyph, and the characters TeX treats specially are escaped."""
+    special = {"~": r"\textasciitilde{}", "^": r"\textasciicircum{}", "\\": r"\textbackslash{}",
+               " ": "~"}
+    return "".join(special.get(ch, "\\" + ch if ch in "#$%&_{}" else ch) for ch in line)
+
+
+def write_text_tex(path, name, frames, what):
+    """LaTeX macros \\<name>i, \\<name>ii, ...: each frame's lines, separated by \\\\ for a
+    one-column tabular in a typewriter font."""
+    out = [f"% Generated by docs/design/scripts/board_figures.py; do not edit.",
+           f"% {what}."]
+    for i, frame in enumerate(frames, 1):
+        roman = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"][i - 1]
+        body = " \\\\\n  ".join(tex_line(line) for line in frame)
+        out.append(f"\\newcommand{{\\{name}{roman}}}{{%\n  {body}}}")
+    with open(path, "w") as f:
+        f.write("\n".join(out) + "\n")
+
+
+def write_text_gif(path, frames, durations_ms, cell_px=(8, 16)):
+    """An animated GIF of text screens: each glyph in xterm's white on black, in DejaVu Sans
+    Mono, a cell cell_px pixels wide and high, looping forever."""
+    from PIL import ImageDraw, ImageFont
+    font = ImageFont.truetype(FONT, 13)
+    w, h = cell_px
+    images = []
+    for lines in frames:
+        image = Image.new("L", (w * len(lines[0]), h * len(lines)), 0)
+        draw = ImageDraw.Draw(image)
+        for r, line in enumerate(lines):
+            draw.text((0, r * h + 1), line, fill=229, font=font)
+        images.append(image)
+    images[0].save(path, save_all=True, append_images=images[1:], duration=durations_ms,
+                   loop=0, optimize=False)
+
+
 # ---- figures -----------------------------------------------------------------
 
 def golden():
@@ -295,7 +385,15 @@ def mandelbrot(captures, figures):
     print(f"BOARD mandelbrot: frame 0 took {1e3 * measured:.1f} ms, first byte to the next "
           f"frame's first byte; simulated: {cycles} cycles at {clock_hz() // 10**6} MHz = "
           f"{1e3 * cycles / clock_hz():.2f} ms")
-    write_pdf(os.path.join(figures, "board_mandelbrot.pdf"), screens(capture, [(start, end)]))
+    # Every complete frame, a page each; the last frame ends where the incomplete one begins.
+    times = [capture.time(s) for s, _ in frames] + [capture.time(frames[-1][1])]
+    durations = [round(1e3 * (b - a)) for a, b in zip(times, times[1:])]
+    print(f"BOARD mandelbrot: {len(frames)} complete frames in {capture.name}.bin, "
+          f"{min(durations)} to {max(durations)} ms each")
+    pages = list(screens(capture, frames))
+    write_pdf(os.path.join(figures, "board_mandelbrot.pdf"), pages)
+    write_gif(os.path.join(figures, "board_mandelbrot.gif"), pages,
+              [10 * round(d / 10) for d in durations])
 
 
 def riscv_logo(captures, figures):
@@ -319,16 +417,46 @@ def riscv_logo(captures, figures):
               [10 * round(d / 10) for d in durations])
 
 
-def sieve(captures):
+def sieve(captures, figures):
     capture = Capture(os.path.join(captures, "sieve_bram"))
     data = capture.data[capture.design_start:]
     verdicts = re.findall(rb"checksum:\n   [0-9A-F]{8} (OK|ERROR)\n", data)
     starts = [capture.design_start + m.start() for m in re.finditer(rb" 1st prime: 2\n", data)]
     if not verdicts or verdicts.count(b"OK") != len(verdicts):
         sys.exit(f"BOARD sieve: {verdicts.count(b'OK')} of {len(verdicts)} checksums OK")
+    if len(starts) < 3 or starts[0] != capture.design_start:
+        sys.exit(f"BOARD sieve: want the loaded design's output to begin with a round, and two "
+                 f"complete rounds")
     period = (capture.time(starts[-1]) - capture.time(starts[0])) / (len(starts) - 1)
     print(f"BOARD sieve: {len(verdicts)} complete rounds in {capture.name}.bin, every checksum OK, "
           f"a round every {1e3 * period:.0f} ms")
+    # The screen after each line of the first two rounds.
+    ends = [starts[0] + m.end() for m in re.finditer(rb"\n", capture.data[starts[0]:starts[2]])]
+    terminal, last, texts = Terminal(rows=SIEVE_ROWS), starts[0], []
+    for end in ends:
+        terminal.feed(capture.data[last:end])
+        texts.append(terminal.text(SIEVE_ROWS, SIEVE_COLS))
+        last = end
+    # Each frame lasts until the next line has arrived: its bytes at the baud rate, ten bits
+    # each, or the time measured between the two lines when that is longer by more than the
+    # timestamps' accuracy, which is the pause between rounds.
+    durations = []
+    for a, b in zip(ends, ends[1:] + [starts[2] + (ends[0] - starts[0])]):
+        sent = 10 * (b - a) / BAUD
+        measured = capture.time(b - 1) - capture.time(a - 1)
+        durations.append(measured if measured - sent > 0.005 else sent)
+    round_ms = 1e3 * sum(10 * (b - a) for a, b in zip([starts[0]] + ends, ends)
+                         if b <= starts[1]) / BAUD
+    shown = [1e3 * (capture.time(ends[n - 1] - 1) - capture.time(starts[0])) for n in SIEVE_LINES]
+    print(f"BOARD sieve: a round is {starts[1] - starts[0]} bytes, {round_ms:.0f} ms at {BAUD} "
+          f"baud; the figure shows the screen after lines {', '.join(map(str, SIEVE_LINES))}, "
+          f"{', '.join(f'{t:.0f}' for t in shown)} ms after the round's first byte")
+    write_text_tex(os.path.join(figures, "board_sieve.tex"), "sieveframe",
+                   [texts[n - 1] for n in SIEVE_LINES], f"{capture.name}: the screen of a "
+                   f"terminal {SIEVE_ROWS} rows high after lines "
+                   f"{', '.join(map(str, SIEVE_LINES))} of the first round")
+    write_text_gif(os.path.join(figures, "board_sieve.gif"), texts,
+                   [max(20, 10 * round(SIEVE_SLOWDOWN * 100 * d)) for d in durations])
 
 
 def tinyraytracer(captures, figures):
@@ -341,15 +469,64 @@ def tinyraytracer(captures, figures):
     start = capture.data.rfind(RAYTRACER_START, capture.design_start, end.start())
     if start < 0:
         sys.exit(f"BOARD tinyraytracer: the run that ends at byte {end.start()} has no start")
-    terminal = Terminal()
-    terminal.feed(capture.data[start:end.start()])
-    screen = terminal.screen()
+    # The picture is drawn a row at a time, top to bottom, and each row a pixel at a time: a row
+    # ends where the next one's first pixel, ESC [ <row> ; 1 H, begins.
+    run = capture.data[start:end.start()]
+    ends = [start + run.index(b"\x1b[%d;1H" % (r + 2)) for r in range(RAYTRACER_ROWS - 1)]
+    ends.append(end.start())
+    terminal, last, pages = Terminal(), start, []
+    for e in ends:
+        terminal.feed(capture.data[last:e])
+        pages.append(terminal.screen(RAYTRACER_ROWS, RAYTRACER_COLS))
+        last = e
+    times = [capture.time(e - 1) - capture.time(start) for e in ends]
     took = capture.time(end.start()) - capture.time(start)
     print(f"BOARD tinyraytracer: the last complete run is bytes {start} to {end.end() - 1} of "
-          f"{capture.name}.bin, {end.end() - start} bytes; the picture, {len(screen[0])} by "
-          f"{len(screen)} cells, took {took:.1f} s from the run's first byte to the closing text, "
-          f"{1e3 * took / (len(screen[0]) * len(screen)):.0f} ms a pixel")
-    write_pdf(os.path.join(figures, "board_tinyraytracer.pdf"), [screen])
+          f"{capture.name}.bin, {end.end() - start} bytes; the picture, {RAYTRACER_COLS} by "
+          f"{RAYTRACER_ROWS} cells, took {took:.1f} s from the run's first byte to the closing "
+          f"text, {1e3 * took / (RAYTRACER_COLS * RAYTRACER_ROWS):.0f} ms a pixel; rows 6, 12, "
+          f"18 and 24 were done after "
+          f"{', '.join(f'{times[r - 1]:.0f}' for r in (6, 12, 18, 24))} s")
+    write_pdf(os.path.join(figures, "board_tinyraytracer.pdf"), pages)
+    # A time-lapse: each row shown RAYTRACER_SPEEDUP times faster than it was drawn, and the
+    # finished picture for three seconds.
+    rows = [b - a for a, b in zip([0.0] + times, times)]
+    write_gif(os.path.join(figures, "board_tinyraytracer.gif"), pages,
+              [10 * round(100 * r / RAYTRACER_SPEEDUP) for r in rows[1:]] + [3000],
+              cell_px=6)
+
+
+def st_niccc(captures, figures):
+    capture = Capture(os.path.join(captures, "ST_NICCC_bram"))
+    data, first = capture.data, capture.design_start
+    if not data.startswith(b"starting\n", first):
+        sys.exit(f"BOARD ST_NICCC: the loaded design's output does not begin with its greeting")
+    t0 = capture.time(first)
+    end_time = capture.time(len(data) - 1) - t0
+
+    def cut(seconds):
+        # The offset of the first escape sequence the board sent after <seconds>.
+        k = bisect.bisect_left([t for t, _ in capture.reads], t0 + seconds)
+        offset = capture.reads[k][1] if k < len(capture.reads) else len(data)
+        return data.find(b"\x1b", offset) if data.find(b"\x1b", offset) >= 0 else len(data)
+
+    times = sorted(set(NICCC_FIGURE) | {NICCC_GIF_FROM + NICCC_STEP * i for i in
+                   range(int((end_time - NICCC_GIF_FROM) / NICCC_STEP) + 1)})
+    terminal, last, shots = Terminal(), first, {}
+    for t in times:
+        offset = cut(t)
+        terminal.feed(data[last:offset])
+        shots[t] = terminal.screen(NICCC_ROWS, NICCC_COLS)
+        last = offset
+    print(f"BOARD ST_NICCC: {len(data) - first} bytes in {end_time:.1f} s from its first byte, "
+          f"{(len(data) - first) / end_time / 1e3:.1f} kB/s; the figure shows the screen at "
+          f"{', '.join(map(str, NICCC_FIGURE))} s")
+    write_pdf(os.path.join(figures, "board_st_niccc.pdf"), [shots[t] for t in NICCC_FIGURE],
+              cell_w=2.0)
+    gif = [shots[t] for t in times if t >= NICCC_GIF_FROM and t not in NICCC_FIGURE
+           or t in NICCC_FIGURE and (t - NICCC_GIF_FROM) % NICCC_STEP == 0]
+    write_gif(os.path.join(figures, "board_st_niccc.gif"), gif,
+              [int(1e3 * NICCC_STEP)] * len(gif), cell_px=2)
 
 
 def main():
@@ -358,8 +535,9 @@ def main():
     captures, figures = sys.argv[1:]
     mandelbrot(captures, figures)
     riscv_logo(captures, figures)
-    sieve(captures)
+    sieve(captures, figures)
     tinyraytracer(captures, figures)
+    st_niccc(captures, figures)
 
 
 if __name__ == "__main__":

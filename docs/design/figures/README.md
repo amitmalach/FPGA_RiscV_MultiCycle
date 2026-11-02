@@ -7,8 +7,9 @@ each with a recipe below. Each figure is committed once it exists, and `make -C 
 builds the PDF from the committed figures without Vivado or the board. Paths below are relative
 to the repository root.
 
-Formats: PDF for vector drawings, PNG for screenshots, JPEG for photos, and LaTeX for the
-excerpts a TikZ drawing in `design.tex` sets (`flow_excerpts.tex`). Keep the source of a
+Formats: PDF for vector drawings, PNG for screenshots, JPEG for photos, GIF for the README's
+animations, and LaTeX for the excerpts a drawing in `design.tex` sets (`flow_excerpts.tex`,
+`board_sieve.tex`). Keep the source of a
 hand-made drawing (for example `.svg`) next to its exported PDF.
 
 A photo is committed without its metadata: a phone writes the GPS position into the EXIF
@@ -17,23 +18,30 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 
 | File in `docs/design/figures/` | Chapter | Made by |
 |---|---|---|
-| `board.jpg` | Title page | by hand: the owner's photo, notes below |
-| `board_bottom.jpg` | 2, Board and tools | by hand: the owner's photo, notes below |
+| `technion_logo.png` | Title page | by hand: Technion's official logo, notes below |
+| `board.jpg` | Page 2, the board | by hand: the owner's photo, notes below |
+| `board_bottom.jpg` | Page 2, the board | by hand: the owner's photo, notes below |
 | `rtl_soc.pdf` | 4, System architecture | `make figures`: `docs/design/scripts/rtl_schematics.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
-| `rtl_alu.pdf` | 5, The multi-cycle core | `make figures`, as above |
-| `wave_fsm.pdf` | 5, The multi-cycle core: four instructions through the FSM states | `make figures`: `docs/design/scripts/waves/WaveBench.v` under iverilog, rendered by `docs/design/scripts/vcd_wave.py`; "Waveforms" below |
-| `wave_flash.pdf`, `wave_flash_end.pdf` | 6, Memory and memory-mapped IO: an instruction fetched from the flash, whole and its end | `make figures`, as `wave_fsm.pdf` |
-| `flow_excerpts.tex` | 8, From C to the board: the excerpts of the flow figure, drawn in `design.tex` | `make figures`: `docs/design/scripts/flow_excerpts.py`; "The C-to-board flow" below |
+| `rtl_alu.pdf` | 6, The multi-cycle core | `make figures`, as above |
+| `wave_fsm.pdf` | 6, The multi-cycle core: four instructions through the FSM states | `make figures`: `docs/design/scripts/waves/WaveBench.v` under iverilog, rendered by `docs/design/scripts/vcd_wave.py`; "Waveforms" below |
+| `wave_flash.pdf`, `wave_flash_end.pdf` | 7, Memory and memory-mapped IO: an instruction fetched from the flash, whole and its end | `make figures`, as `wave_fsm.pdf` |
+| `flow_excerpts.tex` | 9, From C to the board: the excerpts of the flow figure, drawn in `design.tex` | `make figures`: `docs/design/scripts/flow_excerpts.py`; "The C-to-board flow" below |
 | `sch_oscillator.png`, `sch_reset.png`, `sch_leds.png`, `sch_uart.png`, `sch_config.png`, `sch_mode.png` | 2, Board and tools: excerpts of Digilent's schematic | `make figures`: `docs/design/scripts/schematic_crops.sh`, from a local copy of the schematic; "Schematic excerpts" below |
-| `vivado_io_package.png` | 2, Board and tools | by hand, recipe below |
-| `impl_results.tex` | 10, Implementation results: its numbers, the utilization table's rows and the data of the slack, logic-level and power charts, drawn in `design.tex` | `make figures`: `docs/design/scripts/impl_reports.tcl` and `docs/design/scripts/impl_results.py`; "Implementation results" below |
-| `timing_worst_path.pdf` | 10, Implementation results: the worst setup path | `make figures`: `docs/design/scripts/path_schematic.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
-| `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
-| `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
-| `board_mandelbrot.pdf` | 11, Results on the board | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
-| `board_riscv_logo.pdf` | 11, Results on the board: the filmstrip (pages 1, 9, ..., 57) and the animation | `make figures`, as above |
+| `vivado_io_package.png` | 2, Board and tools: the pins, under a box per module drawn in `design.tex` | by hand, recipe below |
+| `impl_results.tex` | 11, Implementation results: its numbers, the utilization table's rows and the data of the slack, logic-level and power charts, drawn in `design.tex` | `make figures`: `docs/design/scripts/impl_reports.tcl` and `docs/design/scripts/impl_results.py`; "Implementation results" below |
+| `timing_worst_path.pdf` | 11, Implementation results: the worst setup path | `make figures`: `docs/design/scripts/path_schematic.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
+| `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 11, Implementation results: the zoom series | by hand, recipe below |
+| `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 11, Implementation results: the worst path | by hand, recipe below |
+| `board_mandelbrot.pdf` | 1, Introduction: the frames of the capture, a page each; page 1 also in 9, the flow figure | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
+| `board_mandelbrot.gif` | The README, "Running the demos" | `make figures`, as above |
+| `board_riscv_logo.pdf` | 1, Introduction: the filmstrip (pages 1, 9, ..., 57) | `make figures`, as above |
 | `board_riscv_logo.gif` | The README, "Running the demos" | `make figures`, as above |
-| `board_tinyraytracer.pdf` | 11, Results on the board: flash boot | `make figures`, as above |
+| `board_tinyraytracer.pdf` | 1, Introduction: the picture after each of its 24 rows, a page each (pages 6, 12, 18 and 24), flash boot | `make figures`, as above |
+| `board_tinyraytracer.gif` | The README, "Running the demos": the drawing, 20 times faster | `make figures`, as above |
+| `board_sieve.tex` | 1, Introduction: five screens of a terminal 12 rows high, as LaTeX macros that `\termframe` in `design.tex` draws | `make figures`, as above |
+| `board_sieve.gif` | The README, "Running the demos": two rounds, 50 times slower; needs DejaVu Sans Mono (Ubuntu's `fonts-dejavu-core`) | `make figures`, as above |
+| `board_st_niccc.pdf` | 1, Introduction: the screen at five moments, a page each | `make figures`, as above |
+| `board_st_niccc.gif` | The README, "Running the demos": the screen every half second | `make figures`, as above |
 
 ## Scripted figures: `make figures`
 
@@ -69,7 +77,7 @@ Facts about Vivado 2025.2 behind these scripts:
 
 ## Implementation results: `make impl`
 
-Chapter 10's numbers are generated, so they follow a change to the RTL. `make impl` (part of
+Chapter 11's numbers are generated, so they follow a change to the RTL. `make impl` (part of
 `make figures`) runs four steps, from `docs/design/`:
 
 1. `vivado/baseline.tcl`, the script behind `docs/baseline.md`, builds the routed design into
@@ -94,7 +102,7 @@ Chapter 10's numbers are generated, so they follow a change to the RTL. `make im
 
 It also fails unless the reports agree with each other (the worst path's slack and the
 smallest endpoint slack are the WNS, its logic levels are its cells between the registers) and
-the path is still LUTs, one carry chain, then LUTs, the shape chapter 10 describes. A few facts
+the path is still LUTs, one carry chain, then LUTs, the shape chapter 11 describes. A few facts
 in that chapter's prose are written by hand: that the worst path is the load path, and that its
 carry chain ends at bit 24, the flash region's bit. After a change that moves the path, read
 `docs/design/build/impl/reports/worst_path.txt` and check them.
@@ -202,7 +210,7 @@ Nothing in the file records a date, so an unchanged build regenerates it byte-id
 
 ## Board captures: `make captures`
 
-The figures of chapter 11 are rendered from the board's UART output, recorded once and
+The figures of chapter 1 are rendered from the board's UART output, recorded once and
 committed in `docs/design/captures/` as source data, so `make figures` needs no board.
 Recording again needs the board, its two micro-USB cables, Vivado, `riscv64-unknown-elf-gcc`
 and Python 3 with pyserial:
@@ -241,8 +249,8 @@ stops unless it holds the demo's binary, then builds the flash-boot bitstream, t
 default, in `docs/design/build/board/flash/` with a copy of `rtl/firmware.hex` that the core
 never runs, and records as above. It prints a reminder just before the load: once the load has
 ended, about half a minute after the script starts, press the board's CPU RESET button. After
-configuration the core prints nothing until a reset (chapter 11 says why), and tinyraytracer
-then takes about two minutes to draw its picture; 360 seconds leaves time for both.
+configuration the core prints nothing until a reset (the report's pitfall P5 says why), and
+tinyraytracer then takes about two minutes to draw its picture; 360 seconds leaves time for both.
 `board_figures.py` draws the last complete run in the capture, so a second press does no harm.
 
 Before the first write, `board_flash.tcl read 0x0 0x2000000 <file>` backs up the whole chip
@@ -252,6 +260,31 @@ That backup, from 2026-10-28, is in the owner's snapshot of the original project
 records the readback. A full readback after the tinyraytracer write differed from the backup
 only in the 29 016 bytes of the image, at `0xD00000` to `0xD07157`, and so did one after the
 third write of the same image, below.
+
+### ST_NICCC: the scene data in the flash
+
+ST_NICCC runs in BRAM boot, but reads its 640 KB scene, `scene1.dat`, which is not in the
+repository, from the flash at `0xC00000`. The owner's board held factory-demo data there,
+equal to the 2026-10-28 backup, so the region was read back first and then written with
+`board_flash.tcl write` and a `.mcs` of the scene made by `fw/tools/write_mcs.tcl` (the
+README's "Flash boot"). A readback of the 639 976 bytes then matched `scene1.dat`. From
+`docs/design/`, with the two JTAG cables of the owner's machine:
+
+```sh
+mkdir -p build/board/niccc && cd build/board/niccc
+vivado -mode batch -nojournal -nolog -source ../../../scripts/board_flash.tcl \
+    -tclargs read 0xC00000 655360 before_C00000.bin '*8361B'
+vivado -mode batch -nojournal -nolog -source ../../../scripts/board_flash.tcl \
+    -tclargs write <niccc_data.mcs> '*8361B'
+cd ../../..
+JTAG_TARGET='*8361B' scripts/board_capture.sh ST_NICCC bram 150 captures/ST_NICCC_bram
+```
+
+The core prints its greeting straight after configuration, with no press of the reset button,
+but the player's first frame comes out wrong: its first read from the flash is the first SPI
+transaction after configuration, the one that loses clock edges (the report's pitfall P5).
+The polygons are right from 1.3 s on, one palette colour stays wrong until the scene sets it
+again 70 s in, and from there the bytes are the native player's, as below.
 
 ### The Quad Enable bit
 
@@ -302,11 +335,12 @@ the load, while the FPGA was being configured.
 `board_figures.py` replays the bytes through a small terminal emulator, documented in its
 header, with LF taken as CR LF as `picocom --imap lfcrlf` does, the 16 and the 256 colours in
 xterm's palette and the default background black. It prints `BOARD` lines with the measurements
-chapter 11 quotes, and fails unless mandelbrot's first frame is byte for byte the UART bytes of
-the golden trace, every sieve round captured ends in `OK`, and a complete tinyraytracer run
-is in its capture. The riscv_logo capture can be checked against the program compiled natively
-in the same way as `docs/baseline.md` checks the golden frame; 54 is the byte at which
-`board_figures.py` reports the loaded design's output to begin:
+chapter 1 quotes, and fails unless mandelbrot's first frame is byte for byte the UART bytes of
+the golden trace, every sieve round captured ends in `OK`, a complete tinyraytracer run is in
+its capture, and ST_NICCC's output begins with its greeting. The riscv_logo capture can be
+checked against the program compiled natively in the same way as `docs/baseline.md` checks the
+golden frame. 54 is the byte at which `board_figures.py` reports the loaded design's output to
+begin:
 
 ```sh
 gcc -O2 -w -o /tmp/logo fw/riscv_logo.c
@@ -336,9 +370,27 @@ tail -c +$((TRT_START + 1)) docs/design/captures/tinyraytracer_flash.bin \
     | head -c $((TRT_END - TRT_START + 1)) | cmp - <(/tmp/trt/trt)
 ```
 
+ST_NICCC's capture is checked against the player compiled natively, which reads `scene1.dat`
+by a path relative to its working directory and prints the same bytes, with a 20 ms pause
+between frames. The board's first frame is wrong (see the subsection above), and from byte
+799 969 of the capture, 70 s after its first byte, to its end the board's bytes are the
+native ones from byte 794 178:
+
+```sh
+mkdir -p /tmp/nat/a/b/c /tmp/nat/FIRMWARE/EXAMPLES/DATA
+cp <scene1.dat> /tmp/nat/FIRMWARE/EXAMPLES/DATA/
+gcc -O2 -w -o /tmp/nat/niccc fw/ST_NICCC.c
+(cd /tmp/nat/a/b/c && timeout 40 ../../../niccc > /tmp/nat/out.bin)
+cmp <(tail -c +799970 docs/design/captures/ST_NICCC_bram.bin) \
+    <(tail -c +794179 /tmp/nat/out.bin | head -c 916852)
+```
+
 - Captured 2026-10-28, the BRAM-boot demos with `make captures` and tinyraytracer as above,
   Vivado 2025.2, on the owner's board: Genesys 2 revision H, through its own FT232R USB-UART
-  bridge and Digilent USB-JTAG
+  bridge and Digilent USB-JTAG. mandelbrot was captured again on 2026-10-29, for 24 s after
+  the load, so that its frames cover a full cycle of the 21 colours; the JTAG cable showed
+  up as `.../Digilent/200300BD8361B` and `JTAG_TARGET='*8361B'` picked it. ST_NICCC was
+  captured on 2026-11-03, after its scene data was written, as below
 
 ## The report's module colours
 
@@ -384,8 +436,8 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 
 ### Device views, from the whole device to the worst path
 
-- Files: `vivado_device_1_whole.png` to `vivado_device_6_routing_off.png`, chapter 10:
-  figure `fig:device-zoom` holds panels 1 to 4, figure `fig:worst-path` panels 5 and 6
+- Files: `vivado_device_1_whole.png` to `vivado_device_6_routing_off.png`, chapter 11:
+  figure `fig:device-zoom`, its six panels in file order
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
 - View: Device window, the worst path selected, Auto-fit Selection on in every panel;
   Routing Resources on in panels 1 to 5, off in panel 6
@@ -424,27 +476,37 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 4. Screenshot the maximised panel as above and save it as
    `docs/design/figures/vivado_io_package.png`.
 
+## The Technion logo
+
+- File: `technion_logo.png`, the title page: the English vertical logo in Technion blue,
+  `Eng_Ver_Blue.png` from the `eng-ver.zip` pack of the Technion Marketing Unit's logo page,
+  <https://marketing.technion.ac.il/plugging-in/download-technion/>, 794 by 904 pixels at
+  300 dpi on a transparent background, committed as downloaded on 2026-10-29
+- The page offers the logo for Technion work; a report for a Technion course is one. For any
+  other use the page asks for the Marketing Unit's permission
+
 ## The board photos
 
 ### Top side
 
-- File: `board.jpg`, the title page, under TikZ callouts in `design.tex` that point at the
-  photo's own pixels (1964 by 1507): red labels for the parts the design uses, grey for
-  notable unused ones. The 200 MHz oscillator, IC23, is the small package left of the fan's
-  frame, below its decoupling capacitors C159 and C160; the QSPI flash is on the underside,
-  and its callout is dashed, placed from the underside photo's callout mirrored
+- File: `board.jpg`, page 2, figure `fig:board-top`, under TikZ callouts in `design.tex`
+  that point at the photo's own pixels (1964 by 1507): red labels for the parts the design
+  uses, grey for notable unused ones. The 200 MHz oscillator, IC23, is the small package
+  left of the fan's frame, below its decoupling capacitors C159 and C160; the QSPI flash is
+  on the underside, and its callout is dashed, placed from the underside photo's callout
+  mirrored
 - iPhone 14, the board's top side, powered on and running Digilent's factory demo (DONE, PGOOD,
   LD0 to LD2 and the OLED lit), room light, no flash
 - Cropped on the phone to 1964x1507 (3.0 MP), with a slight tilt. Issue #18 asked for a
   straight top-down daylight shot of at least 12 MP; the owner accepted this one. A retake
-  replaces the file under the same name and must keep the framing, or the title page's
-  callouts move with it.
+  replaces the file under the same name and must keep the framing, or the callouts move
+  with it.
 - Metadata stripped on 2026-10-27, after the first commit of the photo: the Git history keeps
   that first version, with its GPS position.
 
 ### Underside
 
-- File: `board_bottom.jpg`, chapter 2, figure `fig:board-bottom`, under TikZ callouts in
+- File: `board_bottom.jpg`, page 2, figure `fig:board-bottom`, under TikZ callouts in
   `design.tex` that point at photo pixels (measured on a 1400-pixel-wide copy)
 - iPhone 14, taken the same evening as the top side, held by hand at its lower left corner,
   room light; 2519x1948 (4.9 MP) as committed, metadata stripped
