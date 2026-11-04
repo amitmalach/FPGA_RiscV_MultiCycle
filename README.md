@@ -139,6 +139,9 @@ controller sends a 24-bit address.
 | `scripts/` | `lint.sh`, the pre-commit hook that runs it, the commit-msg hook that checks cited gate logs, and `quote_comment.sh` for moving RTL comments into the design notes |
 | `build/` | Everything generated: the Vivado project, run directories, `SOC.bit`, gate logs. Not tracked |
 
+Every tracked folder above has a README of its own: what the folder holds and which make
+targets serve it.
+
 The Vivado project is never committed. `vivado/create_project.tcl` regenerates it into
 `build/vivado/` from the plain source tree, referencing the files in place.
 

@@ -7,13 +7,17 @@
 #   make smoke         ~25 s: unit, firmware check, then a short xsim run matching the golden so far
 #   make check         minutes: unit, firmware reproducibility, xsim regression, Vivado synthesis
 #   make -j2 check     same, regression and synthesis in parallel
+#   make check-fw      seconds: make -C fw check, the memory-map copies and the image rebuilt
+#   make check-sim     ~6 min: check-fw, then the full xsim regression against the golden trace
+#   make check-synth   under a minute: check-fw, then Vivado synthesis in project mode
 #   make golden        ~6 min: firmware check, then a full xsim run that overwrites the golden trace
 #   make check-moves BASE=<rev>   every file moved since <rev> is a 100 % rename
 #   make bitstream     synthesis, implementation, bitstream to build/SOC.bit
 #   make baseline      non-project synth/impl with reports in build/baseline/
 #
-# unit needs iverilog; smoke, check and golden also need riscv64-unknown-elf-gcc on PATH
-# and Vivado's settings64.sh sourced.
+# lint and check-moves need only bash and git; unit needs iverilog; check-fw needs
+# riscv64-unknown-elf-gcc on PATH; smoke, check, check-sim, check-synth and golden also need
+# Vivado's settings64.sh sourced, and bitstream and baseline need Vivado alone.
 #
 # Every gate writes its output to build/logs/<target>-<timestamp>.log as well as
 # the terminal; targets of one make invocation share the timestamp. The log ends

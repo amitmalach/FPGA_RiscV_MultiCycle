@@ -27,7 +27,7 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `wave_flash.pdf`, `wave_flash_end.pdf` | 7, Memory and memory-mapped IO: an instruction fetched from the flash, whole and its end | `make figures`, as `wave_fsm.pdf` |
 | `flow_excerpts.tex` | 9, From C to the board: the excerpts of the flow figure, drawn in `design.tex` | `make figures`: `docs/design/scripts/flow_excerpts.py`; "The C-to-board flow" below |
 | `sch_oscillator.png`, `sch_reset.png`, `sch_leds.png`, `sch_uart.png`, `sch_config.png`, `sch_mode.png` | 2, Board and tools: excerpts of Digilent's schematic | `make figures`: `docs/design/scripts/schematic_crops.sh`, from a local copy of the schematic; "Schematic excerpts" below |
-| `vivado_io_package.png` | 2, Board and tools: the pins, under a box per module drawn in `design.tex` | by hand, recipe below |
+| `vivado_io_package.png` | 2, Board and tools: the pins and the banks, cropped to the package under a box per module, a label per bank and a key of its symbols, all drawn in `design.tex` | by hand, recipe below |
 | `impl_results.tex` | 11, Implementation results: its numbers, the utilization table's rows and the data of the slack, logic-level and power charts, drawn in `design.tex` | `make figures`: `docs/design/scripts/impl_reports.tcl` and `docs/design/scripts/impl_results.py`; "Implementation results" below |
 | `timing_worst_path.pdf` | 11, Implementation results: the worst setup path | `make figures`: `docs/design/scripts/path_schematic.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
 | `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 11, Implementation results: the zoom series | by hand, recipe below |
@@ -397,8 +397,9 @@ cmp <(tail -c +799970 docs/design/captures/ST_NICCC_bram.bin) \
 One colour per module, in every Vivado view and drawing of the report. They are Okabe-Ito
 colours, which stay distinct under the common forms of colour blindness.
 `docs/design/scripts/gui_helper.tcl` holds the same table. `docs/design/design.tex` holds the
-module rows, as the `\definecolor` lines in its preamble and the colour key, `tab:module-colours`,
-in chapter 2; its views show the worst path selected, so the key has white for it, not red.
+module rows, as the `\definecolor` lines in its preamble and the colour key under the package
+view, `fig:io-package`, in chapter 2; its views show the worst path selected, so the key has
+white for it, not red.
 
 | Module | Cells | RGB | Ports |
 |---|---|---|---|
@@ -475,6 +476,13 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 3. Choose Layout > I/O Planning, maximise the Package window and zoom to fit.
 4. Screenshot the maximised panel as above and save it as
    `docs/design/figures/vivado_io_package.png`.
+
+`design.tex` shows the package only, x 546 to 1288 and y 71 to 842 of the screenshot, and
+draws the row letters itself. Its bank colours are sampled from Vivado's bank outlines, its key
+cuts each symbol from the screenshot at a ball that shows it, and its bank labels say what each
+bank serves on the board, from Digilent's schematic and the full Genesys 2 master XDC. A new
+screenshot must keep the 1827 by 872 size and the zoom, or the coordinates in `design.tex`
+move.
 
 ## The Technion logo
 

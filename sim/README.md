@@ -1,5 +1,12 @@
 # Simulation regression
 
+`sim/` holds the SoC testbench (`bench.v`), the golden trace (`golden/`), the regression
+script (`run_regression.sh`), the ALU unit bench (`ALUBench.v`, run by `run_unit.sh`), the
+Verilog assembler for test programs (`asm/`), and `tests/check_golden_mirror.sh`, which
+`make lint` runs to hold `docs/baseline.md` equal to the golden trace. The root `Makefile`
+runs the scripts as gates: `make unit`, `make smoke`, `make check-sim` (part of `make check`)
+and `make golden`. `sim/asm/` has a Makefile of its own, below.
+
 One script tells you whether the SoC still behaves exactly like the design it was
 captured from. It simulates the `SOC` top in xsim with the committed firmware image
 (mandelbrot, BRAM boot), records what an outside observer sees, and diffs that trace
@@ -84,7 +91,8 @@ the golden file records what the RTL did when it was captured, right or wrong.
 `sim/asm/` holds Bruno Levy's Verilog assembler (`riscv_assembly.v`) and a sample
 program (`program_asm.v`, the ASCII mandelbrot). `make -C sim/asm` runs it under
 iverilog and writes `sim/asm/program.hex`, a RAM image in the same format as
-`rtl/firmware.hex`. Neither output is tracked.
+`rtl/firmware.hex`; `make -C sim/asm DEFS=-DBENCH` builds it to run at full speed in
+simulation, and `make -C sim/asm clean` removes the outputs. Neither output is tracked.
 
 ## Synthesis baseline
 

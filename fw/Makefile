@@ -6,7 +6,14 @@
 #   make build/mandelbrot.s           a demo's assembly, for the reader: no firmware build uses it
 #   make check                        memory-map mirrors match rtl/defines.vh; rebuild from clean
 #                                     and compare against the committed image
+#   make bram, make flash             the two halves of the default target, which TARGET picks
 #   make clean
+#
+# Variables: PROG (default mandelbrot), TARGET (bram or flash), BUILD (output directory,
+# default build/), HEX_OUT (the BRAM-boot image, below), RAM_SIZE (below), CROSS (the toolchain
+# prefix), XILINX_RV32_ROOT (Vivado's RISC-V newlib, for tinyraytracer). A flash build runs
+# Vivado's write_cfgmem, so it needs Vivado's settings64.sh sourced; a BRAM build compiles the
+# ELF-to-hex converter with HOSTCXX (default g++).
 #
 # Demos: blinker sieve mandelbrot riscv_logo ST_NICCC (BRAM or flash)
 #        tinyraytracer (flash only: ~29 KB of code, the RAM holds 6 KB)
