@@ -12,9 +12,8 @@
 #    vivado/, constraints/, docs/ or scripts/: everything Vivado writes belongs
 #    under build/.
 # 2. No tracked file refers to a retired path (old Vivado import tree,
-#    firmware/, bench_iverilog.v, vivado/sources.tcl); docs/design/notes.md is
-#    exempt because it quotes removed comments verbatim. No tracked file, the
-#    notes included, uses retired vocabulary either: "tutorial", a tutorial
+#    firmware/, bench_iverilog.v, vivado/sources.tcl). No tracked file uses
+#    retired vocabulary either: "tutorial", a tutorial
 #    step number (10 to 24), step1.v, "ticket #", "seam 1/2". The published
 #    tree describes the design, not where it came from or how it was tidied.
 # 3. Markdown prose lines are at most 100 characters; table rows are exempt.
@@ -85,7 +84,7 @@ fi
 
 echo "== retired paths"
 retired='bench_iverilog\.v|vivado/sources\.tcl|(^|[^a-z_/])firmware/'
-hits=$(git ls-files | grep -v '^docs/design/notes\.md$' | xargs grep -nE "$retired" 2>/dev/null | grep -v '^scripts/lint.sh:' || true)
+hits=$(git ls-files | xargs grep -nE "$retired" 2>/dev/null | grep -v '^scripts/lint.sh:' || true)
 if [ -n "$hits" ]; then
     echo "FAIL: references to paths that no longer exist:"
     echo "$hits"

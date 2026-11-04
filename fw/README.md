@@ -3,6 +3,24 @@
 The demo programs and everything that builds them for the SoC, with
 `riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32`.
 
+A program runs in one of two boot modes. In BRAM boot it is built into `rtl/firmware.hex`,
+which synthesis bakes into the bitstream, and it runs from the SoC's 6 KB of RAM. In flash
+boot it is written to the board's flash and runs from there, which admits programs larger than
+the RAM. The same sources build for either; `TARGET` picks the mode. Build outputs go to
+`build/`, which is not tracked.
+
+## Where to start reading
+
+1. `io.h`: the IO addresses a program writes to light the LEDs or send a byte.
+2. `mandelbrot.c`: the demo in the committed image, plain C over `printf`.
+3. `start.S` and `bram.ld`: what runs before `main`, and where the code, data and stack sit
+   in the RAM.
+4. `start_spiflash.S` and `spiflash.ld`: the same for flash boot.
+
+The root README, "Running the demos", loads a demo on the board.
+
+## Files
+
 | Path | What it is |
 |---|---|
 | `blinker.S`, `sieve.c`, `mandelbrot.c`, `riscv_logo.c`, `ST_NICCC.c`, `tinyraytracer.c` | The demos |

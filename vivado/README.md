@@ -3,6 +3,13 @@
 Tcl for Vivado 2025.2 in batch mode. The project is never committed: these scripts generate
 it, referring to the sources where they are.
 
+Vivado turns the Verilog into a bitstream in three steps: synthesis maps the RTL onto the
+FPGA's cells (LUTs, flip-flops, block RAM), implementation places those cells on the chip and
+routes the wires between them, and `write_bitstream` writes the file that configures the FPGA.
+`make bitstream` runs all three and leaves `build/SOC.bit`, a flash-boot design; the root
+README, "Building the bitstream" and "Running the demos", says how to get a BRAM-boot one and
+load it on the board.
+
 | File | What it does |
 |---|---|
 | `create_project.tcl` | Generates the project, `build/vivado/soc.xpr`, from the file list below |
