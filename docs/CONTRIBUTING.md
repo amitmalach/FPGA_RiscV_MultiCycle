@@ -40,11 +40,14 @@ are the RISC-V ABI register names (`a0`, `sp`, `ra`) that the assembly programs 
 - Inline comments: one line, where the code does not say why. Two lines only when one line
   would lose the reason.
 - Rationale that explains a bug, workaround, tweak, timing subtlety or deliberate quirk
-  belongs in `docs/design/notes.md`, verbatim apart from re-wrapping and current file names,
-  grouped by module and naming the signal. A
-  comment removed from RTL goes there before the commit that removes it. Extract the quote
-  with `scripts/quote_comment.sh <rev>:<file> <from> <to>`: it keeps the block's relative
-  indentation and reports the lines over 100 characters that need re-wrapping by hand.
+  belongs in `docs/design/notes.md`, as an entry under the module whose file holds the thing:
+  a `###` title, a `**Question:**` line with the one question it answers, a `*Where:*` line
+  naming the files and signals, then a concise answer in the current names (a table where it
+  lists signals). Not a quote: the entry is rewritten whenever the code it describes changes,
+  in the same commit, so that it never contradicts the source. A comment removed from RTL
+  becomes an entry before the commit that removes it; `scripts/quote_comment.sh <rev>:<file>
+  <from> <to>` prints the old block to work from. The report cites entries by title, so a
+  renamed title is renamed in `docs/design/design.tex` and `docs/baseline.md` too.
 - Refer to files by their current name. Ticket numbers go in commit messages and issue
   comments, not in code comments; describe the condition instead ("until rtl/ comments are
   trimmed").

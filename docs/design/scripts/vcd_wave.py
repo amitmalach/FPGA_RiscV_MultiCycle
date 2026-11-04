@@ -7,7 +7,7 @@
 
 <spec> is a text file, one signal per line, drawn top to bottom in that order:
 
-    <path> <label> <format> [<colour>]
+    <path> <label> <format> [<colour>] [@<when>]
 
     path    the signal's hierarchical name, or any suffix of it that names one signal
             (cpu.control.state); the dot separates levels, and a bit range is not written
@@ -20,6 +20,13 @@
             <n>=<name>,...   a bus drawn with a name for each of its values (an FSM's states),
                     n in decimal; a value without a name is drawn in decimal
     colour  RRGGBB for the label, optional (the report's module colours)
+    when    the cycles in which the signal's value is the one to read, marked with a fill
+            behind its row, optional: alternatives separated by commas, each a state name
+            of the spec's one row of named values, then any number of &<path> (that signal
+            is non-zero in the cycle) or &!<path> (it is zero, x or z). @EX&write_rd,WD marks
+            every WAIT_DATA cycle and the EXECUTE cycles that write rd. A path here need not
+            be a row of the figure. Each cycle is judged by the values at its middle. A bus
+            value is written in the widest mark over it when half of it fits there.
 
 Blank lines and lines starting with # are skipped. The figure spans the whole VCD unless
 --start names signal values: it then begins at the first time at which every named signal
@@ -169,26 +176,61 @@ def format_value(bits, fmt):
     return fmt.get(number, str(number))
 
 
+def parse_when(field):
+    """[(state name, [(path, negated)])] from a when field without its @."""
+    when = []
+    for alternative in field.split(","):
+        state, *terms = alternative.split("&")
+        if not state or not all(term.lstrip("!") for term in terms):
+            raise ValueError(f"bad when alternative {alternative!r}")
+        when.append((state, [(term.lstrip("!"), term.startswith("!")) for term in terms]))
+    return when
+
+
 def parse_spec(text):
-    """[(path, label, format, colour)] from the spec file's text."""
+    """[(path, label, format, colour, when)] from the spec file's text."""
     rows = []
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         fields = line.split()
-        if len(fields) not in (3, 4):
-            raise ValueError(f"spec line needs path, label, format [colour]: {line!r}")
+        if len(fields) < 3:
+            raise ValueError(f"spec line needs path, label, format [colour] [@when]: {line!r}")
         path, label, fmt = fields[:3]
         if label == "-":
             label = path.split(".")[-1]
         if fmt not in ("clock", "grid", "bit", "hex", "dec"):
             fmt = {int(n): name for n, name in (item.split("=") for item in fmt.split(","))}
-        colour = None
-        if len(fields) == 4:
-            rgb = int(fields[3], 16)
+        colour, when = None, []
+        rest = fields[3:]
+        if rest and re.fullmatch(r"[0-9a-fA-F]{6}", rest[0]):
+            rgb = int(rest.pop(0), 16)
             colour = (rgb >> 16, rgb >> 8 & 255, rgb & 255)
-        rows.append((path, label, fmt, colour))
+        if rest and rest[0].startswith("@"):
+            when = parse_when(rest.pop(0)[1:])
+        if rest:
+            raise ValueError(f"spec line needs path, label, format [colour] [@when]: {line!r}")
+        rows.append((path, label, fmt, colour, when))
     return rows
+
+
+def marked_spans(vcd, when, state_name, cycles):
+    """The (from, to) time spans of the cycles that when marks, adjacent cycles merged.
+
+    when is [(state value, [(signal name, negated)])], cycles [(from, to)] in time order."""
+    spans = []
+    for a, b in cycles:
+        mid = (a + b) / 2
+        state = as_int(vcd.value_at(state_name, mid))
+        if not any(state == value and all(bool(as_int(vcd.value_at(name, mid))) != negated
+                                          for name, negated in terms)
+                   for value, terms in when):
+            continue
+        if spans and spans[-1][1] == a:
+            spans[-1] = (spans[-1][0], b)
+        else:
+            spans.append((a, b))
+    return spans
 
 
 # ---- drawing ---------------------------------------------------------------------------
@@ -198,6 +240,8 @@ ROW, GAP = 11.0, 4.0            # a signal's height, and the space between signa
 RULER = 10.0                    # the cycle numbers above the signals
 SLOPE = 1.2                     # half-width of a bus transition's slanted ends
 MARGIN = 3.0
+MARK = (255, 226, 110)          # the fill behind a value to read, a highlighter's yellow
+MARK_PAD = 1.5                  # how far the fill reaches above and below its row
 
 
 class Page:
@@ -210,6 +254,10 @@ class Page:
         self.ops.append("%.3g G %.3g w" % (grey, width))
         self.ops.append(" ".join("%.4g %.4g %s" % (x, y, "m" if i == 0 else "l")
                                  for i, (x, y) in enumerate(points)) + " S")
+
+    def rect(self, x, y, w, h, rgb):
+        self.ops.append("%.3g %.3g %.3g rg %.4g %.4g %.4g %.4g re f"
+                        % (rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, x, y, w, h))
 
     def text(self, x, y, string, size, rgb=(0, 0, 0)):
         escaped = string.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
@@ -230,9 +278,12 @@ class Page:
         write_pdf_objects(path, objects)
 
 
-def draw(vcd, rows, out, start, end, edges, width):
-    """The figure: rows top to bottom, time left to right from start to end, grid at edges."""
-    label_w = max(text_width(label, LABEL_SIZE) for _, label, _, _ in rows) + 2 * MARGIN
+def draw(vcd, rows, out, start, end, edges, width, state_name=None):
+    """The figure: rows top to bottom, time left to right from start to end, grid at edges.
+
+    Each row's when, [(state value, [(signal name, negated)])], marks its cycles by the
+    value of state_name."""
+    label_w = max(text_width(row[1], LABEL_SIZE) for row in rows) + 2 * MARGIN
     x0, x1 = label_w, width - MARGIN
     scale = (x1 - x0) / (end - start)
     height = RULER + len(rows) * (ROW + GAP) + MARGIN
@@ -240,6 +291,18 @@ def draw(vcd, rows, out, start, end, edges, width):
 
     def x_of(t):
         return x0 + (t - start) * scale
+
+    def row_y(i):
+        """The bottom of row i's line or box."""
+        return height - RULER - (i + 1) * (ROW + GAP) + GAP
+
+    # The marks first, so the grid and the signals are drawn over them.
+    cycles = list(zip(edges, edges[1:] + [end]))
+    marks = [marked_spans(vcd, row[4], state_name, cycles) if row[4] else [] for row in rows]
+    for i, spans in enumerate(marks):
+        for a, b in spans:
+            page.rect(x_of(a), row_y(i) - MARK_PAD, x_of(b) - x_of(a), ROW + 2 * MARK_PAD,
+                      MARK)
 
     # The cycle grid and its numbers, thinned out when a cycle is narrower than a number.
     top, bottom = height - RULER, MARGIN
@@ -256,8 +319,8 @@ def draw(vcd, rows, out, start, end, edges, width):
             page.text((x_of(a) + x_of(b) - text_width(label, RULER_SIZE)) / 2,
                       height - RULER_SIZE - 1, label, RULER_SIZE, (90, 90, 90))
 
-    for i, (name, label, fmt, colour) in enumerate(rows):
-        y_low = height - RULER - (i + 1) * (ROW + GAP) + GAP
+    for i, (name, label, fmt, colour, _) in enumerate(rows):
+        y_low = row_y(i)
         y_high = y_low + ROW
         page.text(MARGIN, y_low + (ROW - LABEL_SIZE) / 2 + 1, label, LABEL_SIZE,
                   colour or (0, 0, 0))
@@ -287,17 +350,41 @@ def draw(vcd, rows, out, start, end, edges, width):
                            (xb - sb, y_low), (xa + sa, y_low), (xa, y_mid)])
                 string = format_value(v, fmt)
                 w = text_width(string, VALUE_SIZE)
-                if w <= xb - xa - 2 * SLOPE - 2:
-                    page.text((xa + xb - w) / 2, y_low + (ROW - VALUE_SIZE) / 2 + 1, string,
-                              VALUE_SIZE)
+                if w > xb - xa - 2 * SLOPE - 2:
+                    continue
+                lo, hi = xa + sa + 1, xb - sb - 1          # the box's straight part
+                x = (xa + xb - w) / 2
+                # The value goes in the widest mark over this box, if half of it fits there,
+                # kept inside the box: the reader looks for it in the marked cycle.
+                inside = [(max(x_of(a), lo), min(x_of(b), hi)) for a, b in marks[i]]
+                inside = [(a, b) for a, b in inside if b > a]
+                if inside:
+                    a, b = max(inside, key=lambda span: span[1] - span[0])
+                    if b - a >= w / 2:
+                        x = min(max((a + b - w) / 2, lo), hi - w)
+                page.text(x, y_low + (ROW - VALUE_SIZE) / 2 + 1, string, VALUE_SIZE)
     page.write(out, width, height)
 
 
 def render(vcd_path, spec_path, out, start_spec=None, cycles=None, width=455.0):
     vcd = Vcd(open(vcd_path).read())
-    rows = [(vcd.resolve(path), label, fmt, colour)
-            for path, label, fmt, colour in parse_spec(open(spec_path).read())]
-    clocks = [name for name, _, fmt, _ in rows if fmt in ("clock", "grid")]
+    rows = parse_spec(open(spec_path).read())
+    named = [(vcd.resolve(path), fmt) for path, _, fmt, _, _ in rows if isinstance(fmt, dict)]
+    state_name = None
+    if any(when for *_, when in rows):
+        if len(named) != 1:
+            sys.exit(f"{spec_path}: a when field needs exactly one row of named values, "
+                     f"{len(named)} are")
+        state_name, names = named[0]
+        values = {name: value for value, name in names.items()}
+    for i, (path, label, fmt, colour, when) in enumerate(rows):
+        for state, _ in when:
+            if state not in values:
+                sys.exit(f"{spec_path}: {path}: {state} is not a named value")
+        rows[i] = (vcd.resolve(path), label, fmt, colour,
+                   [(values[state], [(vcd.resolve(p), neg) for p, neg in terms])
+                    for state, terms in when])
+    clocks = [row[0] for row in rows if row[2] in ("clock", "grid")]
     if len(clocks) != 1:
         sys.exit(f"{spec_path}: exactly one signal must have the format clock or grid, "
                  f"{len(clocks)} do")
@@ -319,7 +406,7 @@ def render(vcd_path, spec_path, out, start_spec=None, cycles=None, width=455.0):
     edges = [t for t in edges if t < end]
     if end <= start:
         sys.exit(f"{vcd_path}: the window is empty")
-    draw(vcd, rows, out, start, end, edges, width)
+    draw(vcd, rows, out, start, end, edges, width, state_name)
     unit = start * vcd.timescale_ps / 1000
     print(f"WAVE {out}: {len(rows)} signals from {unit:g} ns, {len(edges)} clock edges, "
           f"{(end - start) * vcd.timescale_ps / 1000:g} ns")
@@ -446,17 +533,38 @@ def selftest():
     assert format_value("1", {1: "WAIT_INSTR"}) == "WAIT_INSTR"
     assert format_value("10", {1: "WAIT_INSTR"}) == "2"
     assert format_value("1010", {1: "WAIT_INSTR"}) == "10"
-    spec = "cpu.control.state - 0=FETCH_INSTR,1=WAIT_INSTR 0072b2\n# c\n\nclk - clock\n"
+    spec = ("cpu.control.state - 0=FETCH_INSTR,1=WAIT_INSTR 0072b2\n# c\n\nclk - clock\n"
+            "bus - hex 0072b2 @FETCH_INSTR&clk,WAIT_INSTR&!a.b&c\nbus - hex @WAIT_INSTR\n")
     assert parse_spec(spec) == [
-        ("cpu.control.state", "state", {0: "FETCH_INSTR", 1: "WAIT_INSTR"}, (0, 114, 178)),
-        ("clk", "clk", "clock", None)]
-    for bad in ("clk - clock 0072b2 extra\n", "clk clk\n"):
+        ("cpu.control.state", "state", {0: "FETCH_INSTR", 1: "WAIT_INSTR"}, (0, 114, 178), []),
+        ("clk", "clk", "clock", None, []),
+        ("bus", "bus", "hex", (0, 114, 178),
+         [("FETCH_INSTR", [("clk", False)]), ("WAIT_INSTR", [("a.b", True), ("c", False)])]),
+        ("bus", "bus", "hex", None, [("WAIT_INSTR", [])])]
+    for bad in ("clk - clock 0072b2 extra\n", "clk clk\n", "clk - clock @A 0072b2\n",
+                "clk - clock @A @B\n", "clk - clock @\n", "clk - clock @A&\n",
+                "clk - clock @A,,B\n", "clk - clock @A&!\n"):
         try:
             parse_spec(bad)
         except ValueError:
             pass
         else:
             raise AssertionError(bad)
+
+    # Cycles 0 to 5000, 5000 to 15000 and 15000 to 20000: the state is 5, 0 and 1 in them,
+    # and the bus x, 1010 and 11111111 at their middles.
+    cycles = [(0, 5000), (5000, 15000), (15000, 20000)]
+    state = "top.cpu.state"
+    assert marked_spans(vcd, [(0, [])], state, cycles) == [(5000, 15000)]
+    assert marked_spans(vcd, [(0, []), (1, [])], state, cycles) == [(5000, 20000)]
+    assert marked_spans(vcd, [(5, []), (1, [])], state, cycles) == [(0, 5000), (15000, 20000)]
+    assert marked_spans(vcd, [(5, [("top.bus", False)])], state, cycles) == []
+    assert marked_spans(vcd, [(5, [("top.bus", True)])], state, cycles) == [(0, 5000)]
+    assert marked_spans(vcd, [(1, [("top.bus", False), ("top.clk", False)])], state,
+                        cycles) == [(15000, 20000)]
+    assert marked_spans(vcd, [(1, [("top.bus", False), ("top.clk", True)])], state,
+                        cycles) == []
+    assert marked_spans(vcd, [(7, [])], state, cycles) == []
 
     vcd = Vcd(SELFTEST_VCD_2)
     assert vcd.timescale_ps == 10000, vcd.timescale_ps

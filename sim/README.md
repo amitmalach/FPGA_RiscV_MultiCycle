@@ -1,11 +1,20 @@
-# Simulation regression
+# Simulation
 
-`sim/` holds the SoC testbench (`bench.v`), the golden trace (`golden/`), the regression
-script (`run_regression.sh`), the ALU unit bench (`ALUBench.v`, run by `run_unit.sh`), the
-Verilog assembler for test programs (`asm/`), and `tests/check_golden_mirror.sh`, which
-`make lint` runs to hold `docs/baseline.md` equal to the golden trace. The root `Makefile`
-runs the scripts as gates: `make unit`, `make smoke`, `make check-sim` (part of `make check`)
-and `make golden`. `sim/asm/` has a Makefile of its own, below.
+How the design is checked in simulation, before it reaches the board.
+
+| Path | What it is |
+|---|---|
+| `bench.v` | The SoC testbench: runs `SOC` in BRAM boot and writes what an outside observer sees to a trace |
+| `golden/mandelbrot_bram.txt` | The golden trace: the UART bytes and LED changes of one mandelbrot frame |
+| `run_regression.sh` | Simulates the SoC in xsim and passes only when the trace equals the golden one |
+| `ALUBench.v`, `run_unit.sh` | The ALU unit bench and the script that runs it under iverilog |
+| `asm/` | A Verilog-macro assembler for test programs, with a sample program and a Makefile of its own |
+| `tests/check_golden_mirror.sh` | Holds `docs/baseline.md`'s trace numbers equal to the golden trace; `make lint` runs it |
+| `build/` | Simulation outputs; not tracked |
+
+The root `Makefile` runs the scripts as gates: `make unit`, `make smoke` (a quick, shortened
+run after an RTL edit), `make check-sim` (part of `make check`) and `make golden`. Start with
+"What is compared" below; the final report, chapter "Verification", gives the whole picture.
 
 One script tells you whether the SoC still behaves exactly like the design it was
 captured from. It simulates the `SOC` top in xsim with the committed firmware image

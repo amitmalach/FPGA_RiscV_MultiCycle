@@ -56,6 +56,6 @@ timeout 1 /tmp/mandel | head -c $((n + 3)) | cmp /tmp/sim.bin -  # EOF on sim.bi
 An earlier golden trace recorded 8368 bytes, diverging at row 8, pixel 36: `srai` behaved
 as `srli` (`-1544416 >> 9` yielded `0x007FF437`, expected `0xFFFFF437`), because the
 unsigned else-arm of the ALU's shift expression made `>>>` shift logically (issue #10;
-`docs/design/notes.md`, "SRL versus SRA, as the comment described it"). The trace was
+`docs/design/notes.md`, "SRL versus SRA: both shift arms are signed"). The trace was
 re-captured with the fix, and `sim/ALUBench.v` now checks the shifts directly. The fix
 also gave the shifter its sign fill: Slice LUTs went from 930 to 984, and timing stayed met.

@@ -19,6 +19,22 @@ module. Everything runs in one clock domain, the board's 200 MHz clock.
 | `defines.vh` | The memory map and the bus widths, defined once for the whole design |
 | `firmware.hex` | The one firmware image: the mandelbrot demo, BRAM boot |
 
+## Where to start reading
+
+1. `defines.vh`: the memory map, the addresses every other file decodes.
+2. `SOC.v`: how the blocks are wired together. The block diagram in the final report, chapter
+   "System architecture", is drawn from it.
+3. `Processor.v`, then `Control.v`: the core's datapath and the state machine that steps it,
+   one state per clock cycle. `Decoder.v`, `ALU.v` and `RegisterFile.v` are small leaves.
+4. `IOBus.v`: how one address picks the RAM, an IO register or the flash.
+5. `Memory.v`, `UartTx.v`, `SPIFlash.v` and `Clockworks.v`: the RAM and the peripherals.
+
+Each file opens with a header comment on its purpose and timing. The reasoning behind the less
+obvious choices, one question and its answer at a time, is in `docs/design/notes.md`, in one
+section per module.
+
+## Building and checking
+
 There is no Makefile here. The root `Makefile` synthesizes these files (`make check-synth`,
 `make bitstream`, `make baseline`, through the scripts in `vivado/`) and simulates them
 (`make smoke`, `make check`, through `sim/`). `vivado/rtl_sources.txt` lists every file, and

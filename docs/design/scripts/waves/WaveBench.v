@@ -3,8 +3,8 @@
 // released at 100 ns), dumping the signals the final report's waveforms draw or trigger on to
 // a VCD file, and only those: the clock, the control FSM's state and its four strobes, pc and
 // the instruction register, the core's bus with mem_rbusy, the LED register, the flash pins,
-// CCLK and the flash controller's receive count. Nothing is checked; scripts/vcd_wave.py
-// picks the window and renders it.
+// CCLK, the flash controller's receive count and its sending flag. Nothing is checked;
+// scripts/vcd_wave.py picks the window and renders it.
 // run_bench.sh runs it under iverilog with Vivado's unisim models of IBUFDS, BUFG and
 // STARTUPE2.
 //   FLASH_BOOT    0: BRAM boot with the committed firmware image, as sim/bench.v (default);
@@ -62,7 +62,7 @@ module WaveBench;
                      uut.mem_addr, uut.mem_rstrb, uut.mem_rdata,
                      uut.mem_wmask, uut.mem_wdata, uut.mem_rbusy, uut.LEDS,
                      uut.spiflash_csn, uut.spiflash_mosi, uut.spiflash_miso,
-                     uut.spiflash.rcv_bitcount, glbl.CCLKO_GLBL);
+                     uut.spiflash.rcv_bitcount, uut.spiflash.sending, glbl.CCLKO_GLBL);
         #100 reset_n = 1'b1;
         #(ns - 100) $finish;
     end

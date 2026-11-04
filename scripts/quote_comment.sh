@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Print a block of source lines ready to paste into docs/design/notes.md.
+# Print a block of source lines, the raw material of a docs/design/notes.md
+# entry (docs/CONTRIBUTING.md, "Comments": the entry rephrases it).
 #
 #   scripts/quote_comment.sh [<rev>:]<file> <from> <to>
 #
@@ -13,8 +14,7 @@
 # to the block removed, so relative indentation inside the block survives. A
 # block made only of comment lines also loses its "// " prefix; a block that
 # mixes code and comments is printed as code, comment markers included.
-# Lines still longer than 100 characters are reported on stderr: re-wrap
-# those by hand, nothing else.
+# Lines longer than 100 characters are reported on stderr.
 set -euo pipefail
 [ $# -eq 3 ] || { sed -n '2,17p' "$0" >&2; exit 2; }
 src=$1; from=$2; to=$3

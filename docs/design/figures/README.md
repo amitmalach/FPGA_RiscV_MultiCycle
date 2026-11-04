@@ -153,14 +153,15 @@ steps, from `docs/design/`, once for each boot mode:
 2. `docs/design/scripts/vcd_wave.py` renders one window of the VCD as a vector PDF. A spec
    file names the signals, top to bottom, with a label and a format each (`bit`, `hex`,
    `dec`, named values for an FSM, `clock` for the one signal whose rising edges number the
-   cycles, or `grid` for that signal when its row is not wanted); its header gives the
-   syntax. `--start` names the signal values that open the window, as a trigger does, and
-   `--cycles` its length, so the window moves with the firmware rather than with a
-   simulation time. A bus value is written in hex without leading zeros, and left blank where
-   it does not fit; `x` or `z` bits make the value `x`. In a long window the cycle numbers
-   and grid lines thin out to every 2nd, 5th, 10th, ... cycle, so they stay legible.
-   `--selftest` checks the VCD reader, the trigger and the spec parser against two built-in
-   VCDs; `make waves` runs it first. It writes the PDF file through
+   cycles, or `grid` for that signal when its row is not wanted) and, optionally, the FSM
+   states in which its value is the one to read, which the figure marks in yellow behind the
+   row; its header gives the syntax. `--start` names the signal values that open the window,
+   as a trigger does, and `--cycles` its length, so the window moves with the firmware rather
+   than with a simulation time. A bus value is written in hex without leading zeros, and left
+   blank where it does not fit; `x` or `z` bits make the value `x`. In a long window the cycle
+   numbers and grid lines thin out to every 2nd, 5th, 10th, ... cycle, so they stay legible.
+   `--selftest` checks the VCD reader, the trigger, the spec parser and the marks against
+   two built-in VCDs; `make waves` runs it first. It writes the PDF file through
    `docs/design/scripts/pdf_objects.py`, as `board_figures.py` does.
 3. `docs/design/scripts/crop_pdf.sh` embeds the font, as for the RTL schematics.
 
@@ -168,7 +169,7 @@ steps, from `docs/design/`, once for each boot mode:
 |---|---|---|
 | `wave_fsm.pdf` | `docs/design/scripts/waves/fsm.wave` | BRAM boot, from `FETCH_INSTR` at `pc = 0x278`, 19 cycles: `lw s0,8(sp)`, `lui a5,0x400`, `lui a4,0x0`, `sw s0,4(a5)` at the end of `main`'s prologue in mandelbrot, where the frame counter goes to the LEDs |
 | `wave_flash.pdf` | `docs/design/scripts/waves/flash.wave` | flash boot, from `FETCH_INSTR` at `pc = 0x1d00008`, 386 cycles: the fetch of `addi sp,sp,-2048`, the third instruction of `fw/start_spiflash.S`, one SPI transaction |
-| `wave_flash_end.pdf` | `docs/design/scripts/waves/flash.wave` | the same fetch, from the controller's receive count at 2 (`spiflash.rcv_bitcount`, dumped for the trigger and not drawn), 22 cycles: the last two bits, the latch, and the next fetch's strobe |
+| `wave_flash_end.pdf` | `docs/design/scripts/waves/flash.wave` | the same fetch, from the controller's receive count at 2 (`spiflash.rcv_bitcount`, dumped for the trigger and not drawn, as `spiflash.sending` is for the marks), 22 cycles: the last two bits, the latch, and the next fetch's strobe |
 
 The pc comes from `riscv64-unknown-elf-objdump -d fw/build/mandelbrot.bram.elf`, or from the
 flash build's ELF in `docs/design/build/waves/fw/`; after a change to the firmware, find the
@@ -515,7 +516,8 @@ move.
 ### Underside
 
 - File: `board_bottom.jpg`, page 2, figure `fig:board-bottom`, under TikZ callouts in
-  `design.tex` that point at photo pixels (measured on a 1400-pixel-wide copy)
+  `design.tex` that point at photo pixels (measured on a 1400-pixel-wide copy), styled as on
+  the top side: red arrows and bold names for the parts the design uses, grey for the rest
 - iPhone 14, taken the same evening as the top side, held by hand at its lower left corner,
   room light; 2519x1948 (4.9 MP) as committed, metadata stripped
 - The parts are named from their markings and Digilent's Genesys 2 schematic: IC26 the
