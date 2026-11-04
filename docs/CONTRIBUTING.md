@@ -48,9 +48,8 @@ are the RISC-V ABI register names (`a0`, `sp`, `ra`) that the assembly programs 
   becomes an entry before the commit that removes it; `scripts/quote_comment.sh <rev>:<file>
   <from> <to>` prints the old block to work from. The report cites entries by title, so a
   renamed title is renamed in `docs/design/design.tex` and `docs/baseline.md` too.
-- Refer to files by their current name. Ticket numbers go in commit messages and issue
-  comments, not in code comments; describe the condition instead ("until rtl/ comments are
-  trimmed").
+- Refer to files by their current name. Issue numbers go in commit messages and issue
+  comments, not in code comments or docs; describe the condition instead.
 - Third-party modules keep their upstream attribution lines at the top of the file.
 
 ## Gates and evidence
@@ -73,9 +72,9 @@ Whether the cited log is the right gate, and postdates the edits, stays a review
 - `make lint` before every commit. Cite its log; for a comment-only commit it is the only
   citation.
 - `make smoke` after each RTL edit; cite its `unit` and `smoke` logs.
-- `make -j2 check` once per ticket, after the code review and its fixes (lint and smoke first,
-  then review, fix, then check), and before any push. Add `make baseline` when the ticket's
-  acceptance criteria say timing met: `make check` stops after synthesis and reports no timing.
+- `make -j2 check` once per change, after the code review and its fixes (lint and smoke first,
+  then review, fix, then check), and before any push. Add `make baseline` when the change must
+  keep timing met: `make check` stops after synthesis and reports no timing.
 - `make check-moves BASE=<rev>` for a move-only commit.
 - Commits that touch only comments, `*.md`, `docs/`, `.gitignore` or `scripts/` need
   `make lint` only, including before a push, provided the last passing `make check` covers the

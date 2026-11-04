@@ -97,9 +97,6 @@ is shared, and each region follows from what was already on it:
 | `0xD00000` to `0xFFFFFF` | flash-boot code, 3 MB; `BOOT_ADDR_FLASH = 0x01D0_0000` | a 64 KB sector boundary clear of both (the flash erases in 64 KB sectors), 2136 KB past the bitstream and 399 KB past the scene data |
 | above `0xFFFFFF` | unreachable | the controller's 22-bit word address reaches 16 MB |
 
-A layout sized for a small board, flash at bit 23 and code 128 KB in, fails here twice: an 8 MB
-window ends inside this bitstream, and 128 KB lands in the middle of it.
-
 The boot mode is the reset vector. `SOC`'s parameter `BOOT_ADDR` becomes the core's
 `RESET_PC`. It defaults to `BOOT_ADDR_FLASH`; BRAM boot sets it to `BOOT_ADDR_BRAM`, 0, at
 synthesis (`docs/design/scripts/board_bitstream.tcl` passes `-generic BOOT_ADDR=32'h00000000`)
@@ -190,10 +187,10 @@ register on word-address bit N sits at byte offset `1 << (N + 2)`:
 Only these bits are looked at, so other addresses alias: `0x0080_0000` is RAM, and a store to
 `IO_BASE + 0x0C` writes the LEDs and sends a byte. The next free IO bit is bit 5, offset `0x20`.
 
-Why bit 24: the bits below the region bit are the offset inside the flash. Bit 23 would leave
-23 bits, an 8 MB window that ends inside the 10.9 MB bitstream, so nothing reachable could
-lie past it. Bit 24 leaves 24 bits, 16 MB, which is exactly the three address bytes of the
-flash's `03h` Read command.
+Why bit 24: the bits below the region bit are the offset inside the flash. Bit 24 leaves 24
+bits, 16 MB, exactly the three address bytes of the flash's `03h` Read command. Bit 23 would
+leave an 8 MB window, which ends inside the 10.9 MB bitstream ("Flash memory map and boot
+address").
 
 ### RAM strobes masked outside RAM space
 
@@ -264,8 +261,8 @@ loses its first fetch" discusses it.
 The address: `spiflash_word_addr = mem_addr[23:2]`, 22 bits, the word index inside the 16 MB
 window. Bits 31 to 24 hold the region bit and are dropped; bits 1 and 0 are dropped because
 the controller reads whole aligned words and the core picks out bytes and halfwords itself.
-`SPIFlash` appends `2'b00` to make the 24-bit byte address of its `03h` command:
-`{8'h03, word_address, 2'b00}`, 32 bits sent before the 32 data bits come back.
+`SPIFlash` turns the index back into a byte address ("Command packing and the 22-bit word
+address").
 
 ### Only flash reads stall the core, read mux
 
@@ -391,9 +388,11 @@ into the operands. The earlier code, `sra ? ($signed(in1) >>> shamt) : (in1 >> s
 an unsigned arm, so `>>>` filled with zeros and SRA and SRAI behaved as SRL. The fix signs both
 arms: `>>` fills with zeros whatever the operand's type, so SRL is unchanged.
 
-The bug was visible in the mandelbrot output, the golden trace was captured again after the
-fix, and `sim/ALUBench.v` now checks SRA, SRAI, SRL and SRLI on negative operands
-(`docs/baseline.md`). The sign fill cost 54 LUTs, 930 to 984.
+The bug showed in the mandelbrot output. Compared with the C program run natively
+(`docs/baseline.md`), an earlier golden trace diverged at row 8, pixel 36, where `srai` of
+-1544416 by 9 gave `0x007FF437` instead of `0xFFFFF437`. The golden trace was captured again
+after the fix, and `sim/ALUBench.v` now checks SRA, SRAI, SRL and SRLI on negative operands.
+The sign fill cost 54 LUTs, 930 to 984.
 
 ### Branch comparator default arm
 
@@ -482,9 +481,9 @@ is unconditional because it is equally correct in BRAM boot, where `mem_rbusy` i
 *Where:* `rtl/Control.v`, `run`, `state`; `rtl/Processor.v`, `pc`, `instr`;
 `rtl/RegisterFile.v`
 
-- Three registers reset: `pc` to `RESET_PC`, `instr` to the NOP, `state` to `WAIT_DATA`. The
-  reset is synchronous: `reset_n` is tested inside `always @(posedge clk)` and is not in any
-  sensitivity list. It is not gated by `clk_enable`, so it acts on any edge.
+- The reset is synchronous: `reset_n` is tested inside `always @(posedge clk)` and is not in
+  any sensitivity list. It is not gated by `clk_enable`, so it acts on any edge. It resets
+  `pc`, `instr` and `state` ("Power-on state matches the reset state").
 - `Control` qualifies the four edge strobes, `latch_instr`, `read_regs`, `update_pc` and
   `write_rd`, with `run = clk_enable & reset_n`. The datapath registers and the register file
   test only those strobes, so with `clk_enable` low the core holds every register, and during
@@ -502,17 +501,13 @@ than the RAM's one cycle?
 *Where:* `rtl/Control.v`, `WAIT_INSTR`, `latch_instr`, `fetching`; `rtl/IOBus.v`, `mem_rbusy`;
 `rtl/SPIFlash.v`, `rbusy`
 
-Only the flash raises `mem_rbusy`: `IOBus` drives it from `spiflash_rbusy`, which is
-`!spi_cs_n`, high from the edge that takes the strobe until the last data bit is in. The RAM and
-the IO registers answer the next cycle and never raise it.
-
 `WAIT_INSTR` holds, leaving `instr` alone, while `mem_rbusy` is high; `latch_instr` and the
-move to `FETCH_REGS` both wait for it to drop. From the RAM, `mem_rbusy` is low on the first
-cycle of `WAIT_INSTR`, so the fetch takes two cycles. From the flash, `spi_cs_n` falls on the
-strobe's edge, so `mem_rbusy` is already high on that first cycle and no unfinished word is
-latched. `fetching` keeps `mem_addr` at `pc` through `WAIT_INSTR` because `IOBus` picks the
-read data by the address's region every cycle, so the address must stay in flash space until
-the word is taken.
+move to `FETCH_REGS` both wait for it to drop. Only the flash raises it ("Only flash reads stall
+the core, read mux"). From the RAM it is low on the first cycle of `WAIT_INSTR`, so a fetch
+takes two cycles. From the flash, `spi_cs_n` falls on the strobe's edge, so `mem_rbusy` is
+already high on that first cycle and no unfinished word is latched. `fetching` keeps
+`mem_addr` at `pc` through `WAIT_INSTR`: `IOBus` picks the read data by the address's region
+every cycle, so the address must stay in flash space until the word is taken.
 
 ### Load stalls on mem_rbusy
 
@@ -521,17 +516,16 @@ the word is taken.
 
 *Where:* `rtl/Control.v`, `WAIT_DATA`, `write_rd`; `rtl/Processor.v`, `load_data`
 
-`WAIT_DATA` stalls as `WAIT_INSTR` does: it holds while `mem_rbusy` is high, so a load from
-the RAM or the IO registers takes one cycle there and a load from the flash takes a whole SPI
-transaction. `mem_addr` stays at `loadstore_addr`, since `rs1` and `instr` do not change.
+`WAIT_DATA` stalls as `WAIT_INSTR` does, with `mem_addr` held at `loadstore_addr` (`rs1` and
+`instr` do not change): a load from the RAM or the IO registers spends one cycle there, a load
+from the flash a whole SPI transaction.
 
-`write_rd` in `WAIT_DATA` is `!mem_rbusy`-gated too. Without that gate it would write `rd` on
-every stalled cycle, with whatever the flash controller's half-filled shift register shows. The
-last write would still be right, and the address would not move even when `rd` is `rs1`,
-because the address comes from the copy of `rs1` latched in `FETCH_REGS`. The gate makes the
-write happen once, with valid data. `loadstore_addr` and `load_data`, the lane select and
-sign extension of `mem_rdata`, are combinational, and the path through them to the `rd` write
-is the design's worst setup path.
+`write_rd` in `WAIT_DATA` is gated by `!mem_rbusy` as well. Without the gate, `rd` would be
+written on every stalled cycle with the flash controller's half-filled shift register. The last
+write would still be right, and the address would not move even when `rd` is `rs1`, since it
+comes from the copy of `rs1` latched in `FETCH_REGS`; the gate makes it one write, of valid
+data. `loadstore_addr` and `load_data`, the lane select and sign extension of `mem_rdata`, are
+combinational, and the path through them to the `rd` write is the design's worst setup path.
 
 ### STORE needs no wait state
 
@@ -558,7 +552,11 @@ where it is and the FSM fetches the same instruction again, forever. The core is
 effect, but its FSM keeps cycling through the four states; from the flash, each pass is a full
 SPI transaction. There is no trap and nothing stops a simulation: `sim/bench.v` ends a run on
 an LED value or a cycle limit. Both start-up files end in `ebreak`, reached if `main` returns.
-CSR instructions share the SYSTEM opcode and halt the same way.
+
+CSR instructions share the SYSTEM opcode and halt the same way, so firmware cannot read the
+cycle or instruction counters (`rdcycle`, `rdinstret`). To time code, count cycles in
+simulation (the golden trace's `END` line) or timestamp the UART output on the PC
+(`docs/design/scripts/uart_capture.py`).
 
 ## RegisterFile (`rtl/RegisterFile.v`)
 
@@ -588,24 +586,16 @@ of it?
 
 *Where:* `rtl/SPIFlash.v`, `spi_clk`, `spi_cs_n`, `spi_mosi`, `spi_miso`
 
-SPI is four wires between a master, this controller, and a slave, the flash:
-
-| Wire | Driven by | Role |
-|---|---|---|
-| `spi_cs_n` | controller | chip select, active-low: the flash listens only while it is low |
-| `spi_clk` | controller | the bit clock: one bit moves per period |
-| `spi_mosi` | controller | master out, slave in: the opcode and the address, MSB first |
-| `spi_miso` | flash | master in, slave out: the data, MSB first |
+The controller drives chip select (`spi_cs_n`, active-low), the clock (`spi_clk`) and the
+command line (`spi_mosi`); the flash answers on `spi_miso`. A Read is: lower chip select, send
+`03h` and a 24-bit byte address, MSB first, 32 bits in all, then keep clocking while the flash
+returns the bytes from that address on. The controller takes four bytes, one word, and raises
+chip select. There is no burst and no cache: every word is a transaction of its own.
 
 In mode 0 the clock idles low, the flash samples `spi_mosi` on each rising edge and changes
 `spi_miso` after each falling edge. The controller does the mirror image: it changes `spi_mosi`
 on the system-clock edge that lowers `spi_clk` and samples `spi_miso` on the edge that raises
 it, so each bit is read half an SPI period after the other side changed it.
-
-A Read is: lower chip select, send `03h` and a 24-bit byte address, 32 bits in all, then keep
-clocking while the flash returns the bytes from that address on, for as long as chip select
-stays low. The controller takes four bytes, one word, and raises chip select. There is no burst
-and no cache: every word is a transaction of its own.
 
 ### Origin of the module
 
@@ -623,61 +613,19 @@ the upstream module's simplest variant, plain `03h` reads on one data line. The 
 | Word address | 20 bits, padded with two zero bits: 4 MB | 22 bits, the whole 24-bit address: 16 MB |
 | Port names | `CLK`, `CS_N`, `MOSI`, `MISO` | `spi_clk`, `spi_cs_n`, `spi_mosi`, `spi_miso` |
 
-### Ports
-
-**Question:** What does each port of `SPIFlash` carry, and where does it connect?
-
-*Where:* `rtl/SPIFlash.v`; its instance `spiflash` in `rtl/SOC.v`; `rtl/IOBus.v`
-
-| Port | Direction, width | Meaning and connection |
-|---|---|---|
-| `clk` | in, 1 | the 200 MHz system clock; no `clk_enable` port, so the controller runs every cycle |
-| `rstrb` | in, 1 | one-cycle read request: `IOBus`'s `spiflash_rstrb`, the core's `mem_rstrb` in flash space, gated by `clk_enable` and by `STARTUPE2`'s end-of-startup |
-| `word_address` | in, 22 (`` `SPIFLASH_ADDR_W`` - 2) | the word index inside the flash: `IOBus` passes `mem_addr[23:2]` |
-| `rdata` | out, 32 | the word, little-endian; valid once `rbusy` is low, the shift register in flight before that |
-| `rbusy` | out, 1 | high from the edge that sees `rstrb` until chip select rises; `IOBus` passes it to the core as `mem_rbusy` |
-| `spi_clk` | out, 1 | the SPI clock, 33.3 MHz during a transaction, low otherwise; reaches the CCLK pin, B10, only through `STARTUPE2`'s `USRCCLKO` input (`SOC.v`) |
-| `spi_cs_n` | out, 1 | chip select; `SOC` port `spiflash_csn`, pin U19 |
-| `spi_mosi` | out, 1 | opcode and address bits; `SOC` port `spiflash_mosi`, pin P24 |
-| `spi_miso` | in, 1 | data bits from the flash; `SOC` port `spiflash_miso`, pin R25 |
-
-### Internal signals, rbusy and spi_mosi
-
-**Question:** What do the controller's internal registers and wires hold, and why are `rbusy` and
-`spi_mosi` plain assignments?
-
-*Where:* `rtl/SPIFlash.v`, `div`, `sclk`, `cmd_addr`, `snd_bitcount`, `rcv_bitcount`,
-`rcv_data`, `busy`
-
-| Signal | Kind | Holds |
-|---|---|---|
-| `div` | reg, 2 bits | the divider count, 0, 1, 2; held at 0 while idle |
-| `sclk` | reg | the divided clock, flipped each time `div` wraps; held at 0 while idle |
-| `sclk_rise`, `sclk_fall` | wire | high in the cycle whose closing edge raises or lowers `sclk` |
-| `cmd_addr` | reg, 32 bits | the outgoing shift register, `{8'h03, word_address, 2'b00}` |
-| `snd_bitcount` | reg, 6 bits | command bits left to send, 32 down to 0 |
-| `rcv_bitcount` | reg, 6 bits | data bits left to receive, 32 down to 0 |
-| `rcv_data` | reg, 32 bits | the incoming shift register |
-| `sending`, `receiving`, `busy` | wire | `snd_bitcount != 0`, `rcv_bitcount != 0`, either of the two |
-
-`rbusy` is `!spi_cs_n`: chip select is low exactly while a transaction runs, so it needs no flag
-of its own. `spi_mosi` is `cmd_addr[31]`: the register shifts left once per command bit, so its
-top bit is always the bit on the wire, and no separate output register is needed.
-
 ### Why the SPI clock is divided by 6
 
 **Question:** Why is the SPI clock a sixth of the system clock, and how is it made?
 
 *Where:* `rtl/SPIFlash.v`, `div`, `sclk`
 
-The S25FL256S accepts the `03h` Read at up to 50 MHz, the data sheet's limit that the module
-header cites. Fed the 200 MHz system clock directly, as the upstream controller is on boards
-with slower clocks, the flash would run at four times its limit. `div` counts 0, 1, 2 and `sclk`
-flips each time it wraps, so `sclk` is high for three cycles and low for three: one SPI period
-is six system cycles, 30 ns, 33.3 MHz. Flipping a clock every n cycles gives only even
-divisors, and 4 would be exactly 50 MHz, with no margin, so 6 is the smallest that leaves some.
-A transaction of 64 SPI clocks therefore keeps the core waiting 382 system cycles ("The
-transaction, cycle by cycle").
+The S25FL256S accepts the `03h` Read at up to 50 MHz. Fed the 200 MHz system clock directly,
+as the upstream controller is on boards with slower clocks, the flash would run at four times
+its limit. `div` counts 0, 1, 2 and `sclk` flips each time it wraps, so `sclk` is high for
+three cycles and low for three: one SPI period is six system cycles, 30 ns, 33.3 MHz. Flipping
+a clock every n cycles gives only even divisors, and 4 would be exactly 50 MHz, with no margin,
+so 6 is the smallest that leaves some. A transaction of 64 SPI clocks therefore keeps the core
+waiting 382 system cycles ("The transaction, cycle by cycle").
 
 ### Edge pulses instead of levels
 
@@ -743,36 +691,29 @@ level; without it the clock would fall one cycle later, while the flash ignores 
 of a transaction the mux changes nothing, since `sclk` is already 0. The same mux cuts the last
 high phase of `spi_clk` to one system cycle, after the last bit is already in.
 
-### Command packing
+### Command packing and the 22-bit word address
 
-**Question:** What does `cmd_addr` hold, bit by bit?
+**Question:** What does `cmd_addr` hold, and why is `word_address` 22 bits wide when the chip
+is 32 MB?
 
-*Where:* `rtl/SPIFlash.v`, `cmd_addr`, `word_address`
+*Where:* `rtl/SPIFlash.v`, `cmd_addr`, `word_address`, `spi_mosi`; `rtl/defines.vh`,
+`SPIFLASH_ADDR_W`
 
-`cmd_addr` is loaded with the whole command on the `rstrb` edge and shifted out MSB first:
+`cmd_addr` is loaded with the whole command on the `rstrb` edge and shifts left once per
+command bit, so `spi_mosi`, its top bit, is always the bit on the wire:
 
 | Bits | Value | Meaning |
 |---|---|---|
 | 31:24 | `8'h03` | the Read opcode |
-| 23:2 | `word_address` | the word index, 22 bits |
+| 23:2 | `word_address` | the word index, `mem_addr[23:2]` |
 | 1:0 | `2'b00` | a word is 4 bytes, so its byte address is `word_address * 4` |
 
-Bits 23:0 are the 24-bit byte address the opcode expects: the core's `mem_addr[23:0]` with its two
-low bits cleared. The flash is always read a whole aligned word at a time.
-
-### Why word_address is 22 bits
-
-**Question:** Why is `word_address` 22 bits wide, reaching 16 MB of a 32 MB chip?
-
-*Where:* `rtl/SPIFlash.v`, `word_address`; `rtl/defines.vh`, `SPIFLASH_ADDR_W`
-
 `03h` takes a three-byte address, 24 bits, 16 MB, and 22 word-address bits plus two zero bits
-fill it exactly. `SPIFLASH_ADDR_W`, 24, sets both this width and the size of the flash region in
-the memory map. The whole 16 MB is needed. The bitstream at the start of the chip is 11,443,728
-bytes, about 10.9 MB, whatever the design, since an uncompressed 7-series bitstream holds every
-configuration frame of the device. The ST_NICCC scene data at `0xC00000` and the flash-boot code
-at `0xD00000` sit above it. The upstream controller's 20 bits reached 4 MB and would wrap such
-offsets onto the bitstream: `0xC00000` modulo 4 MB is 0. The chip's upper 16 MB is out of reach.
+fill it exactly. `SPIFLASH_ADDR_W`, 24, sets both this width and the size of the flash region
+in the memory map. The whole 16 MB is needed: the scene data at `0xC00000` and the code at
+`0xD00000` sit above the 10.9 MB bitstream ("Flash memory map and boot address"). The upstream
+controller's 20 bits reached 4 MB and would wrap such offsets onto the bitstream: `0xC00000`
+modulo 4 MB is 0. The chip's upper 16 MB is out of reach.
 
 ### The transaction, cycle by cycle
 
@@ -781,8 +722,9 @@ offsets onto the bitstream: `0xC00000` modulo 4 MB is 0. The chip's upper 16 MB 
 *Where:* `rtl/SPIFlash.v`, `snd_bitcount`, `rcv_bitcount`, `sclk_rise`, `sclk_fall`, `busy`
 
 The two bit counters are the state: `sending` while `snd_bitcount` is non-zero, `receiving` while
-`rcv_bitcount` is, and chip select low from `rstrb` until both are zero. Counting system-clock
-edges from the one that sees `rstrb` (an iverilog run of the module gives these numbers):
+`rcv_bitcount` is, and chip select low from `rstrb` until both are zero, so `rbusy` is simply
+`!spi_cs_n`. Counting system-clock edges from the one that sees `rstrb` (an iverilog run of
+the module gives these numbers):
 
 | Edge | What happens |
 |---|---|
@@ -794,7 +736,9 @@ edges from the one that sees `rstrb` (an iverilog run of the module gives these 
 
 `rbusy` is high for 382 cycles, 1.91 µs, 64 SPI clocks; `WAIT_INSTR` or `WAIT_DATA` takes the word
 on the next edge. The falling edges of the data phase move nothing in the controller: the flash
-puts its next bit out on them.
+puts its next bit out on them. Chip select rises on the first edge at which `busy` is 0,
+whatever the divider's phase: waiting for an SPI edge would add latency for nothing, since
+raising chip select alone ends a read.
 
 ### Starting a transaction is not gated by the SPI edge
 
@@ -807,8 +751,7 @@ flight?
 0 while idle, any cycle is a clean start anyway. The `rstrb` branch has priority over the rest,
 so a strobe during a transaction would restart it, but none comes: the core raises `mem_rstrb`
 only in `FETCH_INSTR` and `LOAD`, and reaches either only after `WAIT_INSTR` or `WAIT_DATA` has
-seen `mem_rbusy` low. The core's reset state is `WAIT_DATA` as well, so a press of the reset
-button during a flash read lets that read finish; `SPIFlash` itself has no reset.
+seen `mem_rbusy` low, after a reset too ("Reset lands in WAIT_DATA, not FETCH_INSTR").
 
 ### Arming the receive counter on the last command bit, the trailing 1
 
@@ -824,18 +767,6 @@ bottom of `cmd_addr`. The 32nd shift, on that same edge, brings the first of the
 after the last address bit was sampled, and `spi_mosi` stays 1 through the data phase, when a
 Read ignores it, and while idle, when chip select is high. The flash never takes one of them as a
 command bit, so their value does not matter.
-
-### End of transaction
-
-**Question:** When does chip select rise, and why is that not tied to an SPI edge?
-
-*Where:* `rtl/SPIFlash.v`, `busy`, `spi_cs_n`
-
-`spi_cs_n` rises on the first edge at which `busy` is 0, whatever the divider's phase: edge 382,
-one cycle after the last data bit was sampled. Waiting for the next SPI edge would add latency for
-nothing, since raising chip select alone ends a read. With it `rbusy` falls with `rdata`
-complete, and `spi_clk`, high since the last sample, is forced low ("spi_clk forced low while
-idle").
 
 ### Byte order of the received word
 
@@ -874,15 +805,12 @@ inputs?
 *Where:* `rtl/Clockworks.v`, `clk_enable`, `reset_n`, `SLOW`; its instance `clockworks` in
 `rtl/SOC.v`
 
-| Port | Direction | Meaning |
-|---|---|---|
-| `clk` | in | a single-ended clock: `SOC` turns the board's differential pair into it with `IBUFDS` and `BUFG` first |
-| `reset_button_n` | in | the CPU RESET button, `SOC` port `RESET`: 1 while up, 0 while pressed |
-| `clk_enable` | out | high one cycle in `2^SLOW`; the constant 1 when `SLOW` is 0 |
-| `reset_n` | out | `reset_button_n` forwarded unchanged: no inversion, no synchroniser, no debounce |
-
-The upstream module also built a PLL and a power-on reset; both were removed, and only the
-gearbox is left. `SOC` sets `SLOW` to 0, so `Clockworks` is two wires and synthesises to no cell.
+Two outputs: `clk_enable`, high one cycle in `2^SLOW` ("Gearbox counter"), and `reset_n`, the
+CPU RESET button (`SOC` port `RESET`, 0 while pressed) forwarded unchanged, with no
+synchroniser and no debounce. `clk` must already be single-ended: `SOC` brings the board's
+differential pair in through `IBUFDS` and `BUFG` first. The upstream module also built a PLL and
+a power-on reset; both were removed. `SOC` sets `SLOW` to 0, so `Clockworks` is two wires and
+synthesises to no cell.
 
 ### Gearbox counter
 
@@ -908,33 +836,19 @@ The UART transmitter: 8N1, least significant bit first, at `BAUD` baud. Adapted 
 
 ### Frame format and interface
 
-**Question:** What does the transmitter put on the line for one byte, and how does `IOBus`
-drive it?
+**Question:** What does the transmitter put on the line for one byte, and when does it accept
+the next?
 
 *Where:* `rtl/UartTx.v`, `data`, `valid`, `ready`, `tx`, `frame`, `bit_index`
 
-The line idles high. A byte goes out as ten bits, each `CLKS_PER_BIT` cycles long:
-
-| `bit_index` | Bit | Level |
-|---|---|---|
-| 0 | start | 0 |
-| 1 to 8 | `data[0]` to `data[7]` | the data, LSB first |
-| 9 | stop | 1 |
-
+The line idles high. A byte goes out as ten bits, each `CLKS_PER_BIT` cycles long: a start bit
+(0), `data[0]` to `data[7]`, LSB first, and a stop bit (1); `bit_index` counts them, 0 to 9.
 `frame` is loaded with `{1, data, 0}` and shifts right once per bit, so at each bit boundary
 `frame[1]` is the next bit to send.
 
-| Port | Direction, width | Meaning and connection |
-|---|---|---|
-| `data` | in, 8 | the byte: `IOBus`'s `uart_data`, `mem_wdata[7:0]` of a store to `IO_UART_DAT` |
-| `valid` | in, 1 | one-cycle pulse, send `data`: `IOBus`'s `uart_valid` |
-| `ready` | out, 1 | high when a byte can be accepted; `IOBus` reports `!ready` as bit 9 of `IO_UART_CNTL` |
-| `tx` | out, 1 | the serial line: `SOC` port `uart_rx_out`, pin Y23, the PC's RX line, into the board's FT232RQ USB-UART bridge |
-
-`valid` is looked at only in `IDLE`: a byte stored while `ready` is low is dropped. `fw/putchar.S`
-stores the byte and then polls the busy bit until the frame is out, so the next store always
-finds the transmitter idle. The board's UART port names mix two points of view; the SOC section's
-note on the UART port names explains why `tx` belongs on `uart_rx_out`.
+`valid` is looked at only in `IDLE`, so a byte offered while `ready` is low is dropped
+("UART send pulse and the status word (bit 9 convention)"). `tx` drives the `SOC` port
+`uart_rx_out` ("UART port names and the pin-direction trap").
 
 ### Cycles per bit and the counter width
 
@@ -974,16 +888,12 @@ The on-chip RAM: one block-RAM array that holds both the program and its data, f
 
 *Where:* `rtl/Memory.v`, `rtl/Control.v`, `mem_rstrb`, `mem_rdata`, `mem_wmask`
 
-There is one RAM with one port, used by instruction fetch and by loads and stores alike; there is
-no separate instruction memory. The two directions differ in timing:
-
-| Access | When it takes effect | What the core does about it |
-|---|---|---|
-| Read (`mem_rstrb` high) | `mem_rdata` is a register: the word appears the cycle after the strobe | `FETCH_INSTR` is followed by `WAIT_INSTR`, `LOAD` by `WAIT_DATA` |
-| Write (`mem_wmask` non-zero) | on the same clock edge that the address, data and mask are presented | `STORE` goes straight back to `FETCH_INSTR`: there is nothing to wait for |
-
-The registered read is also what lets Vivado map the array onto block RAM, whose read port is
-synchronous.
+One RAM with one port serves instruction fetch, loads and stores; there is no separate
+instruction memory. A read is registered: the word appears on `mem_rdata` the cycle after
+`mem_rstrb`, so `FETCH_INSTR` is followed by `WAIT_INSTR` and `LOAD` by `WAIT_DATA`. A write
+takes effect on the same edge that its address, data and mask are presented, so `STORE` goes
+straight back to `FETCH_INSTR` ("STORE needs no wait state"). The registered read is also what
+lets Vivado map the array onto block RAM, whose read port is synchronous.
 
 ### RAM size and the firmware load
 
@@ -1026,7 +936,7 @@ Running a tool from `rtl/` instead would find the file, but Vivado would then le
 ### Simulation and hardware after a firmware change
 
 **Question:** What must be redone after `rtl/firmware.hex` changes, in simulation and on the
-board, and how is the result read?
+board?
 
 *Where:* `rtl/firmware.hex`, `sim/run_regression.sh`, `sim/bench.v`,
 `vivado/create_project.tcl`, `docs/design/scripts/board_capture.sh`
@@ -1036,13 +946,7 @@ board, and how is the result read?
   meant, and then needs `make golden` (`docs/CONTRIBUTING.md`, "Gates and evidence").
 - **GUI simulation.** Vivado simulates its own copy of the image in the run directory: reset
   the behavioural simulation before running again, so the copy is refreshed. The project sets
-  the run time to `-all`, and the bench ends the run itself, when the LEDs show 1 (the end of
-  mandelbrot's first frame) or after 400 M cycles, 2 s of simulated time.
-- **Run length.** One mandelbrot frame is 206 292 808 cycles and 333 s of xsim wall time
-  (`docs/baseline.md`). One UART byte alone is 10 bits of 1736 cycles, 86.8 µs.
-- **Reading the output.** The bench decodes the `uart_rx_out` pin as a receiver would and
-  writes one `UART <hex>` trace line per byte; `sim/README.md` shows how to print them as
-  text. It reads no internal signal, so a byte that never leaves the chip never appears.
+  the run time to `-all`; the bench ends the run itself (`sim/README.md`, "Stop conditions").
 - **Board.** The image is the block RAM's initial value inside the bitstream, so a new image
   needs a new BRAM-boot bitstream, synthesis onward; reloading the old bitstream runs the old
   program. `docs/design/scripts/board_capture.sh <demo> bram ...` builds and loads one
@@ -1056,21 +960,12 @@ that `sb` and `sh` change only their own bytes?
 
 *Where:* `rtl/Memory.v`, `rtl/Processor.v`, `mem_addr`, `mem_wmask`, `mem_wdata`
 
-The word index is `mem_addr[31:2]`. Bits [1:0] are ignored: a read always returns the whole
-word, and a write picks its bytes by the mask, not by the address. Each `mem_wmask` bit
-enables one byte lane of word `i`:
-
-| `mem_wmask` bit | Byte of `ram[i]` written | From `mem_wdata` |
-|---|---|---|
-| 0 | `[7:0]` | `[7:0]` |
-| 1 | `[15:8]` | `[15:8]` |
-| 2 | `[23:16]` | `[23:16]` |
-| 3 | `[31:24]` | `[31:24]` |
-
-A store writes one, two or four lanes of one word and leaves the others alone; a zero mask
-means no write. The core does the byte steering: for a store it copies the byte or halfword
-of `rs2` into the lanes it may land in and sets the mask from the address's low bits, and for a
-load it picks the byte or halfword out of the returned word (`rtl/Processor.v`).
+The word index is `mem_addr[31:2]`; bits 1 and 0 are ignored. A read always returns the whole
+word, and a write picks its bytes by the mask: `mem_wmask[k]` writes byte lane `k`,
+`ram[i][8k+7:8k]`, from the same lane of `mem_wdata`. A zero mask means no write. The core does
+the byte steering: it copies a stored byte or halfword into every lane it may land in and sets
+the mask from the address ("Store data is broadcast to every lane, the mask selects"), and it
+picks a loaded byte or halfword out of the returned word.
 
 ## Firmware build (`fw/`)
 
@@ -1186,33 +1081,23 @@ members, so every image carries all five.
 ### The missing stdio.h and the stub header
 
 **Question:** How do the demos that `#include <stdio.h>` compile when the toolchain has no C
-library?
+library, and which headers does a new program need a stub for?
 
 *Where:* `fw/stdio.h`, `fw/Makefile` `CFLAGS`, `MATH_INC`
 
 Ubuntu's `gcc-riscv64-unknown-elf` ships gcc's own headers but no C library, so
 `#include <stdio.h>` fails with `fatal error: stdio.h: No such file or directory`. The compiler
-needs only declarations, to check the calls; the code comes at link time from `print.c` and
-`putchar.S`. `fw/stdio.h` is therefore a stub: `#pragma once` and the declarations of `printf`
-and `putchar`.
+needs only declarations; the code comes at link time from `print.c` and `putchar.S`.
+`fw/stdio.h` is therefore a stub: `#pragma once` and the declarations of `printf` and
+`putchar`. `-I.` in `CFLAGS` puts `fw/` on the include path ahead of the system's, so
+`<stdio.h>` finds the stub; tinyraytracer's newlib include directory comes after `-I.`, so the
+stub still wins over newlib's `stdio.h`.
 
-`-I.` in `CFLAGS` puts `fw/`, where `make -C fw` runs, on the include path ahead of the
-system's, so `<stdio.h>` finds the stub. tinyraytracer's `CFLAGS` add Vivado's newlib include
-directory for `<math.h>`, but after `-I.`, so the stub still wins over newlib's `stdio.h`.
-Installing a C library (`picolibc-riscv64-unknown-elf`, a 158 MB download) is not needed:
-`print.c`'s four conversions are what the demos use, in a fraction of the 6 KB.
-
-### Which headers need a stub
-
-**Question:** Which headers does a new C program need a stub for?
-
-*Where:* `fw/stdio.h`
-
-Only C-library headers. The headers gcc itself provides, such as `<stdint.h>`, `<stddef.h>`,
-`<stdarg.h>`, `<limits.h>` and `<stdbool.h>`, work as they are. `<stdio.h>`, `<string.h>`,
-`<stdlib.h>` and `<unistd.h>` are missing. For one of those, declare in a stub only what the
-program calls, and link something that defines it. The demos include `<unistd.h>` and
-`<stdlib.h>` only under `#ifdef __linux__`, for their native build on a PC.
+The headers gcc provides (`<stdint.h>`, `<stddef.h>`, `<stdarg.h>`, `<limits.h>`,
+`<stdbool.h>`) work as they are. C-library headers (`<stdio.h>`, `<string.h>`, `<stdlib.h>`,
+`<unistd.h>`) are missing: for one of those, declare in a stub only what the program calls,
+and link something that defines it. The demos include `<unistd.h>` and `<stdlib.h>` only under
+`#ifdef __linux__`, for their native build on a PC.
 
 ### Why libgcc.a is required and why it goes last
 
@@ -1233,22 +1118,7 @@ ld takes from an archive only the members that define symbols still undefined at
 the command line, so libraries come after every object that uses them. `--start-group ...
 --end-group` around `libgcc.a` and tinyraytracer's `libm` lets ld rescan both, since `libm`,
 listed second, calls `libgcc`'s soft-float routines. In flash boot, `spiflash.ld` copies
-`muldi3.o` and `div.o` into the RAM with the other hot code. `sim/asm/program_asm.v` does the
-same multiply by hand, in `mulsi3_`.
-
-### No CSR reads: why fw/ has no perf.S
-
-**Question:** Can firmware read the cycle and instruction counters (`rdcycle`, `rdinstret`)?
-
-*Where:* `rtl/Decoder.v` `is_system`, `rtl/Control.v` `update_pc`
-
-No. They are CSR reads, and the core has no CSRs. The decoder flags every instruction with the
-SYSTEM opcode, `1110011`, as `is_system`, and `Control.v` never updates the pc for one, so the
-core executes it again and again: it halts there, as on `ebreak` or `ecall`. Bruno Levy's
-firmware Makefile links a `perf.o` (from `perf.S`, the counter routines) into every program;
-`fw/` leaves it out, and no demo reads the counters. To time code, count cycles in simulation
-(the golden trace's `END` line) or timestamp the UART output on the PC
-(`docs/design/scripts/uart_capture.py`).
+`muldi3.o` and `div.o` into the RAM with the other hot code.
 
 ### The -DSTANDALONE_FEMTOELF build of firmware_words
 
@@ -1325,15 +1195,14 @@ would slow down with it.
 
 ### Where the UART output appears on the PC
 
-**Question:** Which USB port carries the board's UART output, and how is it read on the PC?
+**Question:** Which of the board's USB ports carries the UART output?
 
 *Where:* `rtl/SOC.v` `uart_rx_out`, README "Running the demos"
 
 The micro-USB port J15, behind the FT232R USB-UART bridge, not the JTAG port J17. On Linux it
-appears as a serial device such as `/dev/ttyUSB0`; open it at 115200 baud, 8N1, for example
-`picocom -b 115200 --imap lfcrlf /dev/ttyUSB0`. The C demos end their lines with a bare LF, and
-`--imap lfcrlf` starts each line at the margin. `docs/design/scripts/uart_capture.py` records
-the port with timestamps, as the report's captures were made.
+appears as a serial device such as `/dev/ttyUSB0`; the README, "Running the demos", gives the
+terminal settings. `docs/design/scripts/uart_capture.py` records the port with timestamps, as
+the report's captures were made.
 
 ## program_asm (`sim/asm/program_asm.v`)
 
@@ -1345,32 +1214,26 @@ upper-case names because `riscv_assembly.v` (third-party, unchanged) writes to t
 **Question:** What does `program_asm.v` compute, and how does it multiply on a core without
 MUL?
 
-*Where:* `sim/asm/program_asm.v`, `sim/asm/Makefile`, `mulsi3_`
+*Where:* `sim/asm/program_asm.v`, `sim/asm/Makefile`, `mulsi3_`, `wait_`, `colormap_`
 
 It draws an 80 by 80 character Mandelbrot set over the UART, for the viewport [-2, 2] x
-[-2, 2], forever, and blinks the LEDs before each frame. Each pixel iterates Z <- Z^2 + C from
-Z = C, at most 9 times, stops when Zr^2 + Zi^2 exceeds 4 (`NORM_MAX`), and prints a character
-for the iterations it had left. Numbers are Q22.10 fixed point: x is stored as the integer
-x * 2^10, so sums need no correction, and a product, scaled by 2^20, is shifted right by 10.
-Products come from `mulsi3_`, a shift-and-add multiply, a0 <- a0 * a1, because RV32I has no
-MUL; in C, gcc calls `libgcc`'s `__mulsi3` for the same job.
+[-2, 2], forever. Each pixel iterates Z <- Z^2 + C from Z = C, at most 9 times, stops when
+Zr^2 + Zi^2 exceeds 4 (`NORM_MAX`), and prints the character of `colormap_` (` .,:;ox%#@`)
+indexed by the iterations it had left. Numbers are Q22.10 fixed point: x is stored as the
+integer x * 2^10, so sums need no correction, and a product, scaled by 2^20, is shifted right
+by 10. Products come from `mulsi3_`, a shift-and-add multiply, a0 <- a0 * a1, because RV32I has
+no MUL; in C, gcc calls `libgcc`'s `__mulsi3` for the same job.
+
+Before each frame the LEDs blink five times, a visible mark that a frame starts. `wait_` counts
+down from `1 << SLOW_BIT`: 20 on the board, about 42 ms per pattern, and 0 under
+`make -C sim/asm DEFS=-DBENCH`, so a simulation does not spend its time in the blink. Each row
+ends in a space, CR and LF, so the picture comes out right without a terminal option such as
+picocom's `--imap lfcrlf`, which the C demos need.
 
 `make -C sim/asm` assembles it under iverilog into `sim/asm/program.hex`, a `$readmemh` image
 of 92 words, one per line. The stack top, the IO base and the register offsets come from
 `rtl/defines.vh`. No build uses the output and neither output is tracked: the program is the
 assembler's worked example.
-
-### Why the LEDs blink before each frame
-
-**Question:** Why do the LEDs blink before each frame, and how long does the delay last?
-
-*Where:* `blink_`, `wait_`, `SLOW_BIT`
-
-Five times, LD0 to LD3 then LD4 to LD7 (`0x0F`, `0xF0`), then all off: a visible mark that a
-frame starts. `wait_` counts down from `1 << SLOW_BIT`, two instructions an iteration.
-`SLOW_BIT` is 20 for the board, 2^20 iterations of 8 cycles, about 42 ms per pattern, and 0
-under `make -C sim/asm DEFS=-DBENCH`, a single iteration, so a simulation does not spend its time
-in the blink. The frame itself is 80 rows of 83 bytes, 6640 bytes, about 0.58 s at 115200 baud.
 
 ### Label workflow
 
@@ -1389,34 +1252,6 @@ initialization` (expected and got) where the typed value is wrong; `endASM()` th
 it passes. Without `BENCH` nothing is checked, and a stale label assembles a jump to the wrong
 place without a word.
 
-### Register roles
-
-**Question:** Which register holds what in the render loop?
-
-*Where:* `sim/asm/program_asm.v`
-
-| Register | Holds |
-|---|---|
-| `s0`, `s1` | the pixel's column X and row Y |
-| `s2`, `s3` | C, real and imaginary: the pixel's coordinates |
-| `s4`, `s5` | Z, real and imaginary, starting at C |
-| `s6`, `s7`, `s8` | Zr^2, 2 Zr Zi and Zi^2 for one step; then `s6` = Zr^2 + Zi^2 and `s7` = `NORM_MAX` for the escape test |
-| `s10` | iterations left, from 9 down; its value at exit picks the character |
-| `s11` | 80, the bound of both loops |
-| `a0` to `a3`, `t0`, `t1` | arguments and scratch of `mulsi3_`, `putc_` and `wait_` |
-| `gp` | `IO_BASE`, for `IO_LEDS(gp)` and the UART registers |
-
-### Line ending after each row
-
-**Question:** Why does each row end in CR and LF rather than LF alone?
-
-*Where:* `putc_` calls after the X loop
-
-After its 80 pixels a row sends a space, CR (13) and LF. CR returns the cursor to column 0 and
-LF moves it down a line; not every terminal treats a bare LF as both. With the CR the picture
-comes out right without a terminal option such as picocom's `--imap lfcrlf`, which the C demos
-need.
-
 ### Leaf subroutines, and why every CALL() targets forward
 
 **Question:** Why does no subroutine save `ra`, and why does every `CALL()` jump forward?
@@ -1432,14 +1267,3 @@ lands 4 KB too low. Every `CALL()` therefore targets code after it: the render l
 forward into `putc_` and `mulsi3_`, the blink into `wait_`. A forward offset keeps bit 11 clear
 while the program stays under 2 KB; it is 368 bytes. `J()` and the branches (`BEQ`, `BNE`,
 `BGT`, `BEQZ`, `BNEZ`) encode their target in one signed field and work in both directions.
-
-### Colour map padding
-
-**Question:** What is `colormap_`, and why does it end in two zero bytes?
-
-*Where:* `colormap_`, `s10`
-
-The ten characters ` .,:;ox%#@`, indexed by `s10`, the iterations left when a pixel's loop
-ended. A pixel that never escapes runs `s10` down to 0 and prints a space; one that escapes at
-the first step leaves 9 and prints `@`. `DATAB()` stores four bytes a word, so the ramp is
-padded to 12 bytes with two zeros, never read because `s10` is at most 9.

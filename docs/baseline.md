@@ -1,16 +1,14 @@
 # Baseline
 
-The reference the gates compare against: the golden simulation trace and the synthesis
-and implementation numbers of the design, so any later change can show that behavior,
-timing closure and resource use are unchanged.
+The reference numbers of the design: the golden simulation trace and the synthesis and
+implementation results, so a later change can show that behaviour, timing closure and
+resource use are unchanged.
 
 ## Simulation golden trace
 
-`sim/golden/mandelbrot_bram.txt`, produced by `make golden`
-with the committed mandelbrot firmware image in BRAM boot. See `sim/README.md`.
-
-The testbench overrides the `BOOT_ADDR` parameter of `rtl/SOC.v` with 0 to select BRAM
-boot; nothing else differs from the synthesized design.
+`sim/golden/mandelbrot_bram.txt`, produced by `make golden` with the committed mandelbrot
+image in BRAM boot (`sim/README.md`). The testbench sets `SOC`'s `BOOT_ADDR` to 0; nothing
+else differs from the synthesized design.
 
 | | |
 |---|---|
@@ -53,9 +51,5 @@ n=$(stat -c %s /tmp/sim.bin)
 timeout 1 /tmp/mandel | head -c $((n + 3)) | cmp /tmp/sim.bin -  # EOF on sim.bin after byte $n
 ```
 
-An earlier golden trace recorded 8368 bytes, diverging at row 8, pixel 36: `srai` behaved
-as `srli` (`-1544416 >> 9` yielded `0x007FF437`, expected `0xFFFFF437`), because the
-unsigned else-arm of the ALU's shift expression made `>>>` shift logically (issue #10;
-`docs/design/notes.md`, "SRL versus SRA: both shift arms are signed"). The trace was
-re-captured with the fix, and `sim/ALUBench.v` now checks the shifts directly. The fix
-also gave the shifter its sign fill: Slice LUTs went from 930 to 984, and timing stayed met.
+This comparison is what exposed the arithmetic-shift bug behind an earlier golden trace
+(`docs/design/notes.md`, "SRL versus SRA: both shift arms are signed").
