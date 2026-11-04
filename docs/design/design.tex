@@ -15,7 +15,10 @@
 %
 % Floats: every table and figure is introduced by the sentence before it and placed with
 % [!ht], never [p], so none drifts onto a page of its own; the one exception is the
-% full-page flow figure of chapter 9. Keep a float under about 0.85 of the text height.
+% full-page flow figure of chapter 9. A figure that must sit right under the paragraph it
+% belongs to is placed with [H]: the demos of Section 1.1, the schematic panels of chapter 2,
+% which \ContinuedFloat keeps one figure, and the power chart of chapter 11. Keep a float
+% under about 0.85 of the text height.
 
 \pdfminorversion=7  % the figures are PDF 1.7
 \documentclass[11pt,a4paper]{report}
@@ -26,6 +29,7 @@
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{graphicx}
 \usepackage{subcaption}
+\usepackage{float}
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
@@ -57,6 +61,8 @@
 \definecolor{modflash}{RGB}{204,121,167}
 \definecolor{modclock}{RGB}{153,153,153}
 \newcommand{\swatch}[1]{{\setlength{\fboxsep}{0pt}\fcolorbox{gray}{#1}{\rule{0pt}{1.6ex}\rule{1.6em}{0pt}}}}
+% Chapter 2's package view, held once and cut into the figure and its key.
+\newsavebox{\pkgview}
 
 % Compact chapter headings.
 \titleformat{\chapter}{\normalfont\LARGE\bfseries}{\thechapter}{1em}{}
@@ -173,8 +179,8 @@
       {\textbf{Power} switch};
     \node[used label, anchor=east, align=flush right] (uart) at (-40,185)
       {\textbf{USB-UART} port J15\\and its bridge, IC16};
-    \node[unused label, anchor=east, align=flush right] (uartled) at (-40,330)
-      {UART activity LEDs\\LD12 and LD13};
+    \node[used label, anchor=east, align=flush right] (uartled) at (-40,330)
+      {\textbf{UART activity LEDs}\\LD12 and LD13};
     \node[unused label, anchor=east, align=flush right] (host) at (-40,470)
       {USB host port, for a\\keyboard or mouse};
     \node[unused label, anchor=east, align=flush right] (eth) at (-40,595)
@@ -217,8 +223,8 @@
     \draw[used] (power.east) -- (425,140);
     \draw[used] (uart.east) -- (118,352);
     \draw[used] (uart.east) -- (295,345);
-    \draw[unused] (uartled.east) -- (337,395);
-    \draw[unused] (uartled.east) -- (387,395);
+    \draw[used] (uartled.east) -- (337,395);
+    \draw[used] (uartled.east) -- (387,395);
     \draw[unused] (host.east) -- (250,470);
     \draw[unused] (eth.east) -- (235,640);
     \draw[used] (osc.east) -- (955,675);
@@ -265,8 +271,9 @@
   \begin{minipage}{15cm}
     \captionof{figure}{The Digilent Genesys~2 from above, powered on and running Digilent's
       factory demo. In \textcolor{red!80!black}{\textbf{red}}, the parts this design uses:
-      the FPGA, its clock, the two USB ports that program it and carry its output, the LEDs,
-      the buttons, the power input and the boot-mode jumper. In
+      the FPGA, its clock, the two USB ports that program it and carry its output, the UART's
+      activity LEDs, which blink while the design sends, the LEDs, the buttons, the power
+      input and the boot-mode jumper. In
       \textcolor{gray!40!black}{grey}, parts it leaves unused, which
       Chapter~\ref{ch:next} ranks by what they could add. The QSPI flash the design boots
       from is on the underside (Figure~\ref{fig:board-bottom}).}
@@ -369,15 +376,9 @@ The demos draw with ANSI escape sequences, each pixel a coloured terminal cell, 
 terminal shows them as pictures. The code on the right of each figure holds the address of
 the repository's README, \url{\demourl}, where every demo below plays as an animation.
 
-\paragraph{Mandelbrot.} The Mandelbrot set is the set of complex numbers $c$ for which the
-sequence $z_0 = 0$, $z_{n+1} = z_n^2 + c$ stays bounded. A program draws it by taking each
-pixel as a point $c$ of the complex plane and iterating the sequence until $|z_n|$ exceeds~2,
-which proves that it escapes, or until a limit on the steps is reached. The pixel's colour
-comes from the number of steps it took, and the points that never escape form the set. Its boundary is a
-fractal: every enlargement of it shows new detail. The committed firmware image draws the set
-from the block RAM, for $-2 \le \mathrm{Re}\,c, \mathrm{Im}\,c \le 2$, in fixed-point
-arithmetic with at most 20 steps a pixel. It sends one frame of 46 by 46 pixels a second, steps
-the colours by one at each frame, and counts the frames on the LEDs.
+\paragraph{Mandelbrot.} The committed firmware image draws the Mandelbrot set from the block
+RAM, in fixed-point arithmetic with at most 20 iterations a pixel. It sends one frame of 46 by
+46 pixels a second, steps the colours by one at each frame, and counts the frames on the LEDs.
 Figure~\ref{fig:board-mandelbrot} shows the first five of the 23 frames captured, which cover
 a full cycle of the 21 colours.
 
@@ -391,7 +392,7 @@ within the timestamps' accuracy. Most of a frame is the UART. Sending its 11\,01
 ten bits a byte takes about 956~ms, and \texttt{putchar} waits for each byte to leave, so the
 computation itself takes about 75~ms.
 
-\begin{figure}[!ht]
+\begin{figure}[H]
   \centering
   \begin{minipage}[c]{0.82\textwidth}
     \centering
@@ -418,7 +419,7 @@ Figure~\ref{fig:board-riscv-logo} shows every eighth frame. The 72 frames captur
 for byte, what \texttt{fw/riscv\_logo.c} prints when compiled natively: no byte was lost on
 the way to the host.
 
-\begin{figure}[!ht]
+\begin{figure}[H]
   \centering
   \begin{minipage}[c]{0.82\textwidth}
     \centering
@@ -441,9 +442,8 @@ tracer~\cite{sokolov-tinyraytracer}, a few hundred lines written to teach how a 
 picture is made. For each pixel it casts a ray from the eye through the screen, finds the
 nearest sphere or floor point the ray hits, and colours it from three point lights, with
 diffuse and specular shading and shadows. Rays that hit the mirror or the glass sphere are
-reflected or refracted and traced again. Bruno Levy ported it to C for his FemtoRV
-core~\cite{levy-learnfpga}, and this project replaced the port's display layer with ANSI output
-to the terminal. It is 29\,016 bytes of code and constants, five times the RAM, so it runs in
+reflected or refracted and traced again. Here it prints its picture to the terminal as ANSI
+colour cells. It is 29\,016 bytes of code and constants, five times the RAM, so it runs in
 flash boot: every instruction is fetched in place from the board's flash, and every
 floating-point operation is a call into \texttt{libgcc}. The board drew the picture a pixel at
 a time, row by row, in 126.8~s, 110~ms a pixel, and Figure~\ref{fig:board-tinyraytracer} shows
@@ -454,7 +454,7 @@ button was pressed after the load (pitfall~\ref{pit:first-fetch}), and the first
 image to the flash cost the board its power-on boot until the flash's Quad Enable bit was set
 again (pitfall~\ref{pit:quad-enable}).
 
-\begin{figure}[!ht]
+\begin{figure}[H]
   \centering
   \begin{minipage}[c]{0.82\textwidth}
     \centering
@@ -485,7 +485,7 @@ full, each new line scrolls it up. The 59 rounds captured are, byte for byte, wh
 \texttt{fw/sieve.c} prints when compiled natively, but for the checksum's hex digits, which
 \texttt{fw/print.c} prints in upper case.
 
-\begin{figure}[!ht]
+\begin{figure}[H]
   \centering
   \begin{minipage}[c]{0.82\textwidth}
     \centering
@@ -508,10 +508,9 @@ full, each new line scrolls it up. The 59 rounds captured are, byte for byte, wh
 best-known part is a flight through a scene of flat-shaded polygons, streamed from disk. Its
 scene file was later published for a competition to replay it on other
 machines~\cite{stniccc}. Each frame of the file lists polygons, each with a colour from a
-palette of 16 and the screen points of its corners. Bruno Levy's player,
-\texttt{fw/ST\_NICCC.c}, reads the file a word at a time through the core's flash region,
-decodes each frame and fills its polygons as runs of coloured cells, 128 by 50 cells for the
-scene's 256 by 200 points. The file is 640~KB, a hundred times the RAM, so it was written to
+palette of 16 and the screen points of its corners. The player, \texttt{fw/ST\_NICCC.c}, reads
+the file through the core's flash region and draws each frame as 128 by 50 coloured cells.
+The file is 640~KB, a hundred times the RAM, so it was written to
 the flash at \texttt{0xC00000}, where Figure~\ref{fig:flash-layout} reserves room for it, and
 the player runs from the block RAM in BRAM boot. The board sent 1.7~MB in 150~s, 11.4~kB/s,
 the UART's full rate, and drew a frame every 0.9~s. The player never clears the screen: each
@@ -524,7 +523,7 @@ configuration loses clock edges (Section~\ref{sec:cclk}). The polygons were righ
 there to the end of the capture, the 917~KB the board sent are byte for byte what
 \texttt{fw/ST\_NICCC.c} prints when compiled natively with the same scene file.
 
-\begin{figure}[!ht]
+\begin{figure}[H]
   \centering
   \begin{minipage}[c]{0.82\textwidth}
     \centering
@@ -633,7 +632,7 @@ memory and IO, the boot modes, and the path from a C file to the board.
 Chapters \ref{ch:verif} and~\ref{ch:results} are the evidence beside
 Section~\ref{sec:showcase}: how the design is checked and what Vivado made of it.
 Chapter~\ref{ch:next} is for whoever extends the design, and Chapter~\ref{ch:concl}
-concludes. The appendices hold the memory map and the make targets.
+concludes.
 
 The design notes, \texttt{docs/design/notes.md}, hold the full reasoning behind each module.
 The report states each choice and cites the notes' section by its heading, as
@@ -656,9 +655,9 @@ else is room to grow (Chapter~\ref{ch:next}). Table~\ref{tab:board-parts} lists 
   \begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.6cm}
       >{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{5.3cm}@{}}
     \toprule
-    Part (schematic page) & FPGA pins & Design port \\
+    Part (schematic page) & FPGA board pin names & Design port \\
     \midrule
-    200~MHz LVDS oscillator, DSC1103 (IC23, p.~13) & AD12, AD11: an MRCC pair of bank~33
+    200~MHz LVDS oscillator, DSC1103 (IC23, p.~13) & AD12, AD11
       & \texttt{sysclk\_p}, \texttt{sysclk\_n} \\
     \midrule
     CPU RESET button (BTN1, p.~11) & R19 & \texttt{RESET}, low while pressed \\
@@ -669,67 +668,29 @@ else is room to grow (Chapter~\ref{ch:next}). Table~\ref{tab:board-parts} lists 
     USB-UART bridge, FT232RQ (IC16, p.~9), on the micro-USB port J15 & Y23, Y20
       & \texttt{uart\_rx\_out}, \texttt{uart\_tx\_in} \\
     \midrule
-    QSPI flash, S25FL256S, 32~MB (IC26, p.~15) & U19, P24, R25, and CCLK on B10
+    QSPI flash, S25FL256S, 32~MB (IC26, p.~15) & U19, P24, R25, B10
       & \texttt{spiflash\_csn}, \texttt{spiflash\_mosi}, \texttt{spiflash\_miso}, and the
       clock through \texttt{STARTUPE2} \\
     \midrule
-    USB-JTAG, on the micro-USB port J17 & the JTAG pins & none: it loads bitstreams \\
+    USB-JTAG, on the micro-USB port J17 & F10, E10, H10, G10 (TMS, TCK, TDI, TDO)
+      & none: it loads bitstreams \\
     \midrule
-    Mode jumper JP5 (p.~15) & M2 to M0 & none: it picks what configures the FPGA at
-      power-on \\
+    Mode jumper JP5 (p.~15) & AB1, AB2, AB5 (M2, M1, M0) & none: it picks what configures
+      the FPGA at power-on \\
     \bottomrule
   \end{tabular}
-  \caption{The Genesys~2 parts the design uses. Pins and port names are those of
-    \texttt{constraints/Genesys-2-Master.xdc}, and parts and pages those of Digilent's
-    schematic, revision~H.1~\cite{digilent-genesys2-sch}.}
+  \caption{The Genesys~2 parts the design uses. The pin names are the FPGA package's ball
+    names, as the FPGA symbol of Digilent's schematic, revision~H.1~\cite{digilent-genesys2-sch},
+    labels them, in the order of the ports beside them. Parts and pages are the schematic's,
+    and the pins of the design's ports are also those of
+    \texttt{constraints/Genesys-2-Master.xdc}.}
   \label{tab:board-parts}
 \end{table}
 
 Figure~\ref{fig:schematic} shows the five connected parts and the mode jumper in Digilent's
-schematic~\cite{digilent-genesys2-sch}, and the paragraphs below read each panel in turn.
+schematic~\cite{digilent-genesys2-sch}, and each paragraph below reads the panel that follows
+it.
 
-\begin{figure}[!ht]
-  \centering
-  \begin{subfigure}[b]{0.5\textwidth}
-    \includegraphics[width=\textwidth]{figures/sch_oscillator}
-    \caption{The oscillator, IC23 (p.~13): an LVDS pair terminated by R309.}
-    \label{fig:sch-oscillator}
-  \end{subfigure}\hfill
-  \begin{subfigure}[b]{0.33\textwidth}
-    \includegraphics[width=\textwidth]{figures/sch_reset}
-    \caption{CPU RESET, BTN1 (p.~11): pulled up, pressed to ground.}
-    \label{fig:sch-reset}
-  \end{subfigure}\hfill
-  \begin{subfigure}[b]{0.12\textwidth}
-    \centering
-    \includegraphics[width=0.85\textwidth]{figures/sch_leds}
-    \caption{LEDs, p.~4.}
-    \label{fig:sch-leds}
-  \end{subfigure}
-  \par\medskip
-  \begin{subfigure}[b]{0.58\textwidth}
-    \includegraphics[width=\textwidth]{figures/sch_uart}
-    \caption{The USB-UART bridge, IC16, behind the micro-USB port J15 (p.~9).}
-    \label{fig:sch-uart}
-  \end{subfigure}\hfill
-  \begin{subfigure}[b]{0.38\textwidth}
-    \includegraphics[width=\textwidth]{figures/sch_mode}
-    \caption{The mode jumper, JP5 (p.~15), and its three positions.}
-    \label{fig:sch-mode}
-  \end{subfigure}
-  \par\medskip
-  \begin{subfigure}[b]{\textwidth}
-    \includegraphics[width=\textwidth]{figures/sch_config}
-    \caption{The FPGA's configuration bank, PROG, and the QSPI flash, IC26 (p.~15). The
-      flash's clock, \texttt{QSPI\_SCK}, is the FPGA's CCLK pin, B10. At the top, the buffer
-      IC25D carries the bridge's \texttt{UART\_TX} to the FPGA as \texttt{UART\_TX\_IN}.}
-    \label{fig:sch-config}
-  \end{subfigure}
-  \caption{The parts of Table~\ref{tab:board-parts} in Digilent's Genesys~2 schematic,
-    revision~H.1~\cite{digilent-genesys2-sch}, cropped by
-    \texttt{docs/design/scripts/schematic\_crops.sh}.}
-  \label{fig:schematic}
-\end{figure}
 
 \paragraph{The oscillator (Figure~\ref{fig:sch-oscillator}).} IC23, a DSC1103 oscillator,
 takes the 3.3~V supply, VCC3V3, on its VDD pin, with two 100~nF capacitors, C159 and C160, to
@@ -740,17 +701,54 @@ the two lines, not the level of either, and R309, 100~$\Omega$ across the pair, 
 termination. The pair reaches the FPGA on AD12 and AD11, a clock-capable pin pair, so the
 clock enters through \texttt{IBUFDS} (Section~\ref{sec:clock}).
 
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}{0.6\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sch_oscillator}
+    \caption{The oscillator, IC23 (p.~13): an LVDS pair terminated by R309.}
+    \label{fig:sch-oscillator}
+  \end{subfigure}
+  \caption{The parts of Table~\ref{tab:board-parts} in Digilent's Genesys~2 schematic,
+    revision~H.1~\cite{digilent-genesys2-sch}, cropped by
+    \texttt{docs/design/scripts/schematic\_crops.sh}: panels (a) to (f), each under the
+    paragraph that reads it.}
+  \label{fig:schematic}
+\end{figure}
+
 \paragraph{The reset button (Figure~\ref{fig:sch-reset}).} BTN1 connects a node to ground
 while it is pressed. R293, 10~k$\Omega$, pulls that node up to 3.3~V, so it reads~1 while the
 button is up, and R294, 10~k$\Omega$ in series, carries it to the net \texttt{CPU\_RESET\_N}
 on FPGA pin R19. The net is low only while the button is pressed, as the \texttt{\_N} in its
 name says, hence the design's active-low reset.
 
+\begin{figure}[H]
+  \ContinuedFloat
+  \centering
+  \begin{subfigure}{0.42\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sch_reset}
+    \caption{CPU RESET, BTN1 (p.~11): pulled up, pressed to ground.}
+    \label{fig:sch-reset}
+  \end{subfigure}
+\end{figure}
+
 \paragraph{The LEDs (Figure~\ref{fig:sch-leds}).} Eight identical branches: each net,
 \texttt{LED0} to \texttt{LED7}, comes from an FPGA pin, passes a 330~$\Omega$ resistor and
 the LED, and ends on the common ground at the right. So an LED lights while its pin is high,
 and the resistor limits its current to a few milliamperes. The pin follows one bit of the design's LED register
 (Section~\ref{sec:memmap}): a store that writes 1 to bit~$i$ lights LD$i$, and 0 puts it out.
+
+\begin{figure}[H]
+  \ContinuedFloat
+  \centering
+  \begin{subfigure}{0.2\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sch_leds}
+    \caption{LEDs, p.~4.}
+    \label{fig:sch-leds}
+  \end{subfigure}
+\end{figure}
 
 \paragraph{The USB-UART bridge (Figure~\ref{fig:sch-uart}).} On the left, J15 is the micro-USB
 connector. Its data lines, D+ and D$-$, run to IC16, the FT232RQ bridge, past D17, a diode
@@ -765,6 +763,17 @@ the pin-direction trap}. CBUS0 and CBUS1 light the activity LEDs, LD13 (TX) and 
 through 470~$\Omega$ from the bridge's own 3.3~V output, \texttt{FT232R3V3}. The modem lines,
 RTS to RI, are left unconnected, as the crosses mark.
 
+\begin{figure}[H]
+  \ContinuedFloat
+  \centering
+  \begin{subfigure}{0.85\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sch_uart}
+    \caption{The USB-UART bridge, IC16, behind the micro-USB port J15 (p.~9).}
+    \label{fig:sch-uart}
+  \end{subfigure}
+\end{figure}
+
 \paragraph{The mode jumper (Figure~\ref{fig:sch-mode}).} JP5 is a row of four pins: ground,
 the net \texttt{MODE2}, the 3.3~V supply and the net \texttt{MODE1}. Each mode net has a
 1~k$\Omega$ resistor: R335 pulls \texttt{MODE2} up, R339 pulls \texttt{MODE1} down, and R337
@@ -778,6 +787,17 @@ uses~\cite{ug470}. The FPGA reads the mode pins when configuration starts, at po
 a press of PROG. The second micro-USB port is Digilent's USB-JTAG circuit: Vivado's hardware
 manager loads every bitstream of this report through it, and writes the flash through it,
 whatever the jumper says.
+
+\begin{figure}[H]
+  \ContinuedFloat
+  \centering
+  \begin{subfigure}{0.6\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sch_mode}
+    \caption{The mode jumper, JP5 (p.~15), and its three positions.}
+    \label{fig:sch-mode}
+  \end{subfigure}
+\end{figure}
 
 \paragraph{The configuration bank and the flash (Figure~\ref{fig:sch-config}).} On the left
 is IC22O, the part of the FPGA's symbol that holds bank~0, its dedicated configuration pins,
@@ -802,78 +822,186 @@ can read its bitstream from it at power-on, and its clock is the dedicated CCLK 
 design reaches only through \texttt{STARTUPE2} (Section~\ref{sec:cclk}). At the top, the
 buffer IC25D passes the bridge's \texttt{UART\_TX} to the FPGA as \texttt{UART\_TX\_IN}.
 
-\paragraph{Vivado's views.} Every Vivado view in this report colours the modules as
-Table~\ref{tab:module-colours} shows, and Figure~\ref{fig:io-package} is the first of them:
-where the design's 16 pins sit on the package.
-
-\begin{table}[!ht]
+\begin{figure}[H]
+  \ContinuedFloat
   \centering
-  \small
-  \begin{tabular}{@{}cll@{}}
-    \toprule
-    Colour & Module & Its ports \\
-    \midrule
-    \swatch{modcore} & the core: \texttt{Processor}, \texttt{Decoder}, \texttt{Control},
-      \texttt{ALU} & \\
-    \swatch{modregfile} & \texttt{RegisterFile} & \\
-    \swatch{modram} & \texttt{Memory}, the RAM & \\
-    \swatch{modbus} & \texttt{IOBus}, the LED register & \texttt{LEDS} \\
-    \swatch{moduart} & \texttt{UartTx} & \texttt{uart\_rx\_out}, \texttt{uart\_tx\_in} \\
-    \swatch{modflash} & \texttt{SPIFlash}, with \texttt{STARTUPE2} & \texttt{spiflash\_*} \\
-    \swatch{modclock} & clock and reset & \texttt{sysclk\_*}, \texttt{RESET} \\
-    \swatch{white} & the worst setup path, selected & \\
-    \bottomrule
-  \end{tabular}
-  \caption{The module colours of every Vivado view in this report.}
-  \label{tab:module-colours}
-\end{table}
+  \begin{subfigure}{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sch_config}
+    \caption{The FPGA's configuration bank, PROG, and the QSPI flash, IC26 (p.~15). The
+      flash's clock, \texttt{QSPI\_SCK}, is the FPGA's CCLK pin, B10. At the top, the buffer
+      IC25D carries the bridge's \texttt{UART\_TX} to the FPGA as \texttt{UART\_TX\_IN}.}
+    \label{fig:sch-config}
+  \end{subfigure}
+\end{figure}
 
-% The package view under a box per module, each with an arrow to every pin of its ports. One
-% unit is one pixel of figures/vivado_io_package.png, 1827 by 872; the ball in column c of
-% row r (A=1, ..., AK=30) is centred at (566 + 24.14 (c - 1), 123 + 24.14 (r - 1)).
+\paragraph{The package (Figure~\ref{fig:io-package}).} Vivado's Package view shows where the
+design's 16 pins sit among the package's 900 balls. Each coloured outline in it is a bank. An
+I/O bank is 50 user pins that share one output supply, VCCO, so all the pins of a bank work at
+one voltage: up to 3.3~V in the high-range (HR) banks, 12 to 18, and up to 1.8~V in the
+high-performance (HP) banks, 32 to 34~\cite{ug471}. A GTX quad is four multi-gigabit
+transceivers, each with a transmit and a receive pair. Bank~0 holds the dedicated configuration
+pins, and the middle of the package the supplies of the FPGA's core. The labels of the figure
+say what each bank serves on the board. The design uses three banks: its LEDs, reset button and
+flash are on bank~14, its UART on bank~12 and its clock on bank~33.
+
+% The package view, cropped to the package, under a label per bank or group of banks and a box
+% per module with an arrow to each of its pins. One unit is one pixel of
+% figures/vivado_io_package.png, 1827 by 872, of which the figure shows x 546 to 1288 and
+% y 71 to 842; the ball in column c of row r (A=1, ..., AK=30) is centred at
+% (566 + 24.14 (c - 1), 123 + 24.14 (r - 1)). The bank colours are sampled from Vivado's
+% outlines, and the key's symbols are cut from the same picture, held once in \pkgview at
+% 1827/1550 of the text width. What each bank serves is from
+% Digilent's schematic and the full Genesys-2-Master.xdc.
+\definecolor{bankzero}{RGB}{240,15,199}
+\definecolor{bankxii}{RGB}{15,15,180}
+\definecolor{bankxiii}{RGB}{144,240,26}
+\definecolor{bankxiv}{RGB}{152,72,128}
+\definecolor{bankxv}{RGB}{15,144,168}
+\definecolor{bankxvi}{RGB}{88,136,15}
+\definecolor{bankxvii}{RGB}{210,123,199}
+\definecolor{bankxviii}{RGB}{60,15,240}
+\definecolor{bankxxxii}{RGB}{153,225,138}
+\definecolor{bankxxxiii}{RGB}{240,15,142}
+\definecolor{bankxxxiv}{RGB}{15,72,96}
+\definecolor{quadcxv}{RGB}{200,240,15}
+\definecolor{quadcxvi}{RGB}{225,138,138}
+\definecolor{quadcxvii}{RGB}{87,84,236}
+\definecolor{quadcxviii}{RGB}{96,160,56}
 \begin{figure}[!ht]
   \centering
-  \begin{tikzpicture}[x=\textwidth/1827, y=-\textwidth/1827,
+  \sbox{\pkgview}{\includegraphics[width=1.17871\textwidth]{figures/vivado_io_package}}%
+  \begin{tikzpicture}[x=\textwidth/1550, y=-\textwidth/1550,
       modbox/.style={draw=#1, fill=#1!35, line width=0.6pt, rounded corners=1.5pt,
-        font=\scriptsize, align=left, inner sep=2.5pt, text width=3.1cm},
+        font=\scriptsize, align=left, inner sep=2.5pt, text width=3.4cm},
+      bankbox/.style={draw=#1, fill=white, line width=1pt, rounded corners=1.5pt,
+        font=\scriptsize, align=left, inner sep=2.5pt, text width=3.4cm},
       pin/.style={-{Stealth[length=1.6mm]}, line width=0.6pt, draw=#1, shorten >=1pt,
-        preaction={draw=black, line width=1.8pt, -{Stealth[length=2.1mm]}, shorten >=0.5pt}}]
-    \node[anchor=north west, inner sep=0] at (0,0)
-      {\includegraphics[width=\textwidth]{figures/vivado_io_package}};
-    \node[modbox=modflash, anchor=west] (cclk) at (90,190)
-      {\textbf{\texttt{STARTUPE2}}: the flash clock, on the CCLK pin, B10};
-    \node[modbox=modclock, anchor=west] (clk) at (90,640)
+        preaction={draw=black, line width=1.8pt, -{Stealth[length=2.1mm]}, shorten >=0.5pt}},
+      bank/.style={-{Stealth[length=1.8mm]}, line width=0.8pt, draw=#1,
+        preaction={draw=white, line width=2pt, -{Stealth[length=2.3mm]}}},
+      keytext/.style={font=\scriptsize, anchor=west, inner sep=1pt, text width=4.2cm,
+        align=left}]
+    % The package, cropped, and the row letters, which the crop leaves out.
+    \begin{pgfinterruptboundingbox}
+      \begin{scope}
+        \clip (546,71) rectangle (1288,842);
+        \node[anchor=north west, inner sep=0] at (0,0) {\usebox{\pkgview}};
+      \end{scope}
+    \end{pgfinterruptboundingbox}
+    \path (546,71) rectangle (1288,842);
+    \foreach \r [count=\i from 0] in {A,B,C,D,E,F,G,H,J,K,L,M,N,P,R,T,U,V,W,Y,AA,AB,AC,AD,AE,AF,
+        AG,AH,AJ,AK}
+      \node[font=\tiny, anchor=east, inner sep=1pt] at (544,{123+24.14*\i}) {\r};
+    % Above: the FMC banks.
+    \node[bankbox=gray, anchor=south, text width=5.9cm] (fmc) at (1040,52)
+      {\textbf{HR banks 18, 17, 16, 15}: the FMC connector; buttons, switches and the XADC
+        header on 15 and~17};
+    \draw[bank=bankxviii] (880,52) -- (856,165);
+    \draw[bank=bankxvii] (980,52) -- (976,165);
+    \draw[bank=bankxvi] (1150,52) -- (1170,165);
+    \draw[bank=bankxv] (1255,52) -- (1245,350);
+    % Left, top to bottom.
+    \node[modbox=modflash, anchor=west] (cclk) at (150,105)
+      {\textbf{\texttt{STARTUPE2}}: the flash clock, on CCLK, B10};
+    \node[bankbox=gray, anchor=west] (gtx) at (150,255)
+      {\textbf{GTX quads} 118 to 115, top to bottom, four transceivers each: DisplayPort on
+        118, the FMC on the rest};
+    \node[bankbox=bankzero, anchor=west] (cfg) at (150,447)
+      {\textbf{Bank 0}, configuration (C): JTAG, CCLK, PROGRAM\_B, DONE, INIT\_B; the mode
+        pins in row~AB};
+    \node[bankbox=gray, anchor=west] (core) at (150,627)
+      {\textbf{Core supplies} (red) and ground; the XADC's analog pins (S) and the
+        temperature diode (orange)};
+    \node[modbox=modclock, anchor=west] (clk) at (150,762)
       {\textbf{Clock}: \texttt{sysclk\_p} on AD12, \texttt{sysclk\_n} on AD11, into
         \texttt{IBUFDS}};
-    \node[modbox=modflash, anchor=west] (flash) at (1340,250)
-      {\textbf{\texttt{SPIFlash}}: \texttt{spiflash\_mosi} P24, \texttt{\_miso} R25,
-        \texttt{\_csn} U19};
-    \node[modbox=modclock, anchor=west] (rst) at (1340,395)
-      {\textbf{Reset}: \texttt{RESET} on R19};
-    \node[modbox=modbus, anchor=west] (leds) at (1340,530)
-      {\textbf{\texttt{IOBus}}, the LED register: \texttt{LEDS[0]} to \texttt{[7]} on T28,
-        V19, U30, U29, V20, V26, W24, W23};
-    \node[modbox=moduart, anchor=west] (uart) at (1340,720)
-      {\textbf{\texttt{UartTx}}: \texttt{uart\_rx\_out} on Y23, and \texttt{uart\_tx\_in},
-        unused, on Y20};
     \draw[pin=modflash] (cclk.east) -- (783.2,147.1);
+    \draw[bank=quadcxviii] (gtx.east) -- (605,171);
+    \draw[bank=quadcxvii] (gtx.east) -- (605,292);
+    \draw[bank=quadcxvi] (gtx.east) -- (605,401);
+    \draw[bank=quadcxv] (gtx.east) -- (605,533);
+    \draw[bank=bankzero] (cfg.east) -- (783.2,268);
+    \draw[bank=bankzero] (cfg.east) -- (590.1,630);
+    \draw[bank=gray!60] (core.east) -- (840,532);
+    \draw[bank=gray!60] (core.east) -- (892,473);
     \draw[pin=modclock] (clk.east) -- (807.4,678.2);
     \draw[pin=modclock] (clk.east) -- (831.5,678.2);
+    % Right, top to bottom.
+    \node[modbox=modflash, anchor=west] (flash) at (1296,200)
+      {\textbf{\texttt{SPIFlash}}: \texttt{spiflash\_mosi} P24, \texttt{\_miso} R25,
+        \texttt{\_csn} U19};
+    \node[modbox=modclock, anchor=west] (rst) at (1296,305)
+      {\textbf{Reset}: \texttt{RESET} on R19};
+    \node[bankbox=bankxiv, anchor=west] (b14) at (1296,420)
+      {\textbf{HR bank 14}: the LEDs, the reset button and the flash, with the SD card, three
+        Pmods and switches};
+    \node[modbox=modbus, anchor=west] (leds) at (1296,565)
+      {\textbf{\texttt{IOBus}}, the LED register: \texttt{LEDS[0]} to \texttt{[7]} on T28,
+        V19, U30, U29, V20, V26, W24, W23};
+    \node[modbox=moduart, anchor=west] (uart) at (1296,715)
+      {\textbf{\texttt{UartTx}}: \texttt{uart\_rx\_out} on Y23, and \texttt{uart\_tx\_in},
+        unused, on Y20};
     \foreach \x/\y in {1121.2/436.8, 1145.3/460.9, 1000.5/509.2}
       \draw[pin=modflash] (flash.west) -- (\x,\y);
     \draw[pin=modclock] (rst.west) -- (1000.5,460.9);
+    \draw[bank=bankxiv] (b14.west) -- (1268,445);
     \foreach \x/\y in {1217.7/485.1, 1000.5/533.3, 1266.0/509.2, 1241.9/509.2, 1024.6/533.3,
         1169.4/533.3, 1121.2/557.5, 1097.0/557.5}
       \draw[pin=modbus] (leds.west) -- (\x,\y);
     \foreach \x/\y in {1097.0/581.6, 1024.6/581.6}
       \draw[pin=moduart] (uart.west) -- (\x,\y);
+    % Below: the HP banks and banks 12 and 13.
+    \node[bankbox=gray, anchor=north, text width=3.6cm] (hp) at (733,858)
+      {\textbf{HP banks 34, 33, 32}: DDR3 (34, 33), Ethernet (33, 32), the system clock (33),
+        audio, the OLED and USB OTG (32)};
+    \node[bankbox=gray, anchor=north, text width=3.6cm] (hr) at (1107,858)
+      {\textbf{HR banks 12, 13}: VGA and HDMI, the UART (12), Pmod JC and Digilent's DPTI
+        data port (13)};
+    \draw[bank=bankxxxiv] (620,858) -- (640,800);
+    \draw[bank=bankxxxiii] (733,858) -- (790,800);
+    \draw[bank=bankxxxii] (850,858) -- (930,800);
+    \draw[bank=bankxii] (1040,858) -- (1049,800);
+    \draw[bank=bankxiii] (1180,858) -- (1190,800);
+    % The key: each symbol cut from the picture, at twice its size, at a ball that shows it.
+    \foreach \bx/\by/\kx/\ky/\what in {
+        831.5/147.1/172/1060/{user I/O pin},
+        831.5/195.4/172/1115/{clock-capable I/O pin},
+        1024.7/147.1/172/1170/{VREF-capable I/O pin},
+        1217.7/485.1/172/1225/{a design pin, in its module's colour},
+        807.4/388.5/692/1060/{supply pin},
+        566.0/123.0/692/1115/{ground},
+        783.2/147.1/692/1170/{configuration pin},
+        614.3/123.0/692/1225/{transceiver pin},
+        710.8/557.5/1212/1060/{transceiver calibration pin},
+        904.0/461.0/1212/1115/{XADC analog pin},
+        904.0/509.2/1212/1170/{temperature diode}} {
+      \begin{pgfinterruptboundingbox}
+        \begin{scope}
+          \clip (\kx-22,\ky-22) rectangle (\kx+22,\ky+22);
+          \node[anchor=north west, inner sep=0] at (\kx-2*\bx,\ky-2*\by)
+            {\scalebox{2}{\usebox{\pkgview}}};
+        \end{scope}
+      \end{pgfinterruptboundingbox}
+      \path (\kx-22,\ky-22) rectangle (\kx+22,\ky+22);
+      \node[keytext] at (\kx+30,\ky) {\what};
+    }
+    \node[font=\scriptsize, anchor=north west, text width=15cm, align=left] at (150,1262)
+      {\textbf{Module colours}, the same in every Vivado view of this report:
+        \swatch{modcore} the core, \texttt{Processor}, \texttt{Decoder}, \texttt{Control} and
+        \texttt{ALU}; \swatch{modregfile} \texttt{RegisterFile}; \swatch{modram}
+        \texttt{Memory}, the RAM; \swatch{modbus} \texttt{IOBus}, with the LED register;
+        \swatch{moduart} \texttt{UartTx}; \swatch{modflash} \texttt{SPIFlash}, with
+        \texttt{STARTUPE2}; \swatch{modclock} clock and reset; \swatch{white} the worst setup
+        path, selected.};
   \end{tikzpicture}
-  \caption{Vivado's Package view of the FFG900 package, from the routed design, columns 1 to
-    30 across and rows A to AK down. The 16 ports show in their modules' colours, and each box
-    points at its module's pins: the eight LEDs, the three flash pins, the two UART pins, the
-    reset button and the differential clock. The flash's clock has no pin of its own: it
-    leaves on CCLK, a configuration pin marked C. \texttt{uart\_tx\_in}, on Y20, has no load
-    and so no IOB, but keeps its pin.}
+  \caption{Vivado's Package view of the FFG900 package, from the routed design: the 900 balls
+    seen from above, columns 1 to 30 across and rows A to AK down, each drawn as a symbol of
+    the key. Each coloured outline is one bank, and each label says what its banks serve on the
+    Genesys~2~\cite{digilent-genesys2-sch}. The design's 16 ports show in their modules'
+    colours, and each module's box points at its pins. The flash's clock has no pin of its own:
+    it leaves on CCLK, a configuration pin. \texttt{uart\_tx\_in}, on Y20, has no load and so no
+    IOB, but keeps its pin.}
   \label{fig:io-package}
 \end{figure}
 
@@ -909,7 +1037,9 @@ Chapter~\ref{ch:results} hold for 2025.2.
 
 The repository is a plain source tree. The Vivado project is not committed: a script
 generates it into \texttt{build/vivado/}, referring to the sources where they are, and git
-ignores what the tools generate. Table~\ref{tab:folders} gives the folders.
+ignores what the tools generate. Table~\ref{tab:folders} gives the folders briefly. Each
+tracked folder has a README of its own in the repository, which says more about what the folder
+holds and which make targets its Makefile offers.
 
 \begin{table}[!ht]
   \centering
@@ -925,24 +1055,35 @@ ignores what the tools generate. Table~\ref{tab:folders} gives the folders.
       \texttt{UartTx.v}, \texttt{SPIFlash.v} and \texttt{Clockworks.v} the rest.
       \texttt{defines.vh} holds the memory map and the bus widths, and \texttt{firmware.hex}
       is the one firmware image \\
+    \midrule
     \texttt{fw/} & The demos, in C and assembly, their start-up code and linker scripts, the
-      \texttt{Makefile}, the ELF-to-hex converter and \texttt{write\_mcs.tcl}. \texttt{tests/}
-      holds the firmware check \\
-    \texttt{sim/} & The SoC testbench, \texttt{bench.v}, the golden trace in \texttt{golden/}
-      and \texttt{run\_regression.sh}, the ALU unit bench, \texttt{ALUBench.v}, and
-      \texttt{run\_unit.sh}, and \texttt{asm/}, a Verilog-macro assembler for test programs \\
+      \texttt{Makefile} and the ELF-to-hex converter. \texttt{tools/write\_mcs.tcl} wraps a
+      binary in an MCS file, the image format Vivado writes to the flash, placed at the offset
+      it is given: the code window's, for a flash-boot program. \texttt{tests/} holds the firmware check \\
+    \midrule
+    \texttt{sim/} & The SoC testbench, \texttt{bench.v}, and the golden trace in
+      \texttt{golden/}. \texttt{run\_regression.sh} simulates the SoC in xsim with the
+      committed firmware image and passes only when the UART bytes and LED changes it records
+      are those of the golden trace. Also the ALU unit bench, \texttt{ALUBench.v}, which
+      \texttt{run\_unit.sh} runs, and \texttt{asm/}, a Verilog-macro assembler for test
+      programs \\
+    \midrule
     \texttt{constraints/} & \texttt{Genesys-2-Master.xdc}: the pins and the 200~MHz clock \\
+    \midrule
     \texttt{vivado/} & The Tcl scripts that regenerate the project, build the bitstream and
       run the non-project baseline, with \texttt{common.tcl} shared by all three, and
       \texttt{rtl\_sources.txt}, the file list every script reads \\
+    \midrule
     \texttt{docs/} & \texttt{CONTRIBUTING.md}, the coding conventions and the gates,
       \texttt{baseline.md}, the baseline trace and synthesis numbers, and \texttt{design/}, this
       report's sources, figures, scripts, board captures and design notes, and
       \texttt{scripts/flashregs/}, a small FPGA design that reads and sets the flash's
       Quad Enable bit \\
+    \midrule
     \texttt{scripts/} & \texttt{lint.sh}, the pre-commit hook that runs it, the commit-msg hook
       that checks cited gate logs, and \texttt{quote\_comment.sh}, which moves an RTL comment
       into the design notes \\
+    \midrule
     \texttt{build/} & Everything generated: the Vivado project, run directories,
       \texttt{SOC.bit}, the gates' logs. Not tracked \\
     \bottomrule
@@ -950,49 +1091,6 @@ ignores what the tools generate. Table~\ref{tab:folders} gives the folders.
   \caption{The folders, as the README's ``Repository layout'' lists them.}
   \label{tab:folders}
 \end{table}
-
-A change starts from one of the make commands of Table~\ref{tab:entry-points}, and
-Appendix~\ref{app:make} lists every target with what it needs.
-
-\begin{table}[!ht]
-  \centering
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.3cm}
-      >{\raggedright\arraybackslash}p{9.6cm}@{}}
-    \toprule
-    Command & What it does \\
-    \midrule
-    \texttt{make lint} & The tool-free checks of \texttt{scripts/lint.sh}, in seconds \\
-    \texttt{make unit} & The ALU unit bench, under iverilog, in seconds \\
-    \texttt{make smoke} & \texttt{unit}, the firmware check, then the regression's first
-      4~million cycles: about 25~s \\
-    \texttt{make -j2 check} & \texttt{unit}, then the firmware check, the full regression
-      and Vivado synthesis: about 6~minutes. Its parts run alone as \texttt{check-fw},
-      \texttt{check-sim} and \texttt{check-synth} \\
-    \texttt{make golden} & Re-captures the golden trace, for an intended change of behaviour
-      only \\
-    \texttt{make check-moves BASE=}\emph{rev} & Every file moved since \emph{rev} is a
-      byte-identical rename \\
-    \texttt{make bitstream} & Synthesis, implementation and \texttt{build/SOC.bit}, in flash
-      boot \\
-    \texttt{make baseline} & The non-project run behind \texttt{docs/baseline.md}, with its
-      reports in \texttt{build/baseline/}: about a minute \\
-    \midrule
-    \texttt{make -C fw} & Mandelbrot in BRAM boot, written to \texttt{rtl/firmware.hex}.
-      \texttt{PROG=} picks another demo and \texttt{TARGET=flash} builds for flash boot \\
-    \texttt{make -C docs/design} & This report, from the committed figures, and \texttt{figures}
-      regenerates them \\
-    \bottomrule
-  \end{tabular}
-  \caption{The make entry points. The first eight are the targets of the root
-    \texttt{Makefile}. Chapter~\ref{ch:verif} says when each one runs.}
-  \label{tab:entry-points}
-\end{table}
-
-A first reading of the sources can follow the bus outwards: \texttt{rtl/defines.vh} for the
-memory map, \texttt{rtl/SOC.v} for the wiring, \texttt{rtl/Control.v} and
-\texttt{rtl/Processor.v} for the core, then \texttt{fw/start.S} and \texttt{fw/mandelbrot.c}
-for the program the regression runs.
 
 \chapter{System architecture}
 \label{ch:arch}
@@ -1013,7 +1111,9 @@ below give the bus, the memory map and the clock and reset.
         sub/.style={draw, fill=white, font=\scriptsize, inner sep=2pt, minimum height=0.45cm},
         port/.style={font=\scriptsize\ttfamily, inner sep=1pt, align=center},
         wire/.style={font=\scriptsize, inner sep=1pt, fill=white, align=center},
+        buswire/.style={font=\scriptsize, inner sep=1pt, align=center},
         bus/.style={<->, line width=1.1pt},
+        bus1/.style={->, line width=1.1pt},
         sig/.style={->}]
       % clock and reset, the left column, with the board's pins above and below
       \node[block, fill=modclock!35, minimum width=1.7cm] (clk) at (0,2.1) {IBUFDS\\BUFG};
@@ -1023,7 +1123,7 @@ below give the bus, the memory map and the clock and reset.
       \draw[sig] (sysclk) -- (clk);
       \draw[sig] (rst) -- (cw);
       % the core
-      \node[block, fill=modcore!15, minimum width=4.3cm, minimum height=2.7cm] (cpu)
+      \node[block, fill=modcore!15, minimum width=3.9cm, minimum height=2.7cm] (cpu)
         at (4.95,1.3) {};
       \node[anchor=north west, font=\footnotesize\bfseries, inner sep=3pt] at (cpu.north west)
         {Processor};
@@ -1035,28 +1135,30 @@ below give the bus, the memory map and the clock and reset.
       \draw[sig] (cw.east) -- node[wire, above] {reset\_n} node[wire, below] {clk\_enable}
         (cpu.west |- cw.east);
       % the bus
-      \node[block, fill=modbus!45, minimum width=2.3cm, minimum height=2.7cm] (bus)
-        at (10,1.3) {\textbf{IOBus}\\address decode\\LED register\\read mux};
-      \draw[bus] (cpu.east |- bus.west) -- node[wire, above]
-        {mem\_addr\\mem\_rstrb\\mem\_wdata\\mem\_wmask} node[wire, below]
+      \node[block, fill=modbus!45, minimum width=2.9cm, minimum height=2.7cm] (bus)
+        at (10.7,1.3) {\textbf{IOBus}\\address decode\\LED register\\read mux};
+      \draw[bus] (cpu.east |- bus.west) -- node[buswire, above]
+        {mem\_addr\\mem\_rstrb\\mem\_wdata\\mem\_wmask} node[buswire, below]
         {mem\_rdata\\mem\_rbusy} (bus.west);
       \node[port, right=0.5cm of bus] (leds) {LEDS[7:0]};
       \draw[sig] (bus) -- (leds);
       % memory and peripherals, the bottom row
       \node[block, fill=modram!35, minimum width=2.6cm] (ram) at (4.95,-2.1)
         {Memory\\6 KB block RAM};
-      \node[block, fill=moduart!35, minimum width=1.9cm] (uart) at (8.7,-2.1) {UartTx};
-      \node[block, fill=modflash!35, minimum width=1.9cm] (flash) at (11,-2.1) {SPIFlash};
-      \node[block, fill=modflash!35, minimum width=1.8cm] (su) at (14.1,-2.1) {STARTUPE2};
+      \node[block, fill=moduart!35, minimum width=1.9cm] (uart) at (9.15,-2.1) {UartTx};
+      \node[block, fill=modflash!35, minimum width=1.9cm] (flash) at (12.1,-2.1) {SPIFlash};
+      \node[block, fill=modflash!35, minimum width=1.8cm] (su) at (15,-2.1) {STARTUPE2};
       \draw[sig] (cpu.south -| 4.35,0) -- node[wire, left] {mem\_addr\\mem\_wdata}
         (ram.north -| 4.35,0);
-      \draw[bus] (bus.south -| 9.05,0) -- ++(0,-0.45) -| node[wire, above, pos=0.5]
-        {ram\_rstrb, ram\_wmask} node[wire, below, pos=0.5] {ram\_rdata}
-        (ram.north -| 5.55,0);
-      \draw[bus] (bus.south -| 9.5,0) -- node[wire, left, pos=0.65] {valid, data\\ready}
-        (uart.north -| 9.5,0);
-      \draw[bus] (bus.south -| 10.8,0) -- node[wire, right, pos=0.65]
-        {rstrb, word\_addr\\rdata, rbusy} (flash.north -| 10.8,0);
+      % The RAM's strobe and mask come from IOBus, its read data goes back to IOBus's mux.
+      \draw[bus1] (bus.south -| 9.4,0) |- (5.35,-0.6) -- (ram.north -| 5.35,0);
+      \node[buswire, above] at (7.45,-0.6) {ram\_rstrb, ram\_wmask};
+      \draw[bus1] (ram.north -| 5.75,0) |- (9.65,-1.1) -- (bus.south -| 9.65,0);
+      \node[buswire, below] at (7.45,-1.1) {ram\_rdata};
+      \draw[bus] (bus.south -| 10,0) -- node[wire, right, pos=0.65] {valid, data\\ready}
+        (uart.north -| 10,0);
+      \draw[bus] (bus.south -| 11.95,0) -- node[wire, right, pos=0.65]
+        {rstrb, word\_addr\\rdata, rbusy} (flash.north -| 11.95,0);
       \draw[sig] (flash.east) -- node[wire, above] {spi\_clk} (su.west);
       \draw[sig] (su.north) |- node[wire, above, pos=0.75] {eos} (bus.east |- 0,0.2);
       \node[port, below=0.3cm of uart] (txpin) {uart\_rx\_out};
@@ -1066,9 +1168,11 @@ below give the bus, the memory map and the clock and reset.
       \node[port, below=0.3cm of su] (cclk) {CCLK pin};
       \draw[sig] (su) -- (cclk);
     \end{tikzpicture}}
-    \caption{The block diagram, from \texttt{rtl/SOC.v}, in the module colours of
-      Table~\ref{tab:module-colours}. The thick arrows are the core's bus and the handshakes
-      \texttt{IOBus} derives from it. \texttt{clk}, 200~MHz, reaches every block.
+    \caption{The block diagram, from \texttt{rtl/SOC.v}. The thick arrows are the core's bus
+      and the handshakes \texttt{IOBus} derives from it. The RAM takes its address and write
+      data straight from the core, and its read strobe and byte mask from \texttt{IOBus}, which
+      masks them outside RAM space, and its read data goes back through \texttt{IOBus}'s read
+      multiplexer. \texttt{clk}, 200~MHz, reaches every block.
       \texttt{reset\_n} and \texttt{clk\_enable}, drawn into the core only, also reach
       \texttt{IOBus}, the RAM (\texttt{clk\_enable}) and the UART (\texttt{reset\_n}).}
     \label{fig:soc-block}
@@ -1175,10 +1279,17 @@ the flash controller run every cycle, so the baud rate and the SPI clock stay ri
 \notes{Gearbox counter}. The shipped design sets it to~0, \texttt{clk\_enable} is the
 constant~1, and the module synthesises to nothing.
 
-\texttt{reset\_n} is the CPU RESET button, active-low, forwarded as it is: no synchroniser
-and no debounce. Every reset is synchronous, and three places have one: the core's
-\texttt{pc}, \texttt{instr} and FSM state, the LED register, and the UART's transmitter
-\notes{Synchronous reset and the clock enable}. The core's registers also declare their
+The reset input is asynchronous and the resets it drives are synchronous: the two words
+describe different things. \texttt{reset\_n} is the CPU RESET button, active-low, forwarded
+as it is: no synchroniser brings it into the clock domain and no debounce filters it, so it
+can change at any moment between two clock edges. Every register that resets, though, tests
+\texttt{reset\_n} only at a rising edge of \texttt{clk}, inside \texttt{always @(posedge
+clk)}, and none has it in its sensitivity list, which is what makes a reset synchronous. Three
+places have one: the core's \texttt{pc}, \texttt{instr} and FSM state, the LED register, and
+the UART's transmitter \notes{Synchronous reset and the clock enable}. A press or a release
+that lands close to an edge can reach one of these registers a cycle before another, or leave
+one metastable for a moment. A two-flip-flop synchroniser in \texttt{Clockworks} would remove
+that risk, and the design has none. The core's registers also declare their
 reset value as their initial value, which is what configuration loads into a 7-series
 flip-flop, so the core leaves configuration in its reset state and starts without a press of
 the button \notes{Power-on state matches the reset state}. In flash boot a press is still
@@ -1223,7 +1334,8 @@ the disassembler print (Table~\ref{tab:isa-regs}).
     \texttt{x5}--\texttt{x7}, \texttt{x28}--\texttt{x31} & \texttt{t0}--\texttt{t2},
       \texttt{t3}--\texttt{t6} & temporaries, which a call may overwrite \\
     \texttt{x8}, \texttt{x9}, \texttt{x18}--\texttt{x27} & \texttt{s0}--\texttt{s1},
-      \texttt{s2}--\texttt{s11} & saved registers, which a call preserves \\
+      \texttt{s2}--\texttt{s11} & saved registers, which a call preserves (\texttt{s0} also
+      \texttt{fp}) \\
     \texttt{x10}--\texttt{x17} & \texttt{a0}--\texttt{a7} & arguments, \texttt{a0} and
       \texttt{a1} also the return value \\
     \bottomrule
@@ -1231,23 +1343,6 @@ the disassembler print (Table~\ref{tab:isa-regs}).
   \caption{The 32 registers and their roles in the calling convention.}
   \label{tab:isa-regs}
 \end{table}
-
-An instruction is written with its destination first and its sources after it. In
-\texttt{add x1, x2, x3}, \texttt{x1} is the destination, \texttt{rd}, and \texttt{x2} and
-\texttt{x3} are the two sources, \texttt{rs1} and \texttt{rs2}: the instruction computes
-$\texttt{x1} \leftarrow \texttt{x2} + \texttt{x3}$. An instruction with a constant puts it
-last: \texttt{addi x1, x2, -5} computes $\texttt{x1} \leftarrow \texttt{x2} - 5$. A load or
-a store writes its address as an offset and a base register: \texttt{lw s0, 8(sp)} loads the
-word at address $\texttt{sp} + 8$ into \texttt{s0}, and \texttt{sw s0, 4(a5)} stores
-\texttt{s0} at address $\texttt{a5} + 4$. A store has no destination register, so its data
-register is \texttt{rs2} and its base \texttt{rs1}. A branch names two registers to compare
-and a target: \texttt{beq a0, a1, loop} jumps to \texttt{loop} when \texttt{a0} equals
-\texttt{a1}.
-
-The assembler also accepts pseudo-instructions, which it turns into real ones:
-\texttt{nop} is \texttt{addi x0, x0, 0}, \texttt{mv a0, a1} is \texttt{addi a0, a1, 0},
-\texttt{j label} is \texttt{jal x0, label}, \texttt{ret} is \texttt{jalr x0, 0(ra)}, and
-\texttt{li} loads a constant with an \texttt{addi}, a \texttt{lui} or both.
 
 \section{Instruction formats}
 \label{sec:isa-formats}
@@ -1321,18 +1416,24 @@ their constant, the \emph{immediate} (Figure~\ref{fig:isa-formats}). The fields 
 \section{The instructions}
 \label{sec:isa-instructions}
 
-Table~\ref{tab:isa} lists the 40 instructions with what each one does and how many cycles it
-takes in this core when the instruction is fetched from the RAM (Table~\ref{tab:cycles}). In
-the operations, \texttt{imm} is the sign-extended immediate, \texttt{mem} the memory, and a
-comparison is signed unless its instruction ends in \texttt{U}. RV32I has no multiply and no
-divide: the compiler turns every \texttt{*}, \texttt{/} and \texttt{\%} in C into a call into
-\texttt{libgcc}, which does it with shifts and adds.
+Table~\ref{tab:isa} lists the 40 instructions, one a row, with what each one does and how many
+cycles it takes in this core when the instruction is fetched from the RAM
+(Table~\ref{tab:cycles}). In the operations, \texttt{imm} is the sign-extended immediate,
+\texttt{mem} the memory, and \texttt{x0} the register that reads as zero. RV32I has no
+multiply and no divide: the compiler turns every \texttt{*}, \texttt{/} and \texttt{\%} in C
+into a call into \texttt{libgcc}, which does it with shifts and adds. After the instructions,
+the table lists the pseudo-instructions and aliases that the GNU assembler (binutils 2.42,
+\texttt{-march=rv32i}) accepts, each with the real instructions it writes in its place, as
+\texttt{objdump -M no-aliases} shows them, and so the cycles they cost.
 
+% The pseudo-instruction rows were checked by assembling each one with
+% riscv64-unknown-elf-as -march=rv32i -mno-relax and disassembling it with objdump -M no-aliases.
 \begin{footnotesize}
 \renewcommand{\arraystretch}{1.05}%
 \begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.3cm}c
     >{\raggedright\arraybackslash}p{8.4cm}c@{}}
-  \caption{The RV32I instructions and what this core does with each. Fmt is the format of
+  \caption{The RV32I instructions and what this core does with each, then the
+    pseudo-instructions and aliases of the GNU assembler. Fmt is the format of
     Figure~\ref{fig:isa-formats}, and the cycles are from the RAM: every word fetched or
     loaded from the flash adds an SPI transaction (Chapter~\ref{ch:memio}).}
   \label{tab:isa} \\
@@ -1346,63 +1447,146 @@ divide: the compiler turns every \texttt{*}, \texttt{/} and \texttt{\%} in C int
   \endhead
   \bottomrule
   \endfoot
-  \multicolumn{4}{@{}l}{\emph{Register and register: opcode \texttt{0110011}}} \\*
+  \multicolumn{4}{@{}l}{\emph{Register and register}} \\*
   \texttt{ADD rd,rs1,rs2} & R & $\texttt{rd} \leftarrow \texttt{rs1} + \texttt{rs2}$ & 4 \\
   \texttt{SUB rd,rs1,rs2} & R & $\texttt{rd} \leftarrow \texttt{rs1} - \texttt{rs2}$ & 4 \\
-  \texttt{AND}, \texttt{OR}, \texttt{XOR} & R & bitwise and, or, exclusive or of \texttt{rs1}
-    and \texttt{rs2} & 4 \\
-  \texttt{SLL rd,rs1,rs2} & R & shift \texttt{rs1} left by \texttt{rs2[4:0]} places, zeros
+  \texttt{AND rd,rs1,rs2} & R & $\texttt{rd} \leftarrow \texttt{rs1}$ AND \texttt{rs2}, bit
+    by bit & 4 \\
+  \texttt{OR rd,rs1,rs2} & R & $\texttt{rd} \leftarrow \texttt{rs1}$ OR \texttt{rs2}, bit by
+    bit & 4 \\
+  \texttt{XOR rd,rs1,rs2} & R & $\texttt{rd} \leftarrow \texttt{rs1}$ XOR \texttt{rs2}, bit
+    by bit & 4 \\
+  \texttt{SLL rd,rs1,rs2} & R & \texttt{rs1} shifted left by \texttt{rs2[4:0]} places, zeros
     in & 4 \\
-  \texttt{SRL rd,rs1,rs2} & R & shift right, zeros in & 4 \\
-  \texttt{SRA rd,rs1,rs2} & R & shift right, copies of the sign bit in & 4 \\
-  \texttt{SLT}, \texttt{SLTU} & R & $\texttt{rd} \leftarrow 1$ if
-    $\texttt{rs1} < \texttt{rs2}$, else 0 & 4 \\
+  \texttt{SRL rd,rs1,rs2} & R & \texttt{rs1} shifted right by \texttt{rs2[4:0]} places, zeros
+    in & 4 \\
+  \texttt{SRA rd,rs1,rs2} & R & \texttt{rs1} shifted right by \texttt{rs2[4:0]} places,
+    copies of its sign bit in & 4 \\
+  \texttt{SLT rd,rs1,rs2} & R & $\texttt{rd} \leftarrow 1$ if $\texttt{rs1} < \texttt{rs2}$
+    as signed numbers, else 0 & 4 \\
+  \texttt{SLTU rd,rs1,rs2} & R & $\texttt{rd} \leftarrow 1$ if $\texttt{rs1} < \texttt{rs2}$
+    as unsigned numbers, else 0 & 4 \\
   \midrule
-  \multicolumn{4}{@{}l}{\emph{Register and immediate: opcode \texttt{0010011}}} \\*
+  \multicolumn{4}{@{}l}{\emph{Register and immediate}} \\*
   \texttt{ADDI rd,rs1,imm} & I & $\texttt{rd} \leftarrow \texttt{rs1} + \texttt{imm}$ & 4 \\
-  \texttt{ANDI}, \texttt{ORI}, \texttt{XORI} & I & bitwise with \texttt{imm} & 4 \\
-  \texttt{SLLI}, \texttt{SRLI}, \texttt{SRAI} & I & shift by a constant, \texttt{imm[4:0]},
-    bit~30 telling \texttt{SRAI} from \texttt{SRLI} & 4 \\
-  \texttt{SLTI}, \texttt{SLTIU} & I & $\texttt{rd} \leftarrow 1$ if
-    $\texttt{rs1} < \texttt{imm}$, else 0 & 4 \\
+  \texttt{ANDI rd,rs1,imm} & I & $\texttt{rd} \leftarrow \texttt{rs1}$ AND \texttt{imm}, bit
+    by bit & 4 \\
+  \texttt{ORI rd,rs1,imm} & I & $\texttt{rd} \leftarrow \texttt{rs1}$ OR \texttt{imm}, bit by
+    bit & 4 \\
+  \texttt{XORI rd,rs1,imm} & I & $\texttt{rd} \leftarrow \texttt{rs1}$ XOR \texttt{imm}, bit
+    by bit & 4 \\
+  \texttt{SLLI rd,rs1,sh} & I & \texttt{rs1} shifted left by \texttt{sh}, 0 to 31 places,
+    zeros in & 4 \\
+  \texttt{SRLI rd,rs1,sh} & I & \texttt{rs1} shifted right by \texttt{sh} places, zeros in
+    & 4 \\
+  \texttt{SRAI rd,rs1,sh} & I & \texttt{rs1} shifted right by \texttt{sh} places, copies of
+    its sign bit in & 4 \\
+  \texttt{SLTI rd,rs1,imm} & I & $\texttt{rd} \leftarrow 1$ if $\texttt{rs1} < \texttt{imm}$
+    as signed numbers, else 0 & 4 \\
+  \texttt{SLTIU rd,rs1,imm} & I & $\texttt{rd} \leftarrow 1$ if $\texttt{rs1} <
+    \texttt{imm}$ as unsigned numbers, else 0 & 4 \\
   \midrule
   \multicolumn{4}{@{}l}{\emph{Upper immediate}} \\*
-  \texttt{LUI rd,imm} & U & $\texttt{rd} \leftarrow \texttt{imm} \ll 12$, opcode
-    \texttt{0110111} & 4 \\
-  \texttt{AUIPC rd,imm} & U & $\texttt{rd} \leftarrow \texttt{pc} + (\texttt{imm} \ll 12)$,
-    opcode \texttt{0010111} & 4 \\
+  \texttt{LUI rd,imm} & U & $\texttt{rd} \leftarrow \texttt{imm} \ll 12$ & 4 \\
+  \texttt{AUIPC rd,imm} & U & $\texttt{rd} \leftarrow \texttt{pc} + (\texttt{imm} \ll 12)$
+    & 4 \\
   \midrule
   \multicolumn{4}{@{}l}{\emph{Jumps}} \\*
   \texttt{JAL rd,label} & J & $\texttt{rd} \leftarrow \texttt{pc} + 4$,
     $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$: a call when \texttt{rd} is
-    \texttt{ra}, opcode \texttt{1101111} & 4 \\
+    \texttt{ra} & 4 \\
   \texttt{JALR rd,imm(rs1)} & I & $\texttt{rd} \leftarrow \texttt{pc} + 4$,
     $\texttt{pc} \leftarrow \texttt{rs1} + \texttt{imm}$ with bit~0 cleared: a return, or a
-    call through a pointer, opcode \texttt{1100111} & 4 \\
+    call through a pointer & 4 \\
   \midrule
-  \multicolumn{4}{@{}l}{\emph{Branches: opcode \texttt{1100011}}} \\*
-  \texttt{BEQ}, \texttt{BNE} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
-    $\texttt{rs1} = \texttt{rs2}$, or if not equal & 4 \\
-  \texttt{BLT}, \texttt{BLTU} & B & the same if $\texttt{rs1} < \texttt{rs2}$ & 4 \\
-  \texttt{BGE}, \texttt{BGEU} & B & the same if $\texttt{rs1} \ge \texttt{rs2}$ & 4 \\
+  \multicolumn{4}{@{}l}{\emph{Branches}} \\*
+  \texttt{BEQ rs1,rs2,label} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
+    $\texttt{rs1} = \texttt{rs2}$ & 4 \\
+  \texttt{BNE rs1,rs2,label} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
+    $\texttt{rs1} \ne \texttt{rs2}$ & 4 \\
+  \texttt{BLT rs1,rs2,label} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
+    $\texttt{rs1} < \texttt{rs2}$ as signed numbers & 4 \\
+  \texttt{BGE rs1,rs2,label} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
+    $\texttt{rs1} \ge \texttt{rs2}$ as signed numbers & 4 \\
+  \texttt{BLTU rs1,rs2,label} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
+    $\texttt{rs1} < \texttt{rs2}$ as unsigned numbers & 4 \\
+  \texttt{BGEU rs1,rs2,label} & B & $\texttt{pc} \leftarrow \texttt{pc} + \texttt{imm}$ if
+    $\texttt{rs1} \ge \texttt{rs2}$ as unsigned numbers & 4 \\
   \midrule
-  \multicolumn{4}{@{}l}{\emph{Loads: opcode \texttt{0000011}}} \\*
+  \multicolumn{4}{@{}l}{\emph{Loads}} \\*
   \texttt{LW rd,imm(rs1)} & I & $\texttt{rd} \leftarrow$ the word at
     $\texttt{rs1} + \texttt{imm}$ & 6 \\
-  \texttt{LH}, \texttt{LB} & I & the halfword or the byte there, sign-extended & 6 \\
-  \texttt{LHU}, \texttt{LBU} & I & the halfword or the byte there, zero-extended & 6 \\
+  \texttt{LH rd,imm(rs1)} & I & $\texttt{rd} \leftarrow$ the halfword at
+    $\texttt{rs1} + \texttt{imm}$, sign-extended & 6 \\
+  \texttt{LHU rd,imm(rs1)} & I & $\texttt{rd} \leftarrow$ the halfword at
+    $\texttt{rs1} + \texttt{imm}$, zero-extended & 6 \\
+  \texttt{LB rd,imm(rs1)} & I & $\texttt{rd} \leftarrow$ the byte at
+    $\texttt{rs1} + \texttt{imm}$, sign-extended & 6 \\
+  \texttt{LBU rd,imm(rs1)} & I & $\texttt{rd} \leftarrow$ the byte at
+    $\texttt{rs1} + \texttt{imm}$, zero-extended & 6 \\
   \midrule
-  \multicolumn{4}{@{}l}{\emph{Stores: opcode \texttt{0100011}}} \\*
+  \multicolumn{4}{@{}l}{\emph{Stores}} \\*
   \texttt{SW rs2,imm(rs1)} & S & the word at $\texttt{rs1} + \texttt{imm} \leftarrow
     \texttt{rs2}$ & 5 \\
-  \texttt{SH}, \texttt{SB} & S & the low halfword or byte of \texttt{rs2}, the rest of the
-    word left as it was & 5 \\
+  \texttt{SH rs2,imm(rs1)} & S & the halfword at $\texttt{rs1} + \texttt{imm} \leftarrow$
+    the low halfword of \texttt{rs2}, the rest of the word left as it was & 5 \\
+  \texttt{SB rs2,imm(rs1)} & S & the byte at $\texttt{rs1} + \texttt{imm} \leftarrow$ the
+    low byte of \texttt{rs2}, the rest of the word left as it was & 5 \\
   \midrule
   \multicolumn{4}{@{}l}{\emph{Ordering and system}} \\*
-  \texttt{FENCE} & I & orders memory accesses between cores and devices, opcode
-    \texttt{0001111}. Here a no-op & 4 \\
-  \texttt{ECALL}, \texttt{EBREAK} & I & call the operating system or the debugger, opcode
-    \texttt{1110011}. Here they stop the core & 4, repeated \\
+  \texttt{FENCE} & I & orders memory accesses between cores and devices. Here a no-op & 4 \\
+  \texttt{ECALL} & I & calls the operating system. Here it stops the core & 4, repeated \\
+  \texttt{EBREAK} & I & calls the debugger. Here it stops the core & 4, repeated \\
+  \midrule
+  \multicolumn{4}{@{}l}{\emph{Pseudo-instructions and aliases: what the assembler writes for
+    each}} \\*
+  \texttt{nop} & -- & \texttt{ADDI x0,x0,0} & 4 \\
+  \texttt{li rd,imm} & -- & \texttt{ADDI rd,x0,imm} when \texttt{imm} fits in 12 bits, else
+    \texttt{LUI rd}, then \texttt{ADDI rd,rd} unless the low 12 bits of \texttt{imm} are zero
+    & 4 or 8 \\
+  \texttt{la rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{ADDI rd,rd}: the symbol's
+    address, without position-independent code, as the firmware is built & 8 \\
+  \texttt{lla rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{ADDI rd,rd} & 8 \\
+  \texttt{mv rd,rs} & -- & \texttt{ADDI rd,rs,0} & 4 \\
+  \texttt{not rd,rs} & -- & \texttt{XORI rd,rs,-1} & 4 \\
+  \texttt{neg rd,rs} & -- & \texttt{SUB rd,x0,rs} & 4 \\
+  \texttt{seqz rd,rs} & -- & \texttt{SLTIU rd,rs,1}: 1 if \texttt{rs} is zero & 4 \\
+  \texttt{snez rd,rs} & -- & \texttt{SLTU rd,x0,rs}: 1 if \texttt{rs} is not zero & 4 \\
+  \texttt{sltz rd,rs} & -- & \texttt{SLT rd,rs,x0}: 1 if \texttt{rs} is negative & 4 \\
+  \texttt{sgtz rd,rs} & -- & \texttt{SLT rd,x0,rs}: 1 if \texttt{rs} is positive & 4 \\
+  \texttt{zext.b rd,rs} & -- & \texttt{ANDI rd,rs,255} & 4 \\
+  \texttt{sext.b rd,rs} & -- & \texttt{SLLI rd,rs,24} then \texttt{SRAI rd,rd,24} & 8 \\
+  \texttt{sext.h rd,rs} & -- & \texttt{SLLI rd,rs,16} then \texttt{SRAI rd,rd,16} & 8 \\
+  \texttt{zext.h rd,rs} & -- & \texttt{SLLI rd,rs,16} then \texttt{SRLI rd,rd,16} & 8 \\
+  \texttt{beqz rs,label} & -- & \texttt{BEQ rs,x0,label} & 4 \\
+  \texttt{bnez rs,label} & -- & \texttt{BNE rs,x0,label} & 4 \\
+  \texttt{blez rs,label} & -- & \texttt{BGE x0,rs,label} & 4 \\
+  \texttt{bgez rs,label} & -- & \texttt{BGE rs,x0,label} & 4 \\
+  \texttt{bltz rs,label} & -- & \texttt{BLT rs,x0,label} & 4 \\
+  \texttt{bgtz rs,label} & -- & \texttt{BLT x0,rs,label} & 4 \\
+  \texttt{bgt rs,rt,label} & -- & \texttt{BLT rt,rs,label} & 4 \\
+  \texttt{ble rs,rt,label} & -- & \texttt{BGE rt,rs,label} & 4 \\
+  \texttt{bgtu rs,rt,label} & -- & \texttt{BLTU rt,rs,label} & 4 \\
+  \texttt{bleu rs,rt,label} & -- & \texttt{BGEU rt,rs,label} & 4 \\
+  \texttt{j label} & -- & \texttt{JAL x0,label} & 4 \\
+  \texttt{jal label} & -- & \texttt{JAL ra,label} & 4 \\
+  \texttt{jr rs} & -- & \texttt{JALR x0,0(rs)} & 4 \\
+  \texttt{jalr rs} & -- & \texttt{JALR ra,0(rs)} & 4 \\
+  \texttt{ret} & -- & \texttt{JALR x0,0(ra)} & 4 \\
+  \texttt{call label} & -- & \texttt{AUIPC ra} then \texttt{JALR ra,0(ra)} & 8 \\
+  \texttt{tail label} & -- & \texttt{AUIPC t1} then \texttt{JALR x0,0(t1)}: a jump that does
+    not return & 8 \\
+  \texttt{fence} & -- & \texttt{FENCE iorw,iorw}: every kind of access ordered & 4 \\
+  \texttt{lw rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{LW rd,0(rd)} & 10 \\
+  \texttt{lh rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{LH rd,0(rd)} & 10 \\
+  \texttt{lhu rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{LHU rd,0(rd)} & 10 \\
+  \texttt{lb rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{LB rd,0(rd)} & 10 \\
+  \texttt{lbu rd,symbol} & -- & \texttt{AUIPC rd} then \texttt{LBU rd,0(rd)} & 10 \\
+  \texttt{sw rs,symbol,rt} & -- & \texttt{AUIPC rt} then \texttt{SW rs,0(rt)} & 9 \\
+  \texttt{sh rs,symbol,rt} & -- & \texttt{AUIPC rt} then \texttt{SH rs,0(rt)} & 9 \\
+  \texttt{sb rs,symbol,rt} & -- & \texttt{AUIPC rt} then \texttt{SB rs,0(rt)} & 9 \\
+  \texttt{unimp} & -- & \texttt{CSRRW x0,cycle,x0}, a SYSTEM instruction of Zicsr: here it
+    stops the core & 4, repeated \\
 \end{longtable}
 \end{footnotesize}
 
@@ -1467,12 +1651,16 @@ states.
     \draw[->] (ld) -- (wd);
     \draw[->] ([xshift=-7mm]wd.south) -- ++(0,-0.5) -| ([xshift=-3mm]fi.south);
     \draw[->] (st.west) -| ([xshift=3mm]fi.south);
-    \draw[->] ([xshift=7mm, yshift=-0.85cm]wd.south) -- node[lbl, right] {reset}
-      ([xshift=7mm]wd.south);
+    \draw[->] ([xshift=7mm, yshift=-0.85cm]wd.south) -- node[lbl, right]
+      {reset, from any state} ([xshift=7mm]wd.south);
   \end{tikzpicture}
   \caption{The control FSM of \texttt{rtl/Control.v}: seven states, one cycle each, except
     the two waits, which hold while the flash controller is busy. The two-letter codes are
-    the ones Figure~\ref{fig:wave-fsm} uses.}
+    the ones Figure~\ref{fig:wave-fsm} uses. Reset, from whichever state the FSM is in, puts it
+    in \texttt{WAIT\_DATA}, the one state that asserts no strobe, so a core held in reset
+    leaves the bus idle. When reset ends, \texttt{WAIT\_DATA} falls through to
+    \texttt{FETCH\_INSTR}, which fetches the instruction at the reset vector
+    (pitfall~\ref{pit:reset-wait-data}).}
   \label{fig:fsm}
 \end{figure}
 
@@ -1577,8 +1765,7 @@ written to the LEDs: four instructions, 19 cycles, every state of Figure~\ref{fi
     \texttt{docs/design/scripts/waves/WaveBench.v}: \texttt{lw s0,8(sp)} at \texttt{0x278},
     \texttt{lui a5,0x400}, \texttt{lui a4,0x0} and \texttt{sw s0,4(a5)}, the store to the
     LED register. The core's signals are in blue, the bus in black. Bus values are in hex
-    with leading zeros dropped, and blank where they do not fit their cycle.
-    \texttt{mem\_wdata} reads \texttt{x} while the instruction's \texttt{rs2} field names
+    with leading zeros dropped. \texttt{mem\_wdata} reads \texttt{x} while the instruction's \texttt{rs2} field names
     a register no instruction has written yet: the register file has no reset.}
   \label{fig:wave-fsm}
 \end{figure}
@@ -1589,7 +1776,19 @@ instruction word, \texttt{0x00812403} (Figure~\ref{fig:isa-formats}), and \textt
 \texttt{instr}. From then on the bus address is the load-store address, \texttt{sp + 8}.
 \texttt{EXECUTE} advances \texttt{pc} to \texttt{0x27c}, \texttt{LOAD} asserts the strobe at
 the data address, and \texttt{WAIT\_DATA} sees the word,~0, and \texttt{write\_rd} writes it to
-\texttt{s0}. The two \texttt{LUI}s take four cycles each, writing \texttt{rd} in
+\texttt{s0}.
+
+\texttt{mem\_addr} is \texttt{pc} in \texttt{FETCH\_INSTR} and \texttt{WAIT\_INSTR}, and the
+load-store address, \texttt{rs1} plus the immediate, in every other state, whatever the
+instruction. It matters only where the core uses the bus: with the read strobe in
+\texttt{FETCH\_INSTR} and \texttt{LOAD} and in the wait state after each, where \texttt{IOBus}
+picks the returned word by the address's region bits, and with the byte mask in
+\texttt{STORE}. Here those are \texttt{0x278}, \texttt{0x27c}, \texttt{0x280} and
+\texttt{0x284} for the four fetches, \texttt{0x17a8}, \texttt{sp + 8}, for the load and
+\texttt{0x400004} for the store. In the other cycles the address is the adder's sum of
+whatever \texttt{rs1} and the instruction's immediate bits hold, and nothing uses it: \texttt{0x17a4} and \texttt{0x4}
+during the first \texttt{LUI} are \texttt{sp}, still in \texttt{rs1}, and then \texttt{x0},
+each plus~4, the \texttt{LUI}'s bits taken as an I-immediate. The two \texttt{LUI}s take four cycles each, writing \texttt{rd} in
 \texttt{EXECUTE}. The store, cycles 14 to~18, writes no register. In \texttt{STORE} the bus
 carries the LED register's address, \texttt{0x400004}, the byte mask \texttt{f} and the
 data, and the register takes the value on the edge that ends the window. Each read is
@@ -2031,8 +2230,8 @@ report's own bench for the waveforms of Figure~\ref{fig:wave-flash}.
 
 \section{The gates}
 
-The gates are the targets of the root \texttt{Makefile} (Table~\ref{tab:entry-points}).
-Each but \texttt{check}, which only runs its three parts, writes a log in
+The gates are the targets of the root \texttt{Makefile}, whose header lists what each one
+runs and how long it takes. Each but \texttt{check}, which only runs its three parts, writes a log in
 \texttt{build/logs/} ending in \texttt{PASS} or \texttt{FAIL}, and
 \texttt{docs/CONTRIBUTING.md}, ``Gates and evidence'', says which a change needs:
 \texttt{make lint} before every commit, \texttt{make smoke} after each RTL edit,
@@ -2173,7 +2372,7 @@ the I/O and the clock tree. The estimate assumes Vivado's default toggle rates. 
 simulation's switching activity it would be more exact, but not different in kind: the core
 costs a few milliwatts, and the device costs the rest.
 
-\begin{figure}[!ht]
+\begin{figure}[H]
   \centering
   \begin{tikzpicture}
     % \pie takes its slices literally: expand the generated list first.
@@ -2231,8 +2430,7 @@ half of the device, and the worst path stays inside it.
   \end{subfigure}
   \caption{Vivado's Device view of the routed design, zoomed in from the whole device to the
     worst setup path, \texttt{cpu/instr\_reg[3]} to the register-file write. The modules are
-    in their colours (Table~\ref{tab:module-colours}) and the worst path is selected, in
-    white.}
+    in their colours and the worst path is selected, in white.}
   \label{fig:device-zoom}
 \end{figure}
 
@@ -2367,38 +2565,20 @@ line, the /DISCARD/ workaround}.}
 
 \section{Extensions, ranked}
 
-The list is ranked by what each extension gains for the work it takes. None is begun, and each
-names where it enters the design.
+Ranked by what each gains for the work it takes. None is begun.
 
 \begin{enumerate}[leftmargin=*, itemsep=2pt]
-  \item \textbf{Pipelining.} A five-stage pipeline retires close to one instruction a cycle,
-    a gain of four to six on code bound by computation. It needs a second memory port, which
-    the block RAM has, forwarding and a stall after a load, a flush on a taken branch, and a
-    stall while \texttt{mem\_rbusy} is high. The stages split the worst path
-    (pitfall~\ref{pit:worst-path}). The golden trace's cycle count will change and its bytes
-    must not: a new trace with \texttt{make golden}. In flash boot every fetch costs 382
-    cycles, so there a small instruction cache gains more than a pipeline.
-  \item \textbf{The M extension.} Every \texttt{*}, \texttt{/} and \texttt{\%} in C is a call
-    into \texttt{libgcc} today, and mandelbrot multiplies in its inner loop. The device's DSP
-    blocks multiply 32 by 32 bits in a few cycles, and a divider fits the FSM as one more
-    state that holds like the waits. The firmware then builds with \texttt{-march=rv32im}.
-  \item \textbf{UART receive.} \texttt{uart\_tx\_in}, pin Y20, is wired and unused. A receiver
-    mirrors \texttt{UartTx}, and a data register and a ready bit take the next IO address
-    bit (Section~\ref{sec:memmap}). It allows a serial boot loader: a new program in the RAM
-    without a new bitstream or a flash write. Mind the pin names
-    (pitfall~\ref{pit:uart-pins}).
-  \item \textbf{Interrupts.} They need the control and status registers of Zicsr, at least
-    \texttt{mstatus}, \texttt{mtvec}, \texttt{mepc} and \texttt{mcause}. Today their opcode
-    stops the core. A timer and the UART receiver are the natural first sources. They touch
-    \texttt{Decoder}, \texttt{Control}, which needs a trap state, and the \texttt{pc}
-    multiplexer.
-  \item \textbf{DDR3.} The board's 1~GB comes through AMD's Memory Interface Generator, with
-    a clock domain of its own and a latency of tens of cycles. The bus already waits on
-    reads, through \texttt{mem\_rbusy}, but has no way to stall a write, and without a cache
-    every access pays the latency.
-  \item \textbf{HDMI.} A pixel clock, TMDS encoding through the output serialisers, and a
-    frame buffer: 300~KB for 640 by 480 pixels at 8 bits, which fits in the device's block
-    RAM but belongs in DDR3, which is why it comes last.
+  \item \textbf{Pipelining:} overlap the fetch of one instruction with the execution of the
+    last, to retire close to one instruction a cycle.
+  \item \textbf{The M extension:} multiply and divide in hardware, on the device's DSP blocks,
+    instead of calls into \texttt{libgcc}.
+  \item \textbf{UART receive:} a receiver on the unused \texttt{uart\_tx\_in} pin, enough for a
+    serial boot loader.
+  \item \textbf{Interrupts:} the control and status registers of Zicsr and a trap state, with a
+    timer and the UART as the first sources.
+  \item \textbf{DDR3:} the board's 1~GB as main memory, through AMD's Memory Interface
+    Generator and behind a cache.
+  \item \textbf{HDMI:} a video output, from a frame buffer in DDR3.
 \end{enumerate}
 
 \chapter{Conclusions}
@@ -2408,168 +2588,16 @@ The project set out to run compiled C on a processor of its own, on a real board
 understand every layer in between. It did. A multi-cycle RV32I core of \implLUTs{} LUTs,
 with 6~KB of RAM, three IO registers and a flash controller, runs at the Genesys~2's
 200~MHz with \implWNS~ns to spare, draws the Mandelbrot set over the UART from the block
-RAM, and renders a ray-traced picture in place from the flash.
-
-Three things the results show are worth stating plainly. First, the simulation is a
-faithful stand-in for the board: the frame the board sent is byte for byte the golden
-trace's, and its time matches the trace's cycle count to a fraction of a percent, so a
-change that keeps the trace keeps the hardware's behaviour. Second, the core is not what
-limits these demos. The UART is. A byte takes 87~\textmu s and a frame is nearly all bytes,
-so a pipelined core or a multiplier would change nothing visible until the output path
-changes with it. Third, most of the time lost went to things outside the core: the board's
-net names, the working directory a tool runs in, Verilog's signedness rules, the flash
-clock's hand-over after configuration, and a bit in the flash's configuration register.
-Chapter~\ref{ch:next} records each with its symptom, so that the next student loses hours
-where this project lost days.
-
-What is left is also recorded. The first read from the flash after configuration goes
-wrong, which in flash boot costs a press of the reset button after each load. The stack is
-unguarded, the firmware image carries debug data it never fetches, and thirteen of RV32I's
-instructions are executed by no gate. Beyond those, Chapter~\ref{ch:next} ranks the
-extensions, pipelining first, and the board has room for all of them.
-
-\appendix
-
-\chapter{Memory map}
-\label{app:memmap}
-
-Table~\ref{tab:app-defines} gives every memory-map constant of \texttt{rtl/defines.vh}, the
-one place the map is defined. The firmware's copies, in \texttt{fw/io.h},
-\texttt{fw/putchar.S}, \texttt{fw/blinker.S}, \texttt{fw/start*.S}, \texttt{fw/memory.ld}
-and \texttt{fw/Makefile}, are held equal to them by lint rule~8.
-
-\begin{table}[!ht]
-  \centering
-  \small
-  \begin{tabular}{@{}lll@{}}
-    \toprule
-    Constant & Value & Meaning \\
-    \midrule
-    \texttt{RAM\_BASE} & \texttt{0x0000\_0000} & the RAM: no region bit set \\
-    \texttt{RAM\_WORDS} & 1536 & RAM depth in words, 6~KB, up to \texttt{0x0000\_17FF} \\
-    \texttt{IO\_BASE} & \texttt{0x0040\_0000} & the IO registers: bit~22 \\
-    \texttt{IO\_LEDS} & \texttt{0x04} & write: the LED register, bit~2 \\
-    \texttt{IO\_UART\_DAT} & \texttt{0x08} & write: send one byte, bit~3 \\
-    \texttt{IO\_UART\_CNTL} & \texttt{0x10} & read: the UART status, bit~4 \\
-    \texttt{UART\_BUSY\_BIT} & 9 & status bit: the transmitter is busy \\
-    \texttt{SPIFLASH\_BASE} & \texttt{0x0100\_0000} & the SPI flash: bit~24 \\
-    \texttt{SPIFLASH\_ADDR\_W} & 24 & address bits inside the flash: 16~MB \\
-    \texttt{SPIFLASH\_CODE\_OFFSET} & \texttt{0x00D0\_0000} & the code window in the chip, 13~MB
-      in \\
-    \texttt{BOOT\_ADDR\_FLASH} & \texttt{0x01D0\_0000} & flash boot's reset vector \\
-    \texttt{BOOT\_ADDR\_BRAM} & \texttt{0x0000\_0000} & BRAM boot's reset vector \\
-    \bottomrule
-  \end{tabular}
-  \caption{The memory-map constants of \texttt{rtl/defines.vh}. IO offsets are from
-    \texttt{IO\_BASE}.}
-  \label{tab:app-defines}
-\end{table}
-
-Table~\ref{tab:app-decode} is the decode \texttt{IOBus} makes of an address. The flash chip
-itself (Figure~\ref{fig:flash-layout}) holds the bitstream from \texttt{0x000000} to
-\texttt{0xAE9E0F}, ST\_NICCC's scene data from \texttt{0xC00000}, and the code window from
-\texttt{0xD00000} to \texttt{0xFFFFFF}, and the core cannot reach the chip's upper 16~MB. In both
-boot modes the stack starts at the top of the RAM, \texttt{0x1800}, and grows down.
-
-\begin{table}[!ht]
-  \centering
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.7cm}
-      >{\raggedright\arraybackslash}p{10.2cm}@{}}
-    \toprule
-    Address & Decoded as \\
-    \midrule
-    bit~24 set & Flash, whatever the other bits: byte offset \texttt{addr[23:0]}, word
-      \texttt{addr[23:2]}. Reads and fetches stall for one SPI transaction, once end of startup
-      has passed (before it, pitfall~\ref{pit:first-fetch}). Writes do nothing \\
-    bit~24 clear, bit~22 set & IO. A store writes the LED register if bit~2 is set and sends
-      a byte if bit~3 is set, both at once if both are. A load returns the status word if
-      bit~4 is set, else zero \\
-    neither & RAM, word \texttt{addr[31:2]}. Above \texttt{0x0000\_17FF} the access is
-      undefined, and in simulation it reads \texttt{x} \\
-    \bottomrule
-  \end{tabular}
-  \caption{The address decode of \texttt{rtl/IOBus.v}: one bit tested per region and per IO
-    register, no address refused (Section~\ref{sec:memmap}).}
-  \label{tab:app-decode}
-\end{table}
-
-\chapter{Make targets}
-\label{app:make}
-
-Four Makefiles, each documented in its header, and the root one holds the gates
-(Chapter~\ref{ch:verif}). Table~\ref{tab:app-make} lists every target of all four.
-
-\begin{footnotesize}
-\renewcommand{\arraystretch}{0.95}%
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{4.4cm}
-    >{\raggedright\arraybackslash}p{6.6cm}>{\raggedright\arraybackslash}p{2.9cm}@{}}
-  \caption{The make targets of all four Makefiles. Each also has a \texttt{clean}.
-    \texttt{fw/Makefile} also takes \texttt{BUILD}, \texttt{HEX\_OUT}, \texttt{RAM\_SIZE},
-    \texttt{CROSS} and \texttt{XILINX\_RV32\_ROOT}, and \texttt{docs/design/Makefile} also takes
-    \texttt{SCHEMATIC}, the path of the board schematic.}
-  \label{tab:app-make} \\
-  \toprule
-  Target & What it does & Needs \\
-  \midrule
-  \endfirsthead
-  \toprule
-  Target & What it does & Needs \\
-  \midrule
-  \endhead
-  \bottomrule
-  \endfoot
-  \multicolumn{3}{@{}l}{\emph{Root \texttt{Makefile}: the gates, each but \texttt{check} with a
-    log in \texttt{build/logs/}}} \\
-  \texttt{lint} & \texttt{scripts/lint.sh}, seconds & bash, git \\
-  \texttt{unit} & The ALU unit bench, seconds & iverilog \\
-  \texttt{check-fw} & \texttt{make -C fw check} & RISC-V gcc \\
-  \texttt{smoke} & \texttt{unit}, \texttt{check-fw}, 4 million cycles of regression, about
-    25~s & all of the above, Vivado \\
-  \texttt{check-sim} & \texttt{check-fw}, the full regression, five to six minutes & gcc,
-    Vivado \\
-  \texttt{check-synth} & \texttt{check-fw}, synthesis in project mode, under a minute & gcc,
-    Vivado \\
-  \texttt{check} & \texttt{unit}, \texttt{check-sim}, \texttt{check-synth}, and \texttt{-j2} runs the
-    last two side by side & iverilog, gcc, Vivado \\
-  \texttt{golden} & \texttt{check-fw}, a full run that overwrites the golden trace & gcc,
-    Vivado \\
-  \texttt{check-moves BASE=}\emph{rev} & Moved files are byte-identical renames & git \\
-  \texttt{bitstream} & The project's synthesis, implementation and \texttt{build/SOC.bit}, with
-    WNS, WHS and \texttt{timing=MET} or \texttt{FAILED} & Vivado \\
-  \texttt{baseline} & Non-project implementation and reports into \texttt{build/baseline/},
-    about a minute & Vivado \\
-  \midrule
-  \multicolumn{3}{@{}l}{\emph{\texttt{fw/Makefile}: \texttt{PROG} picks the demo,
-    \texttt{TARGET} the boot mode}} \\
-  \texttt{all} (default) & \texttt{bram} or \texttt{flash}, as \texttt{TARGET} says & RISC-V
-    gcc \\
-  \texttt{bram} & The demo's image, written to \texttt{HEX\_OUT}, by default
-    \texttt{rtl/firmware.hex} & gcc, g++ \\
-  \texttt{flash} & \texttt{build/}\emph{prog}\texttt{.spiflash.\{elf,bin,mcs\}}, the code at
-    \texttt{0xD00000} & gcc, Vivado \\
-  \texttt{build/}\emph{prog}\texttt{.s} & The demo's assembly, for the reader & gcc \\
-  \texttt{check} & The memory-map copies, then the image rebuilt from clean and compared &
-    gcc, g++ \\
-  \midrule
-  \multicolumn{3}{@{}l}{\emph{\texttt{docs/design/Makefile}: this report}} \\
-  \texttt{all} (default) & \texttt{build/design.pdf}, from the committed figures & pdf\LaTeX \\
-  \texttt{figures} & Every scriptable figure: the five below and the RTL schematics &
-    Vivado, xvfb-run, and the below \\
-  \texttt{board-figures} & The figures of the board captures & Python, Pillow \\
-  \texttt{waves} & The three waveforms & iverilog, gcc, Vivado's models, Ghostscript \\
-  \texttt{flow} & The excerpts of the C-to-board figure & gcc, Vivado, Pillow \\
-  \texttt{impl} & Chapter~\ref{ch:results}'s numbers and worst-path schematic & Vivado,
-    xvfb-run, Ghostscript \\
-  \texttt{schematics} & The excerpts of the board schematic, from a local copy & pdftoppm \\
-  \texttt{captures} & The BRAM-boot board captures, recorded again & the board, Vivado, gcc,
-    pyserial \\
-  \midrule
-  \multicolumn{3}{@{}l}{\emph{\texttt{sim/asm/Makefile}}} \\
-  \texttt{program.hex} (default) & The sample program, assembled by the Verilog assembler,
-    with \texttt{DEFS=-DBENCH} for full speed in simulation & iverilog \\
-\end{longtable}
-\end{footnotesize}
+RAM, and renders a ray-traced picture in place from the flash. Its educational value is the
+path more than the core: a line of C passes the compiler, the linker, the firmware image,
+synthesis, the bitstream and the bus before it lights an LED, and building each stage by hand
+turned layers that are usually black boxes into parts that can be read, changed and checked.
+The struggles were rarely in the processor. They were the board's net names, a tool's working
+directory, Verilog's signedness rules, the flash clock's hand-over after configuration and a
+bit in the flash's configuration register, each a wrong assumption about the tools or the board
+that looked like a fault in the design. Finding them taught the lesson the project leaves for
+the next student: a design is as trustworthy as the evidence behind it, here a golden trace
+that the board matches byte for byte.
 
 \begin{thebibliography}{99}
 \raggedright  % long URLs do not break
@@ -2601,6 +2629,9 @@ ST-NICCC competition. \url{http://arsantica-online.com/st-niccc-competition/}
 
 \bibitem{ug470}
 AMD Xilinx, \emph{7 Series FPGAs Configuration User Guide}, UG470.
+
+\bibitem{ug471}
+AMD Xilinx, \emph{7 Series FPGAs SelectIO Resources User Guide}, UG471.
 
 \bibitem{ug835}
 AMD Xilinx, \emph{Vivado Design Suite Tcl Command Reference Guide}, UG835.
