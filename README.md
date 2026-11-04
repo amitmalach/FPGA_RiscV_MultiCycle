@@ -28,8 +28,8 @@ Undergraduate project by Amit Malach, supervised by Prof. Avi Mendelson, Technio
 The project exists to build a complete, working computer from the gate level up and to
 understand every piece of it: the instruction set, the bus between core and memory, how
 peripherals appear as addresses, how a C toolchain targets bare metal, and how a program can
-boot from serial flash. The design is deliberately small so that every module fits in one
-screen and the whole system can be read in an afternoon. It is not a performance design.
+boot from serial flash. The design is deliberately small, under 1 000 lines of Verilog, so
+that the whole system can be read in an afternoon. It is not a performance design.
 
 What it does, concretely:
 
@@ -47,7 +47,7 @@ What it does, concretely:
 | Board | Digilent Genesys 2 (Kintex-7 `xc7k325tffg900-2`, 200 MHz differential system clock) |
 | On-board flash | 32 MB SPI NOR (S25FL256S), shared between the bitstream, demo data and program code |
 | UART | On-board USB-UART bridge, 115200 baud, 8N1, transmit only |
-| FPGA tools | Vivado, version TODO (the scripts were written against 2025.2; confirm the version used for the final bitstream) |
+| FPGA tools | Vivado 2025.2 |
 | RISC-V toolchain | `riscv64-unknown-elf-gcc` with `-march=rv32i -mabi=ilp32` (a 64-bit-named toolchain builds RV32I code); the committed firmware image reproduces with GCC 13.2.0 |
 | Host tools | GNU make, a C++ compiler for the ELF-to-hex converter, `pdflatex` for the final report |
 | Simulators | xsim (installed with Vivado) and Icarus Verilog; the root `Makefile` header says which gate needs which |
@@ -122,7 +122,7 @@ Reset vector:
 | Flash boot (default) | `0x01D0_0000` | SPI flash, 13 MB into the chip (`SPIFLASH_CODE_OFFSET`), 3 MB available |
 
 The flash code offset is forced by what already occupies the chip: the FPGA bitstream from
-`0x000000` (about 10.9 MB on this part), the ST-NICCC scene data at `0xC00000` (640 KB), then
+`0x000000` (about 10.9 MB on this part), the ST-NICCC scene data at `0xC00000` (625 KB), then
 the program code at `0xD00000`, 64 KB sector aligned. The window ends at 16 MB because the
 controller sends a 24-bit address.
 
@@ -177,8 +177,8 @@ Demos and where they fit:
 | `ST_NICCC` | `fw/ST_NICCC.c` | the ST-NICCC polygon demo, rendered as ANSI characters; needs the scene data in flash | BRAM, flash | BRAM boot, with the scene data in the flash |
 | `tinyraytracer` | `fw/tinyraytracer.c` | ray-traced scene on the UART | flash only (29 KB of code) | flash boot, started with the reset button |
 
-"Run on the board" is what has run on the owner's Genesys 2 so far, with the bitstream loaded
-over JTAG; the final report shows the results (`docs/design/design.tex`, "What the board
+"Run on the board" is what ran on the owner's Genesys 2, with the bitstream loaded over JTAG;
+the final report shows the results (`docs/design/design.tex`, "What the board
 does").
 
 `tinyraytracer` needs `<math.h>` and `libm`, which the distribution toolchain does not ship;
@@ -207,11 +207,10 @@ mkdir -p build && cd build
 vivado -mode batch -nojournal -nolog -source ../vivado/create_project.tcl
 ```
 
-The bitstream's boot mode is the `BOOT_ADDR` parameter of `SOC` in `rtl/SOC.v`. Its default
-is flash boot, and `make bitstream` builds that. A BRAM-boot bitstream overrides the parameter
-at synthesis instead of editing the source: `docs/design/scripts/board_bitstream.tcl` sets
-`BOOT_ADDR` to `BOOT_ADDR_BRAM`, 0, as the testbench does, because simulation has no SPI-flash
-model. "Running the demos" below runs it.
+The boot mode is the `BOOT_ADDR` parameter of `SOC` (`rtl/SOC.v`). It defaults to flash boot,
+which `make bitstream` builds. A BRAM-boot bitstream sets it to 0 at synthesis, leaving the
+source as it is: `docs/design/scripts/board_bitstream.tcl` does so, and "Running the demos"
+below uses it.
 
 ## Running the demos
 
@@ -226,35 +225,33 @@ The demos that draw in colour use ANSI escape sequences: `mandelbrot` sets 24-bi
 backgrounds, `riscv_logo` the 16-colour SGR codes, `ST_NICCC` and `tinyraytracer` 256-colour
 codes. Use a terminal emulator that supports all three.
 
+Each animation below is rendered from a UART capture of the board, in xterm's colours; the
+final report shows the same runs (`docs/design/design.tex`, "What the board does").
+
 ![riscv_logo turning, as the board drew it](docs/design/figures/board_riscv_logo.gif)
 
-`riscv_logo` on the board, in BRAM boot: one turn of 64 frames, each shown for as long as the
-board took to send it (to 10 ms), rendered from the UART capture in xterm's colours. The final
-report shows this and the other board results (`docs/design/design.tex`, "What the board
-does").
+`riscv_logo`, BRAM boot: one turn of 64 frames, each shown for as long as the board took to
+send it.
 
 ![mandelbrot, as the board drew it](docs/design/figures/board_mandelbrot.gif)
 
-`mandelbrot` on the board, in BRAM boot: the 23 frames of the capture, about a second each,
-the colours stepping by one each frame through a full cycle of the 21 colours. Frame 0 is byte
-for byte the golden trace's UART output.
+`mandelbrot`, BRAM boot: 23 frames, about a second each, the colours stepping through a full
+cycle of 21. Frame 0 is byte for byte the golden trace's UART output.
 
 ![tinyraytracer, as the board drew it](docs/design/figures/board_tinyraytracer.gif)
 
-`tinyraytracer` on the board, in flash boot: the picture after each of its 24 rows, played 20
-times faster than the board drew it (127 s), then held for three seconds.
+`tinyraytracer`, flash boot: the picture after each of its 24 rows, 20 times faster than the
+board's 127 s.
 
 ![sieve, as the board printed it](docs/design/figures/board_sieve.gif)
 
-`sieve` on the board, in BRAM boot: its first two rounds in a terminal 12 rows high, a frame a
-line, 50 times slower than the board sent them. A round is the 31 primes below 128 and their
-checksum, every 96 ms.
+`sieve`, BRAM boot: the first two rounds, a line per frame, 50 times slower than the board. A
+round, every 96 ms, is the 31 primes below 128 and their checksum.
 
 ![ST_NICCC, as the board drew it](docs/design/figures/board_st_niccc.gif)
 
-`ST_NICCC` on the board, in BRAM boot with its scene data in the flash: the screen every half
-second, in real time, from 70 s after its first byte to the end of the capture. The UART's
-115200 baud allows about a frame a second.
+`ST_NICCC`, BRAM boot with its scene data in the flash: the screen every half second, in real
+time, from 70 s into the run. At 115200 baud the UART carries about a frame a second.
 
 Both boot modes below load the bitstream over JTAG: it lasts until the board is switched off,
 and the next power-on boots whatever bitstream the flash holds at offset `0x0` (on a board as
@@ -298,12 +295,11 @@ The program is written to the flash's code window; the bitstream, built once wit
    This is Hardware Manager's *Program Configuration Memory Device* with the address range
    *Configuration File Only* (flash part `s25fl256sxxxxxx0-spi-x1_x2_x4`): only the bytes the
    image covers change. The script refuses an image with a byte below `0xC00000`. It also
-   keeps the flash's Quad Enable bit: Vivado clears that non-volatile bit on every write
-   unless `PROGRAM.SKIP_QE_BIT_ERASE` is set, and the factory bitstream reads the flash four
-   bits wide and needs it, so a write without the property leaves the board unable to boot at
-   power-on, with no error shown. `docs/design/scripts/flashregs/` holds a small design that
-   reads the bit over the flash pins, and sets it again (`docs/design/figures/README.md`,
-   "The Quad Enable bit").
+   keeps the flash's non-volatile Quad Enable bit, which Vivado clears on every write unless
+   `PROGRAM.SKIP_QE_BIT_ERASE` is set: the factory bitstream reads the flash four bits wide,
+   and without the bit the board no longer boots at power-on, with no error shown.
+   `docs/design/scripts/flashregs/` reads the bit and sets it again
+   (`docs/design/figures/README.md`, "The Quad Enable bit").
 3. Load the flash-boot bitstream and record the UART:
 
    ```sh
@@ -319,13 +315,11 @@ The program is written to the flash's code window; the bitstream, built once wit
    is lost (the final report, pitfall P5). From the reset on, the demo runs, and
    the reset button restarts it.
 
-`ST_NICCC` additionally needs the scene file (`scene1.dat`, the 640 KB polygon stream of the
-original demo, not included in this repository) written to the flash at `0xC00000`, in either
-boot mode. On the owner's board it ran in BRAM boot, with no press of the reset button, but its
-first frame came out wrong: the first read from the flash after configuration goes wrong, as in
-step 4. The same
-Tcl helper wraps it: pass the file, the output name and the offset to `fw/tools/write_mcs.tcl`
-as the firmware Makefile does for the code image, then write it as in step 2.
+`ST_NICCC`, in either boot mode, also needs its scene file written to the flash at `0xC00000`:
+`scene1.dat`, the 625 KB polygon stream of the original demo, not included in this repository.
+Wrap it with `fw/tools/write_mcs.tcl` (the file, the output name and the offset, as the firmware
+Makefile does for the code image) and write it as in step 2. Its first frame comes out wrong,
+for the reason of step 4.
 
 A board as shipped is not blank above its factory bitstream: on the owner's board, Digilent's
 factory demo also holds data from `0x600000` to `0x69FFFF` and from `0x800000` to `0xDEFFFF`,
@@ -333,8 +327,6 @@ which the scene data and the code window overwrite in part. Back the whole flash
 first write, with `-tclargs read 0x0 0x2000000 <file>.bin` in step 2's place (about two
 minutes). To restore the region from `0xC00000`, wrap that slice of the file with
 `fw/tools/write_mcs.tcl` and write it as in step 2.
-
-TODO: add a photo of the board with a terminal showing a demo.
 
 ## Simulation and checks
 
@@ -356,35 +348,15 @@ the regression passes only when a new run is byte-identical to it, cycle count i
 
 ## Final report
 
-The final report is a LaTeX project under `docs/design/`. It explains the design choices
-and how the core, memory subsystem, SoC and firmware fit together.
-
-The built PDF is committed: [`docs/design/design.pdf`](docs/design/design.pdf).
-
-```sh
-make -C docs/design           # pdflatex -> docs/design/build/design.pdf from the committed figures
-make -C docs/design publish   # the same, then copied to docs/design/design.pdf, the committed copy
-make -C docs/design figures   # regenerate the scriptable figures: Vivado, xvfb-run, Ghostscript
-make -C docs/design captures  # record the board captures again: the board, Vivado, RISC-V gcc
-```
-
-The sources are [`docs/design/design.tex`](docs/design/design.tex) and
-`docs/design/figures/`, whose README lists every figure, the script behind it, the recipes
-for the manual ones, and what each target needs.
+[`docs/design/design.pdf`](docs/design/design.pdf) explains the design choices and how the
+core, memory, SoC and firmware fit together. Its LaTeX source is `docs/design/design.tex`;
+`docs/README.md` lists the material behind it and the targets that rebuild it.
 
 ## Results
 
-TODO: fill in from the post-implementation reports (`make baseline`, reports in
-`build/baseline/`) once confirmed:
-
-| Metric | Value |
-|---|---|
-| Vivado version | TODO |
-| Slice LUTs | TODO |
-| Slice registers | TODO |
-| Block RAM tiles | TODO |
-| Fmax (post-route, 1 / (period minus WNS)) | TODO |
-| Timing at 200 MHz | TODO |
+The design meets timing at 200 MHz and uses under 0.5 % of the device's LUTs, flip-flops and
+block RAM. `docs/baseline.md` holds the exact numbers and how they were
+produced; the final report, chapter "Implementation results", analyses them.
 
 ## License
 

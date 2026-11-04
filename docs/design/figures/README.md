@@ -174,7 +174,7 @@ steps, from `docs/design/`, once for each boot mode:
 The pc comes from `riscv64-unknown-elf-objdump -d fw/build/mandelbrot.bram.elf`, or from the
 flash build's ELF in `docs/design/build/waves/fw/`; after a change to the firmware, find the
 window again and update the `--start` value in `docs/design/Makefile`. The flash window
-skips the first fetch on purpose: in the simulation it is lost, for the reason chapter 7
+skips the first fetch on purpose: in the simulation it is lost, for the reason chapter 8
 gives in "CCLK and STARTUPE2". To add a waveform, add its signals to the bench's `$dumpvars`, write
 a spec file and add a render line to the `waves` target.
 
@@ -198,7 +198,7 @@ firmware or the RTL. `make flow` (part of `make figures`) runs three steps, from
    RAMs' `INIT` string, the bitstream's header, the JTAG load and frame 0 from
    `captures/mandelbrot_bram`, and the flash build's first instruction through the binary and
    the MCS. The JTAG and flash lines are quoted from `board_program.tcl` and `board_flash.tcl`.
-   It also writes the numbers and words chapter 8's prose quotes, one macro each. It fails
+   It also writes the numbers and words chapter 9's prose quotes, one macro each. It fails
    unless each stage holds what the one before made: the image equals `rtl/firmware.hex`, its
    words are the ELF's instructions, two 18-bit-wide block RAMs of one kind hold its low and
    high halves, the binary begins with the flash ELF's first instruction, and the MCS holds
@@ -254,19 +254,16 @@ configuration the core prints nothing until a reset (the report's pitfall P5 say
 tinyraytracer then takes about two minutes to draw its picture; 360 seconds leaves time for both.
 `board_figures.py` draws the last complete run in the capture, so a second press does no harm.
 
-Before the first write, `board_flash.tcl read 0x0 0x2000000 <file>` backs up the whole chip
-in about two minutes. The owner's board was not blank above its factory bitstream: Digilent's
-factory demo also holds data from `0x600000` to `0x69FFFF` and from `0x800000` to `0xDEFFFF`.
-That backup, from 2026-10-28, is in the owner's snapshot of the original project; issue #21
-records the readback. A full readback after the tinyraytracer write differed from the backup
-only in the 29 016 bytes of the image, at `0xD00000` to `0xD07157`, and so did one after the
-third write of the same image, below.
+Back the whole chip up before the first write (the README's "Flash boot"). On the owner's
+board, a full readback after the tinyraytracer write differed from the backup only in the
+29 016 bytes of the image, `0xD00000` to `0xD07157`, and so did one after the third write of
+the same image, below.
 
 ### ST_NICCC: the scene data in the flash
 
-ST_NICCC runs in BRAM boot, but reads its 640 KB scene, `scene1.dat`, which is not in the
+ST_NICCC runs in BRAM boot, but reads its 625 KB scene, `scene1.dat`, which is not in the
 repository, from the flash at `0xC00000`. The owner's board held factory-demo data there,
-equal to the 2026-10-28 backup, so the region was read back first and then written with
+equal to the backup, so the region was read back first and then written with
 `board_flash.tcl write` and a `.mcs` of the scene made by `fw/tools/write_mcs.tcl` (the
 README's "Flash boot"). A readback of the 639 976 bytes then matched `scene1.dat`. From
 `docs/design/`, with the two JTAG cables of the owner's machine:
@@ -391,7 +388,7 @@ cmp <(tail -c +799970 docs/design/captures/ST_NICCC_bram.bin) \
   bridge and Digilent USB-JTAG. mandelbrot was captured again on 2026-10-29, for 24 s after
   the load, so that its frames cover a full cycle of the 21 colours; the JTAG cable showed
   up as `.../Digilent/200300BD8361B` and `JTAG_TARGET='*8361B'` picked it. ST_NICCC was
-  captured on 2026-11-03, after its scene data was written, as below
+  captured on 2026-11-03, after its scene data was written, as above.
 
 ## The report's module colours
 
@@ -444,8 +441,7 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 - View: Device window, the worst path selected, Auto-fit Selection on in every panel;
   Routing Resources on in panels 1 to 5, off in panel 6
 - Taken 2026-10-27 by the owner: the maximised Device panel, 1827x872 at screen scale
-  (GNOME on a 1920x1080 display). Panel 1 was retaken later in the day: the first take
-  kept a mouse tooltip.
+  (GNOME on a 1920x1080 display).
 
 1. Common steps 1 to 3.
 2. Maximise the Device window (double-click its tab) and, in its toolbar, turn on Auto-fit
@@ -506,12 +502,9 @@ move.
   mirrored
 - iPhone 14, the board's top side, powered on and running Digilent's factory demo (DONE, PGOOD,
   LD0 to LD2 and the OLED lit), room light, no flash
-- Cropped on the phone to 1964x1507 (3.0 MP), with a slight tilt. Issue #18 asked for a
-  straight top-down daylight shot of at least 12 MP; the owner accepted this one. A retake
-  replaces the file under the same name and must keep the framing, or the callouts move
-  with it.
-- Metadata stripped on 2026-10-27, after the first commit of the photo: the Git history keeps
-  that first version, with its GPS position.
+- Cropped on the phone to 1964x1507 (3.0 MP), with a slight tilt. A retake replaces the file
+  under the same name and must keep the framing, or the callouts move with it.
+- Metadata stripped, as above.
 
 ### Underside
 

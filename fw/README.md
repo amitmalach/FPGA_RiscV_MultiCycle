@@ -48,8 +48,7 @@ image goes, default `../rtl/firmware.hex`), `RAM_SIZE`, `CROSS` (the toolchain p
 `XILINX_RV32_ROOT` (the RISC-V newlib bundled with Vivado, for tinyraytracer's `libm`). The
 header of `Makefile` explains each.
 
-Demos: `blinker`, `sieve`, `mandelbrot`, `riscv_logo` and `ST_NICCC` build for either boot
-mode, `tinyraytracer` for flash boot only (about 29 KB of code; the RAM holds 6 KB). A flash
-build runs `write_cfgmem`, so it needs Vivado's `settings64.sh` sourced. The committed image is
-always mandelbrot: after building another demo for BRAM boot, run `make` again before
-committing, or `make check` fails.
+A flash build runs Vivado's `write_cfgmem`, so it needs Vivado's `settings64.sh` sourced. The
+committed image is always mandelbrot: after building another demo for BRAM boot, run `make`
+again before committing, or `make check` fails. The root README, "Building the firmware",
+lists the demos and the boot modes each builds for.
