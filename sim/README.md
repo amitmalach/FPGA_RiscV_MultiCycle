@@ -8,6 +8,7 @@ How the design is checked in simulation, before it reaches the board.
 | `golden/mandelbrot_bram.txt` | The golden trace: the UART bytes and LED changes of one mandelbrot frame |
 | `run_regression.sh` | Simulates the SoC in xsim and passes only when the trace equals the golden one |
 | `ALUBench.v`, `run_unit.sh` | The ALU unit bench and the script that runs it under iverilog |
+| `WaveBench.v`, `FlashImage.v`, `run_waves.sh` | The waveform bench behind the final report's waveforms, with a model of the flash's read command, and the script that runs it |
 | `tests/check_golden_mirror.sh` | Holds `docs/baseline.md`'s trace numbers equal to the golden trace; `make lint` runs it |
 | `build/` | Simulation outputs; not tracked |
 
@@ -82,3 +83,20 @@ out by hand from the RV32I specification. `run_unit.sh`, or `make unit`, compile
 iverilog into `build/unit/` and passes only when the bench prints its final `PASS` line. It
 covers what the golden trace cannot: the golden file records what the RTL did when it was
 captured, right or wrong.
+
+## Waveforms
+
+`WaveBench.v` drives the SoC as `bench.v` does and dumps the signals the final report's
+waveforms draw to a VCD file. Nothing is checked and no gate runs it. Unlike `bench.v` it also
+runs flash boot: `FlashImage.v` answers the flash's Read command from a flash-boot image, and
+Vivado's `STARTUPE2` model drives the flash clock, so the first transaction after configuration
+loses clock edges (the report's section "CCLK and STARTUPE2"). `run_waves.sh` runs it under
+iverilog with Vivado's unisim models:
+
+```sh
+sim/run_waves.sh sim/build/waves/bram                       # BRAM boot, 3000 ns
+make -C fw build/mandelbrot.spiflash.bin
+sim/run_waves.sh sim/build/waves/flash --flash fw/build/mandelbrot.spiflash.bin +ns=6000
+```
+
+Each run writes `wave.vcd` into the given directory; GTKWave opens it.

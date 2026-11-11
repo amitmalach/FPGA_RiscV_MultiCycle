@@ -16,7 +16,7 @@ runs demos in C and assembly, from a blinker to a ray tracer. It is not a perfor
 |---|---|
 | `rtl/` | Synthesizable Verilog, one module per file, `SOC.v` the top; `defines.vh`, the memory map; `firmware.hex`, the one firmware image |
 | `fw/` | Demo programs, start-up code, linker scripts and the flash-image converter |
-| `sim/` | SoC testbench with its golden trace, ALU unit bench |
+| `sim/` | SoC testbench with its golden trace, ALU unit bench, waveform bench with a flash model |
 | `constraints/` | Pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: project, bitstream, JTAG load, flash read and write |
 | `docs/` | Final report, design notes, baseline numbers, demo animations |
