@@ -2014,6 +2014,30 @@ one before only in the image's own bytes. The board still boots the factory demo
 provided the write keeps the flash's Quad Enable bit \notes{Writing the flash clears the Quad
 Enable bit}.
 
+\paragraph{From power-on to this design.} Two bitstreams reach the FPGA, one after the
+other, and the second replaces the first:
+\begin{enumerate}[leftmargin=*, itemsep=1pt]
+  \item \emph{Power-on.} The configuration memory starts empty. With JP5 on QSPI, the FPGA's
+    configuration logic reads the bitstream at offset~0, the factory demo, DONE lights and the
+    demo runs. Nothing waits for JTAG: the demo runs until something else happens.
+  \item \emph{This design, over JTAG.} Vivado first clears the whole configuration memory, as a
+    press of the PROG button does, so the demo stops existing inside the FPGA. It then sends the
+    whole bitstream, in about 7~s, which sets every LUT, flip-flop, routing switch and block
+    RAM, used or not. Startup runs again, DONE lights, and the core starts at its reset vector,
+    every flip-flop and block RAM at its initial value. The new bitstream replaces the old one
+    and keeps nothing of it, which is also why every bitstream has the same size.
+  \item \emph{Power-off.} The design is gone, and at the next power-on the factory demo boots
+    again. With JP5 on JTAG instead, the FPGA configures nothing at power-on and waits, DONE
+    dark, for a bitstream over JTAG.
+\end{enumerate}
+Loading a bitstream over JTAG never reads or writes the flash: the demo's bitstream at
+offset~0 stays as it is, and in flash boot the design itself only reads its code window. JTAG
+reaches the flash only when Vivado is asked to write it, with \emph{Program Configuration
+Memory Device}. Vivado then first loads a helper bitstream of its own into the FPGA, which
+connects the JTAG cable to the flash's pins, and writes through it only the bytes the image
+covers. That helper too replaces whatever design ran, so this design's bitstream is loaded
+after the write, and \texttt{board\_flash.tcl} writes nothing below \texttt{0xC00000}.
+
 \paragraph{Flash boot is not booting from offset 0.} The flash holds two different things. At
 offset~0 is the FPGA's configuration, the bitstream, read once at power-on. In the code window
 is the core's program, which \texttt{SPIFlash} fetches word by word while the design runs. The
