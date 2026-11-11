@@ -49,7 +49,7 @@ What it does, concretely:
 | UART | On-board USB-UART bridge, 115200 baud, 8N1, transmit only |
 | FPGA tools | Vivado 2025.2 |
 | RISC-V toolchain | `riscv64-unknown-elf-gcc` with `-march=rv32i -mabi=ilp32` (a 64-bit-named toolchain builds RV32I code); the committed firmware image reproduces with GCC 13.2.0 |
-| Host tools | GNU make, a C++ compiler for the ELF-to-hex converter, `pdflatex` for the final report |
+| Host tools | GNU make, a C++ compiler for the ELF-to-hex converter |
 | Simulators | xsim (installed with Vivado) and Icarus Verilog; the root `Makefile` header says which gate needs which |
 
 ## Block diagram
@@ -135,8 +135,8 @@ controller sends a 24-bit address.
 | `sim/` | SoC-level testbench, golden trace, regression script; `ALUBench.v`, the ALU unit bench, and `run_unit.sh`; `sim/asm/` is a Verilog-macro assembler for test programs |
 | `constraints/` | `Genesys-2-Master.xdc`: pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: regenerate the project, build the bitstream, run the non-project baseline, with `common.tcl` shared by all three; `rtl_sources.txt` is the file list every script shares |
-| `docs/` | `baseline.md` (baseline trace and synthesis numbers), `design/` (final report sources, figures and their scripts, design notes, and `scripts/flashregs/`, a small FPGA design that reads and sets the flash's Quad Enable bit) |
-| `scripts/` | `lint.sh`, the pre-commit hook that runs it, the commit-msg hook that checks cited gate logs, and `quote_comment.sh` for moving RTL comments into the design notes |
+| `docs/` | `baseline.md` (baseline trace and synthesis numbers), `design/` (the final report, `design.pdf`, and the design notes, `notes.md`), `media/` (the demo animations shown below) |
+| `scripts/` | `lint.sh`, the pre-commit hook that runs it, and the commit-msg hook that checks cited gate logs |
 | `build/` | Everything generated: the Vivado project, run directories, `SOC.bit`, gate logs. Not tracked |
 
 Every tracked folder above has a README of its own: what the folder holds and which make
@@ -178,7 +178,7 @@ Demos and where they fit:
 | `tinyraytracer` | `fw/tinyraytracer.c` | ray-traced scene on the UART | flash only (29 KB of code) | flash boot, started with the reset button |
 
 "Run on the board" is what ran on my Genesys 2, with the bitstream loaded over JTAG;
-the final report shows the results (`docs/design/design.tex`, "What the board
+the final report shows the results (`docs/design/design.pdf`, section "What the board
 does").
 
 `tinyraytracer` needs `<math.h>` and `libm`, which the distribution toolchain does not ship;
@@ -209,8 +209,7 @@ vivado -mode batch -nojournal -nolog -source ../vivado/create_project.tcl
 
 The boot mode is the `BOOT_ADDR` parameter of `SOC` (`rtl/SOC.v`). It defaults to flash boot,
 which `make bitstream` builds. A BRAM-boot bitstream sets it to 0 at synthesis, leaving the
-source as it is: `docs/design/scripts/board_bitstream.tcl` does so, and "Running the demos"
-below uses it.
+source as it is; "Running the demos", "BRAM boot", below says how.
 
 ## Running the demos
 
@@ -226,29 +225,29 @@ backgrounds, `riscv_logo` the 16-colour SGR codes, `ST_NICCC` and `tinyraytracer
 codes. Use a terminal emulator that supports all three.
 
 Each animation below is rendered from a UART capture of the board, in xterm's colours; the
-final report shows the same runs (`docs/design/design.tex`, "What the board does").
+final report shows the same runs (`docs/design/design.pdf`, section "What the board does").
 
-![riscv_logo turning, as the board drew it](docs/design/figures/board_riscv_logo.gif)
+![riscv_logo turning, as the board drew it](docs/media/board_riscv_logo.gif)
 
 `riscv_logo`, BRAM boot: one turn of 64 frames, each shown for as long as the board took to
 send it.
 
-![mandelbrot, as the board drew it](docs/design/figures/board_mandelbrot.gif)
+![mandelbrot, as the board drew it](docs/media/board_mandelbrot.gif)
 
 `mandelbrot`, BRAM boot: 23 frames, about a second each, the colours stepping through a full
 cycle of 21. Frame 0 is byte for byte the golden trace's UART output.
 
-![tinyraytracer, as the board drew it](docs/design/figures/board_tinyraytracer.gif)
+![tinyraytracer, as the board drew it](docs/media/board_tinyraytracer.gif)
 
 `tinyraytracer`, flash boot: the picture after each of its 24 rows, 20 times faster than the
 board's 127 s.
 
-![sieve, as the board printed it](docs/design/figures/board_sieve.gif)
+![sieve, as the board printed it](docs/media/board_sieve.gif)
 
 `sieve`, BRAM boot: the first two rounds, a line per frame, 50 times slower than the board. A
 round, every 96 ms, is the 31 primes below 128 and their checksum.
 
-![ST_NICCC, as the board drew it](docs/design/figures/board_st_niccc.gif)
+![ST_NICCC, as the board drew it](docs/media/board_st_niccc.gif)
 
 `ST_NICCC`, BRAM boot with its scene data in the flash: the screen every half second, in real
 time, from 70 s into the run. At 115200 baud the UART carries about a frame a second.
@@ -256,24 +255,29 @@ time, from 70 s into the run. At 115200 baud the UART carries about a frame a se
 Both boot modes below load the bitstream over JTAG: it lasts until the board is switched off,
 and the next power-on boots whatever bitstream the flash holds at offset `0x0` (on a board as
 shipped, Digilent's factory demo). Nothing here writes offset `0x0`. Every command needs
-Vivado's `settings64.sh` sourced, and runs from the repository root. The scripts are described
-in their headers and in `docs/design/figures/README.md`, "Board captures".
+Vivado's `settings64.sh` sourced, and runs from the repository root. To load a bitstream, connect
+the board's JTAG port (J17), switch the board on and, in Vivado's Hardware Manager, use *Open
+Target*, *Auto Connect*, then *Program Device* with the `.bit` file.
 
 ### BRAM boot
 
-The program is part of the bitstream, so each demo is a rebuild. One script builds both and
-loads them, leaving `rtl/SOC.v` and `rtl/firmware.hex` as they are:
+The program is part of the bitstream, so each demo is a rebuild. `blinker`, `sieve`,
+`mandelbrot`, `riscv_logo` and `ST_NICCC` run this way; `tinyraytracer` does not fit.
 
-```sh
-docs/design/scripts/board_capture.sh <demo> bram <seconds> /tmp/<demo>
-```
+1. `make -C fw PROG=<demo>` writes the demo's image to `rtl/firmware.hex`.
+2. Generate the project and open it in the GUI, as in "Building the bitstream". In the Tcl
+   console, set the boot address to the RAM, then run *Generate Bitstream*:
 
-It builds the demo's firmware image and a BRAM-boot bitstream with `board_bitstream.tcl` in
-`docs/design/build/board/<demo>/` (`blinker`, `sieve`, `mandelbrot`, `riscv_logo` or
-`ST_NICCC`; `tinyraytracer` does not fit), loads it over JTAG, and records the UART for
-`<seconds>` into `/tmp/<demo>.bin`. The core starts as soon as configuration ends and keeps
-running after the script: open the terminal and press the reset button to watch the demo from
-its start. Output appears on the UART or the LEDs.
+   ```tcl
+   set_property generic {BOOT_ADDR=32'h00000000} [current_fileset]
+   ```
+
+   The setting belongs to the generated project; `rtl/SOC.v` stays as it is.
+3. Load `build/vivado/soc.runs/impl_1/SOC.bit` with Hardware Manager.
+4. The core starts as soon as configuration ends: open the terminal and press the reset button
+   to watch the demo from its start. Output appears on the UART or the LEDs.
+
+`make -C fw` restores the committed mandelbrot image afterwards.
 
 ### Flash boot
 
@@ -283,38 +287,41 @@ The program is written to the flash's code window; the bitstream, built once wit
 1. `make -C fw PROG=<demo> TARGET=flash` produces `fw/build/<demo>.spiflash.mcs`, an image
    that places the code at `0xD00000` in the chip. Any demo in the table above can run this
    way; `tinyraytracer` only runs in this mode.
-2. Write it to the flash:
+2. Write it to the flash from Vivado's Tcl console, with the full path of the image:
 
-   ```sh
-   mkdir -p docs/design/build && cd docs/design/build
-   vivado -mode batch -nojournal -nolog -source ../scripts/board_flash.tcl \
-       -tclargs write ../../../fw/build/<demo>.spiflash.mcs
-   cd -
+   ```tcl
+   open_hw_manager
+   connect_hw_server
+   open_hw_target
+   set dev [lindex [get_hw_devices xc7k325t_*] 0]
+   current_hw_device $dev
+   set mem [create_hw_cfgmem -hw_device $dev \
+       [lindex [get_cfgmem_parts s25fl256sxxxxxx0-spi-x1_x2_x4] 0]]
+   create_hw_bitstream -hw_device $dev [get_property PROGRAM.HW_CFGMEM_BITFILE $dev]
+   program_hw_devices $dev
+   refresh_hw_device $dev
+   set_property PROGRAM.FILES [list /full/path/to/fw/build/<demo>.spiflash.mcs] $mem
+   set_property -dict {PROGRAM.ADDRESS_RANGE use_file PROGRAM.UNUSED_PIN_TERMINATION pull-none
+       PROGRAM.BLANK_CHECK 0 PROGRAM.ERASE 1 PROGRAM.CFG_PROGRAM 1 PROGRAM.VERIFY 1
+       PROGRAM.CHECKSUM 0 PROGRAM.SKIP_QE_BIT_ERASE 1} $mem
+   program_hw_cfgmem $mem
    ```
 
    This is Hardware Manager's *Program Configuration Memory Device* with the address range
-   *Configuration File Only* (flash part `s25fl256sxxxxxx0-spi-x1_x2_x4`): only the bytes the
-   image covers change. The script refuses an image with a byte below `0xC00000`. It also
-   keeps the flash's non-volatile Quad Enable bit, which Vivado clears on every write unless
-   `PROGRAM.SKIP_QE_BIT_ERASE` is set: the factory bitstream reads the flash four bits wide,
-   and without the bit the board no longer boots at power-on, with no error shown.
-   `docs/design/scripts/flashregs/` reads the bit and sets it again
-   (`docs/design/figures/README.md`, "The Quad Enable bit").
-3. Load the flash-boot bitstream and record the UART:
-
-   ```sh
-   docs/design/scripts/board_capture.sh <demo> flash <seconds> /tmp/<demo>
-   ```
-
-   It first reads the code window back and stops unless it holds the demo just built. It then
-   builds the bitstream in `docs/design/build/board/flash/` (or program `build/SOC.bit` from
-   `make bitstream` with Hardware Manager instead). The core fetches its first instruction
-   from `0x01D0_0000`.
+   *Configuration File Only* (`use_file`): only the bytes the image covers change. Write only
+   images that start at `0xC00000` or above, as every image built here does: below lies the
+   bitstream the board boots at power-on. `PROGRAM.SKIP_QE_BIT_ERASE` keeps the flash's
+   non-volatile Quad Enable bit, which Vivado clears on every write unless the property is
+   set: the factory bitstream reads the flash four bits wide, and without the bit the board no
+   longer boots at power-on, with no error shown (`docs/design/notes.md`, "Writing the flash
+   clears the Quad Enable bit"). The commands first load Vivado's own flash-programming design
+   into the FPGA, which replaces whatever design ran there.
+3. Build the flash-boot bitstream with `make bitstream` and load `build/SOC.bit` with Hardware
+   Manager. The core fetches its first instruction from `0x01D0_0000`.
 4. Press the reset button once the load has ended. Straight after configuration the core
    prints nothing and the LEDs stay dark, most likely because its first fetch from the flash
    is lost (`docs/design/notes.md`, "Flash boot loses its first fetch"). From the reset on,
-   the demo runs, and
-   the reset button restarts it.
+   the demo runs, and the reset button restarts it.
 
 `ST_NICCC`, in either boot mode, also needs its scene file written to the flash at `0xC00000`:
 `scene1.dat`, the 625 KB polygon stream of the original demo, not included in this repository.
@@ -325,8 +332,9 @@ for the reason of step 4.
 A board as shipped is not blank above its factory bitstream: on my board, Digilent's
 factory demo also holds data from `0x600000` to `0x69FFFF` and from `0x800000` to `0xDEFFFF`,
 which the scene data and the code window overwrite in part. Back the whole flash up before the
-first write, with `-tclargs read 0x0 0x2000000 <file>.bin` in step 2's place (about two
-minutes). To restore the region from `0xC00000`, wrap that slice of the file with
+first write: run step 2's commands up to `refresh_hw_device`, then
+`readback_hw_cfgmem -force -format bin -offset 0x0 -datacount 0x2000000 -file <file>.bin $mem`
+(about two minutes). To restore the region from `0xC00000`, wrap that slice of the file with
 `fw/tools/write_mcs.tcl` and write it as in step 2.
 
 ## Simulation and checks
@@ -348,8 +356,9 @@ the regression passes only when a new run is byte-identical to it, cycle count i
 ## Final report
 
 [`docs/design/design.pdf`](docs/design/design.pdf) explains the design choices and how the
-core, memory, SoC and firmware fit together. Its LaTeX source is `docs/design/design.tex`;
-`docs/README.md` lists the material behind it and the targets that rebuild it.
+core, memory, SoC and firmware fit together.
+[`docs/design/notes.md`](docs/design/notes.md), the design notes, holds the reasoning behind
+each module, one question and its answer at a time; the report cites the notes by title.
 
 ## Results
 

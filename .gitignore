@@ -43,12 +43,3 @@ Thumbs.db
 .vscode/
 .idea/
 .vs/
-
-# Final report: `make -C docs/design` writes to docs/design/build/ (covered by
-# build/ above). A pdflatex run started by hand next to the sources leaves these
-# and design.log behind; lint rule 1 flags them. The PDF itself, design.pdf, is
-# committed.
-docs/design/*.aux
-docs/design/*.toc
-docs/design/*.out
-__pycache__/
