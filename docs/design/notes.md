@@ -11,7 +11,7 @@ Sections: [SOC](#soc-rtlsocv), [IOBus](#iobus-rtliobusv),
 [Control](#control-rtlcontrolv), [RegisterFile](#registerfile-rtlregisterfilev),
 [SPIFlash](#spiflash-rtlspiflashv), [Clockworks](#clockworks-rtlclockworksv),
 [UartTx](#uarttx-rtluarttxv), [Memory](#memory-rtlmemoryv), [Firmware build](#firmware-build-fw),
-[Board flash writes](#board-flash-writes),
+[Board flash writes](#board-flash-writes-vivadoboard_flashtcl),
 [program_asm](#program_asm-simasmprogram_asmv).
 
 Pitfalls: ten entries end in a **Pitfall** paragraph, a trap that cost time once, with the
@@ -121,7 +121,7 @@ is shared, and each region follows from what was already on it:
 
 The boot mode is the reset vector. `SOC`'s parameter `BOOT_ADDR` becomes the core's
 `RESET_PC`. It defaults to `BOOT_ADDR_FLASH`; BRAM boot sets it to `BOOT_ADDR_BRAM`, 0, at
-synthesis (the generic `BOOT_ADDR=32'h00000000`: README, "Running the demos", "BRAM boot")
+synthesis (`vivado/board_bitstream.tcl` passes `-generic BOOT_ADDR=32'h00000000`)
 or in the instance (`sim/bench.v`, which has no flash model). In BRAM boot the program is
 `rtl/firmware.hex`, read into the RAM at synthesis, so it must fit in 6 KB. No source changes.
 
@@ -354,7 +354,7 @@ between the two boot modes:
 |---|---|---|
 | `Processor` default | `RAM_BASE`, 0 | none: `SOC` always passes its own `BOOT_ADDR` |
 | `SOC` default, `BOOT_ADDR_FLASH` | `0x01D0_0000`, the flash code window | `make bitstream` |
-| `BOOT_ADDR_BRAM` | 0 | `sim/bench.v`, a BRAM-boot bitstream (README, "Running the demos", "BRAM boot") |
+| `BOOT_ADDR_BRAM` | 0 | `sim/bench.v`, the BRAM-boot bitstream of `vivado/board_bitstream.tcl` |
 
 A fixed vector of 0 with a jump to the flash stored at RAM address 0 would work only until the
 program overwrites that word. In flash boot it does so at once: `fw/memory.ld` puts the RAM at
@@ -1053,7 +1053,7 @@ program never runs. If a simulation shows no activity at all, look for that line
 **Question:** Where must `firmware.hex` be for a tool to find it?
 
 *Where:* `rtl/Memory.v`, `vivado/create_project.tcl`, `vivado/baseline.tcl`,
-`sim/run_regression.sh`
+`sim/run_regression.sh`, `vivado/board_bitstream.tcl`
 
 `$readmemh("firmware.hex", ...)` resolves the name against the working directory of the tool
 that reads it, not against `rtl/`. Each flow therefore puts the image where its tool runs:
@@ -1063,6 +1063,7 @@ that reads it, not against `rtl/`. Each flow therefore puts the image where its 
 | Vivado project: `make bitstream`, the GUI | `create_project.tcl` adds `rtl/firmware.hex` to the synthesis and simulation filesets as a Memory File; Vivado copies it into each run directory |
 | Non-project baseline: `make baseline` | `baseline.tcl` copies it into its output directory and runs there |
 | Regression: `make smoke`, `make check-sim` | `run_regression.sh` links it into `sim/build/` and runs xsim from there |
+| Board bitstream: `board_bitstream.tcl` | the demo's image is built into the output directory (`HEX_OUT`), and the script runs Vivado there |
 
 Running a tool from `rtl/` instead would find the file, but Vivado would then leave `.Xil/` and
 `clockInfo.txt` beside the sources, which `make lint` (rule 1) rejects.
@@ -1080,7 +1081,7 @@ by-products.
 board?
 
 *Where:* `rtl/firmware.hex`, `sim/run_regression.sh`, `sim/bench.v`,
-`vivado/create_project.tcl`
+`vivado/create_project.tcl`, `vivado/board_bitstream.tcl`
 
 - **Regression.** `run_regression.sh` links the current image afresh on every run, so nothing
   needs resetting. Another program gives another trace, so the gate fails unless the change is
@@ -1090,8 +1091,9 @@ board?
   the run time to `-all`; the bench ends the run itself (`sim/README.md`, "Stop conditions").
 - **Board.** The image is the block RAM's initial value inside the bitstream, so a new image
   needs a new BRAM-boot bitstream, synthesis onward; reloading the old bitstream runs the old
-  program. The README, "Running the demos", "BRAM boot", builds and loads one. `make bitstream`
-  builds the flash-boot default, whose program comes from the flash and not from this image.
+  program. `vivado/board_bitstream.tcl` builds one (README, "Running the demos", "BRAM boot").
+  `make bitstream` builds the flash-boot default, whose program comes from the flash and not
+  from this image.
 
 ### Per-byte write enables
 
@@ -1355,7 +1357,7 @@ appears as a serial device such as `/dev/ttyUSB0`; the README, "Running the demo
 terminal settings. The report's board captures were recorded from this port, with a timestamp
 on every read.
 
-## Board flash writes
+## Board flash writes (`vivado/board_flash.tcl`)
 
 How a program or the scene data reaches the board's flash: Vivado's *Program Configuration
 Memory Device* over JTAG, with the address range *Configuration File Only*, so that only the
@@ -1366,8 +1368,8 @@ bytes the image covers change (README, "Running the demos").
 **Question:** Why can a flash write stop the board from booting at power-on, and how is that
 prevented?
 
-*Where:* the flash write's `hw_cfgmem` property `PROGRAM.SKIP_QE_BIT_ERASE` (README, "Running
-the demos", "Flash boot")
+*Where:* `vivado/board_flash.tcl` (`PROGRAM.SKIP_QE_BIT_ERASE`),
+`vivado/flashregs/FlashRegs.v`, `vivado/README.md`, "The Quad Enable bit"
 
 Vivado's `program_hw_cfgmem`, with the `hw_cfgmem` property `PROGRAM.SKIP_QE_BIT_ERASE` at its
 default, 0, clears the S25FL256S's non-volatile Quad Enable bit (configuration register 1,
@@ -1376,10 +1378,10 @@ write with an SPIx4 `.prm` does not set it back, and Vivado's Tcl has no command
 flash's registers.
 
 **Pitfall:** after a flash write, the board no longer boots at power-on: DONE off, no error
-flag, the mode pins right, and every byte of the flash intact. Handled: the flash write sets
-`SKIP_QE_BIT_ERASE` to 1 (README, "Running the demos", "Flash boot"), and a write with it kept
-the bit. A small FPGA design of my own, loaded over JTAG, printed the flash's registers on the
-UART and wrote the bit back, which repaired my board.
+flag, the mode pins right, and every byte of the flash intact. Handled: `board_flash.tcl write`
+sets `SKIP_QE_BIT_ERASE` to 1, and a write with it kept the bit. `FlashRegs.v`, loaded over
+JTAG, prints the flash's registers on the UART and, built with `WRITE_REGS=1`, writes the bit
+back, which repaired my board.
 
 ## program_asm (`sim/asm/program_asm.v`)
 
