@@ -1,12 +1,17 @@
 /*
+ * Origin: ST_NICCC.c from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE,
+ * adapted (BSD-3-Clause; see LICENSE). The scene is the one of the ST-NICCC 2000
+ * demo by Oxygene, published for the ST-NICCC competition; it is not in this
+ * repository.
+ *
  * Reading the ST-NICCC megademo data stored in
  * the SPI flash and streaming it to polygons,
  * rendered as ANSI character sequences through
  * the UART.
- * 
- * The polygon stream (scene1.dat, 640K) must be
- * written to the SPI flash at ADDR_OFFSET (see
- * below); README.md, "Flash boot", says how.
+ *
+ * The polygon stream (scene1.dat, 625 KB, from learn-fpga's
+ * FemtoRV/FIRMWARE/EXAMPLES/DATA/) must be written to the SPI flash at
+ * ADDR_OFFSET (see below); the root README.md, "Flash boot", says how.
  */
 
 #include <stdint.h>
@@ -306,9 +311,9 @@ static inline uint8_t next_spi_byte() {
 #endif
 
 static inline uint16_t next_spi_word() {
-   /* In the ST-NICCC file,  
-    * words are stored in big endian format.
-    * (see DATA/scene_description.txt).
+   /* In the ST-NICCC file,
+    * words are stored in big endian format
+    * (learn-fpga's DATA/scene_description.txt).
     */
    uint16_t hi = (uint16_t)next_spi_byte();    
    uint16_t lo = (uint16_t)next_spi_byte();
@@ -323,7 +328,7 @@ int cmap[16];
 
 /*
  * Current frame's vertices coordinates (if frame is indexed),
- *  mapped to OLED display dimensions (divide by 2 from file).
+ * halved from the file's coordinates.
  */
 uint8_t  X[255];
 uint8_t  Y[255];
@@ -344,13 +349,11 @@ int      poly[30];
 
 /*
  * Reads a frame's polygonal description from
- * SPI flash and rasterizes the polygons using
- * FemtoGL.
+ * SPI flash and rasterizes the polygons as
+ * ANSI character cells.
  * returns 0 if last frame.
- *   See DATA/scene_description.txt for the 
- * ST-NICCC file format.
- *   See DATA/test_ST_NICCC.c for an example
- * program.
+ *   See learn-fpga's DATA/scene_description.txt
+ * for the ST-NICCC file format.
  */
 int read_frame() RV32_FASTCODE;
 int read_frame() {

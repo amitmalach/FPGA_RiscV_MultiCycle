@@ -1,3 +1,6 @@
+// Origin: memcpy.c from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE
+// (BSD-3-Clause; see LICENSE).
+
 #include <stddef.h>
 #include <stdint.h>
 

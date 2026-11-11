@@ -1,5 +1,7 @@
 /*
- Computes and displays the Mandelbrot set on the OLED display.
+ Origin: mandel_C.c from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE
+ (BSD-3-Clause; see LICENSE).
+ Computes the Mandelbrot set and draws it over the UART in ANSI colour.
 */
 
 #include <stdio.h>

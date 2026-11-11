@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: the state machine of the core of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE), restructured.
 // Control -- the multi-cycle sequencer: one FSM state per cycle.
 //   FETCH_INSTR : drive pc on the bus with the read strobe
 //   WAIT_INSTR  : latch the instruction word once mem_rbusy is low

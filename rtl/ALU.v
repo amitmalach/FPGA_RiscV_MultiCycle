@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: split out of the core of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE).
 // ALU -- RV32I integer operations and the branch comparator, combinational.
 // The second operand is rs2 for register-register instructions and imm_i for
 // everything else; the shift amount is its low five bits either way. The

@@ -1,3 +1,8 @@
+## Origin: Genesys-2-Master.xdc from Digilent's digilent-xdc
+## (https://github.com/Digilent/digilent-xdc), Copyright (c) 2017 Digilent, MIT
+## licence: LICENSES/MIT.txt. Modified: the used lines uncommented and given
+## SOC.v's port names; the clock and configuration-voltage lines added.
+
 #### This file is a general .xdc for the Genesys 2 Rev. H
 #### To use it in a project:
 #### - uncomment the lines corresponding to used pins

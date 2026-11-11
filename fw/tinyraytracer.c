@@ -1,22 +1,20 @@
-/* A port of Dmitry Sokolov's tiny raytracer to C and to FemtoRV32.       */
-/* Original tinyraytracer: https://github.com/ssloy/tinyraytracer        */
-/* Bruno Levy's FemtoRV32 port: FemtoRV/FIRMWARE/EXAMPLES/tinyraytracer.c */
+/* Origin: Dmitry V. Sokolov's tinyraytracer                              */
+/* (https://github.com/ssloy/tinyraytracer, WTFPL), through Bruno Levy's  */
+/* C port in learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE/tinyraytracer.c   */
+/* (BSD-3-Clause; see LICENSE).                                           */
 /*                                                                        */
 /* This version replaces Bruno's platform layer (which targets femtoGL / */
 /* an OLED or HDMI framebuffer, neither of which exists on this design)  */
 /* with a plain ANSI-terminal renderer, adapted from this project's own  */
-/* ST_NICCC.c -- which already proved this exact 256-color-cube escape   */
-/* sequence approach on this hardware. Below "Normally you will not need */
-/* to modify anything beyond that point" is untouched from Bruno's file. */
+/* ST_NICCC.c. Below "Normally you will not need to modify anything      */
+/* beyond that point" the ray tracer is Bruno's, except that render()     */
+/* reports each finished row on the LEDs (progress_row).                  */
 
 #include <math.h>
 // NOTE: the original file includes "errno_fix.h" here, which
-// *defines* int* __errno(). This project's build_flash.sh already compiles
-// and links errno.c (same definition, copied from that same fix)
-// into every program unconditionally -- see fw/errno.c. Including
-// errno_fix.h here too would define __errno() twice and fail to link with
-// "multiple definition of `__errno'". So: no include needed, it's already
-// provided.
+// *defines* int* __errno(). fw/Makefile already links fw/errno.c (the same
+// definition) into every program, so including it too would define
+// __errno() twice and fail to link.
 #include "io.h"
 #include <stdio.h>
 
@@ -34,9 +32,7 @@ static inline float min(float x, float y) { return x<y?x:y; }
 // coloured space), same trick ST_NICCC.c uses for its polygons. Bigger
 // looks better but costs quadratically more render time -- this core has
 // no hardware multiply/divide (RV32I only) and no FPU, so every one of
-// the many float ops per pixel is a software libgcc/libm call. Start
-// small; see the "next steps" notes for how to scale this up once you've
-// seen a first image render successfully.
+// the many float ops per pixel is a software libgcc/libm call.
 #define graphics_width  48
 #define graphics_height 24
 
@@ -46,9 +42,8 @@ static inline void graphics_init() {
 }
 
 static inline void graphics_terminate() {
-    // Move the cursor below the image, reset colors, and use the LEDs as
-    // an unambiguous hardware "done" signal (same convention ST_NICCC.c
-    // uses: IO_OUT(IO_LEDS, 15) at the end of its own render).
+    // Move the cursor below the image, reset colors, and light LD0 to LD3
+    // as a hardware "done" signal.
     printf("\033[%d;1H\033[0m\nDone.\n", graphics_height + 2);
     IO_OUT(IO_LEDS, 15);
 }
@@ -68,7 +63,7 @@ static inline int rgb_to_ansi256(float r, float g, float b) {
 }
 
 // Replaces Bruno's OLED/FGA-framebuffer version. Called once per pixel by
-// render() below -- unmodified from the original file beyond this point.
+// render() below.
 void graphics_set_pixel(int x, int y, float r, float g, float b) {
     r = max(0.0f, min(1.0f, r));
     g = max(0.0f, min(1.0f, g));

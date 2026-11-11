@@ -11,7 +11,8 @@
 # vivado/rtl_sources.txt, then opens it. Runs synth_1 and impl_1
 # through write_bitstream and copies the bitstream to build/SOC.bit. The second
 # argument "synth" stops after synthesis. Prints the post-route WNS/WHS and a
-# "BUILD ... timing=MET|FAILED" line; the script errors out if a run fails.
+# "BUILD ... timing=MET|FAILED" line. The script errors out if a run fails or timing
+# is not met, and then leaves no build/SOC.bit.
 
 source [file join [file dirname [info script]] common.tcl]
 set jobs 4
@@ -48,10 +49,13 @@ if {$stage eq "synth"} {
 run_and_check impl_1 -to_step write_bitstream
 set bit [file join [get_property DIRECTORY [get_runs impl_1]] SOC.bit]
 if {![file exists $bit]} { error "BUILD no bitstream at $bit" }
-file mkdir [file join $root build]
-file copy -force $bit [file join $root build SOC.bit]
+set out_bit [file join $root build SOC.bit]
+file delete -force $out_bit
 
 open_run impl_1
-timing_line BUILD
-puts "BUILD bitstream [file join $root build SOC.bit]"
+lassign [timing_line BUILD] wns whs
+if {$wns < 0 || $whs < 0} { close_project; error "BUILD timing not met: no build/SOC.bit written" }
+file mkdir [file join $root build]
+file copy -force $bit $out_bit
+puts "BUILD bitstream $out_bit"
 close_project

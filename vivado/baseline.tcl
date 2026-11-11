@@ -36,10 +36,10 @@ report_timing_summary -file [file join $out post_route_timing_summary.rpt]
 write_checkpoint -force    [file join $out post_route.dcp]
 
 puts "BASELINE part=$part"
-set wns [timing_line BASELINE]
+set wns [lindex [timing_line BASELINE] 0]
 set period [get_property PERIOD [get_clocks sys_clk_p]]
 puts [format "BASELINE clock=%s period_ns=%.3f Fmax_MHz=%.1f" sys_clk_p $period [expr {1000.0 / ($period - $wns)}]]
-# Table rows look like: | Slice LUTs | 930 | 0 | 0 | 203800 | 0.46 |  (Used, Fixed, Prohibited, Available, Util%)
+# Table rows look like: | Slice LUTs | <used> | <fixed> | <prohibited> | <available> | <util%> |
 set fh [open [file join $out post_route_utilization.rpt]]
 set util_txt [read $fh]
 close $fh

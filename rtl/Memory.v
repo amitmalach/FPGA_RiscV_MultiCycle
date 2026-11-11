@@ -1,11 +1,13 @@
 `timescale 1ns / 1ps
 `include "defines.vh"
+// Origin: the RAM of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE), restructured.
 // Memory -- program and data RAM: WORDS words of block RAM (default RAM_WORDS,
 // 6 KB), one port shared by instruction fetch and load/store. A read is
 // registered: the word requested with mem_rstrb appears on mem_rdata the next
 // cycle. A write lands on the edge its address, data and mask are presented,
 // one byte lane per mem_wmask bit, so the core needs no wait state after a
-// store. The initial contents come from firmware.hex (one word per line,
+// store. The initial contents come from firmware.hex (four words a line,
 // written by make -C fw), resolved by bare name against the working directory
 // of the tool that reads it; a missing file leaves the RAM at X without an
 // error.

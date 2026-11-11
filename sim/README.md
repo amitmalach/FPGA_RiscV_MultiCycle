@@ -8,7 +8,6 @@ How the design is checked in simulation, before it reaches the board.
 | `golden/mandelbrot_bram.txt` | The golden trace: the UART bytes and LED changes of one mandelbrot frame |
 | `run_regression.sh` | Simulates the SoC in xsim and passes only when the trace equals the golden one |
 | `ALUBench.v`, `run_unit.sh` | The ALU unit bench and the script that runs it under iverilog |
-| `asm/` | A Verilog-macro assembler for test programs, with a sample program and a Makefile of its own |
 | `tests/check_golden_mirror.sh` | Holds `docs/baseline.md`'s trace numbers equal to the golden trace; `make lint` runs it |
 | `build/` | Simulation outputs; not tracked |
 
@@ -73,7 +72,7 @@ recorded is a prefix of the golden event list.
 Only when a behaviour change is intended. `make golden` runs
 `sim/run_regression.sh --update-golden`, which overwrites the golden trace with the new run,
 and logs it like the other gates. Commit the trace with the RTL change and the reason for it,
-and update the trace numbers in `docs/baseline.md`, which lint rule 10 holds to the golden file.
+and update the trace numbers in `docs/baseline.md`, which lint rule 9 holds to the golden file.
 
 ## ALU unit bench
 
@@ -83,11 +82,3 @@ out by hand from the RV32I specification. `run_unit.sh`, or `make unit`, compile
 iverilog into `build/unit/` and passes only when the bench prints its final `PASS` line. It
 covers what the golden trace cannot: the golden file records what the RTL did when it was
 captured, right or wrong.
-
-## Assembly test programs
-
-`asm/` holds Bruno Levy's Verilog assembler (`riscv_assembly.v`) and a sample program
-(`program_asm.v`, an ASCII mandelbrot). `make -C sim/asm` runs it under iverilog and writes
-`sim/asm/program.hex`, a RAM image in the format of `rtl/firmware.hex`;
-`make -C sim/asm DEFS=-DBENCH` builds it to run at full speed in simulation, and
-`make -C sim/asm clean` removes the outputs. Neither output is tracked.

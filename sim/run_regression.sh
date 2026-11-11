@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
-# SoC simulation regression.
-#
-# Simulates the SoC top in xsim with the canonical firmware image (mandelbrot,
-# BRAM boot), writes the observed UART bytes and LED changes to a trace file,
-# and diffs it against the committed golden trace. Exit status is non-zero on
-# any difference, so this can gate a refactor.
-#
-#   sim/run_regression.sh                 run and compare
-#   sim/run_regression.sh --update-golden run and overwrite the golden trace
-#   sim/run_regression.sh --max-cycles N  smoke run: the truncated trace must be a prefix of the golden
-#
+# SoC simulation regression (sim/README.md); options in usage() below.
 # Needs Vivado's xvlog/xelab/xsim on PATH (source settings64.sh first).
 set -euo pipefail
 

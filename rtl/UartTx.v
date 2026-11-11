@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Origin: emitter_uart.v (module corescore_emitter_uart) from CoreScore
 // (https://github.com/olofk/corescore), as redistributed by learn-fpga.
-// Modified for this project: module and ports renamed, reset made active-low,
-// parameters typed integer, timescale added, comments rewritten.
+// Modified for this project: same interface and 8N1 frame; the logic is
+// rewritten as an IDLE/SEND state machine with a bit counter, a registered tx
+// and a synchronous active-low reset (upstream ignores its reset); module and
+// ports renamed. Licence text: LICENSES/Apache-2.0.txt.
 //
 // UartTx -- UART transmitter, 8N1, LSB first.
 // valid high for one clock sends data; ready is low until the stop bit has

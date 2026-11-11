@@ -1,3 +1,5 @@
+# Origin: start.S from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE,
+# adapted (BSD-3-Clause; see LICENSE).
 .equ IO_BASE, 0x400000
 # RAM_SIZE: fw/Makefile (--defsym); the stack grows down from the RAM top.
 .section .text

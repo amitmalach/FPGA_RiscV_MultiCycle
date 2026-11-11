@@ -15,15 +15,16 @@ runs demos in C and assembly, from a blinker to a ray tracer. It is not a perfor
 | Path | Contents |
 |---|---|
 | `rtl/` | Synthesizable Verilog, one module per file, `SOC.v` the top; `defines.vh`, the memory map; `firmware.hex`, the one firmware image |
-| `fw/` | Demo programs, start-up code, linker scripts and the image converters |
+| `fw/` | Demo programs, start-up code, linker scripts and the flash-image converter |
 | `sim/` | SoC testbench with its golden trace, ALU unit bench |
 | `constraints/` | Pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: project, bitstream, JTAG load, flash read and write |
 | `docs/` | Final report, design notes, baseline numbers, demo animations |
-| `scripts/` | Lint and git hooks |
-| `build/` | Everything generated: Vivado project, `SOC.bit`, gate logs. Not tracked |
+| `scripts/` | Lint and its pre-commit hook |
+| `build/` | Vivado project, `SOC.bit`, board builds, gate logs; not tracked. `fw/` and `sim/` build into their own `build/` |
 
-Each tracked folder has a README listing its files and the make targets that serve it.
+Each folder in the table but `build/` has a README listing its files and the make targets that
+serve it.
 
 ## Building the firmware
 
@@ -111,6 +112,16 @@ The core starts when the load ends; press the reset button to see the demo from 
 
 ### Flash boot
 
+A board as shipped holds factory data that the scene data and the code partly overwrite. Back
+the whole flash up before the first write (about two minutes):
+
+```sh
+mkdir -p build/board && cd build/board
+vivado -mode batch -nojournal -nolog -source ../../vivado/board_flash.tcl \
+    -tclargs read 0x0 0x2000000 <backup>.bin
+cd -
+```
+
 1. `make -C fw PROG=<demo> TARGET=flash` places the code at flash offset `0xD00000`.
 2. Write it to the flash:
 
@@ -135,14 +146,21 @@ The core starts when the load ends; press the reset button to see the demo from 
 4. Press the reset button once the load has ended: straight after configuration the core's first
    flash fetch is most likely lost (`docs/design/notes.md`, "Flash boot loses its first fetch").
 
-`ST_NICCC`, in either boot mode, also needs its 625 KB scene file, `scene1.dat` (not in this
-repository), at flash offset `0xC00000`: wrap it with `fw/tools/write_mcs.tcl` and write it as
-in step 2.
+`ST_NICCC`, in either boot mode, also needs its 625 KB scene file, `scene1.dat`, at flash offset
+`0xC00000`. It is in https://github.com/BrunoLevy/learn-fpga, `FemtoRV/FIRMWARE/EXAMPLES/DATA/`:
+wrap it with `fw/tools/write_mcs.tcl` and write it as in step 2.
 
-A board as shipped holds factory data that the scene data and the code partly overwrite. Back
-the whole flash up before the first write: step 2 with `-tclargs read 0x0 0x2000000 <file>.bin`
-(about two minutes). To restore, wrap the slice from `0xC00000` with `fw/tools/write_mcs.tcl`
-and write it as in step 2.
+To restore the backup, write back the range the scripts can change, `0xC00000` to `0xFFFFFF`
+(`board_flash.tcl` writes nothing outside it):
+
+```sh
+cd build/board
+dd if=<backup>.bin of=restore.bin bs=64K skip=192 count=64
+vivado -mode batch -nojournal -nolog -source ../../fw/tools/write_mcs.tcl \
+    -tclargs restore.bin restore.mcs 0xC00000
+vivado -mode batch -nojournal -nolog -source ../../vivado/board_flash.tcl -tclargs write restore.mcs
+cd -
+```
 
 ## Simulation and checks
 
@@ -169,4 +187,5 @@ chapter "Implementation results" analyses them.
 
 ## License
 
-BSD-3-Clause, except `rtl/UartTx.v`, which stays under Apache-2.0; see `LICENSE`.
+BSD-3-Clause for this project's code. Third-party files keep their licences: `LICENSE` lists
+each one, and `LICENSES/` holds their texts.

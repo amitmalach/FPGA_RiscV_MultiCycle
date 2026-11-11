@@ -1,3 +1,5 @@
+// Origin: print.c from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE,
+// adapted (BSD-3-Clause; see LICENSE).
 
 #include <stdarg.h>
 #include <stdio.h>

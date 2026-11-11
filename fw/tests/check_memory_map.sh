@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Memory-map mirror check: every constant the firmware repeats from
 # rtl/defines.vh (IO base and register offsets, UART busy bit, RAM size and
-# base, flash base, code offset and window) must still equal the RTL value.
+# base, flash base, code offset and window, and the scene-data offset in
+# fw/ST_NICCC.c) must still equal the RTL value.
 # The RAM size has one firmware copy, RAM_SIZE in fw/Makefile: the stack top in
 # fw/start*.S and the RAM length in fw/memory.ld must spell that symbol, not
 # a number. Runs without any tool; `make lint` calls it. Runs every group;
@@ -43,6 +44,7 @@ fw/memory.ld@s/ORIGIN = 0x01D00000/ORIGIN = 0x01C00000/@FLASH ORIGIN changed
 fw/memory.ld@s/LENGTH = 0x300000/LENGTH = 0x400000/@FLASH LENGTH changed (runs past the 16MB window)
 fw/Makefile@s/^(RAM_SIZE[[:space:]]*=[[:space:]]*)6144$/\18192/@RAM_SIZE changed
 fw/Makefile@s/^(FLASH_CODE_OFFSET[[:space:]]*=[[:space:]]*)0xD00000$/\1/@FLASH_CODE_OFFSET deleted
+fw/ST_NICCC.c@s/^(#define[[:space:]]+ADDR_OFFSET[[:space:]]+)0xC00000/\10xB00000/@ADDR_OFFSET changed
 '
 
 selftest() {
@@ -113,7 +115,7 @@ expect_text() {
 }
 
 for name in IO_BASE IO_LEDS IO_UART_DAT IO_UART_CNTL UART_BUSY_BIT RAM_BASE RAM_WORDS \
-            SPIFLASH_BASE SPIFLASH_ADDR_W SPIFLASH_CODE_OFFSET; do
+            SPIFLASH_BASE SPIFLASH_ADDR_W SPIFLASH_CODE_OFFSET SPIFLASH_DATA_OFFSET; do
     grep -qE "^\`define[[:space:]]+$name[[:space:]]" "$DEF" || { echo "FAIL: no \`define $name in $DEF"; exit 2; }
 done
 IO_BASE=$(vdef IO_BASE);           IO_LEDS=$(vdef IO_LEDS)
@@ -122,6 +124,7 @@ UART_BUSY_BIT=$(vdef UART_BUSY_BIT)
 RAM_BASE=$(vdef RAM_BASE);         RAM_BYTES=$(( $(vdef RAM_WORDS) * 4 ))
 SPIFLASH_BASE=$(vdef SPIFLASH_BASE)
 SPIFLASH_CODE_OFFSET=$(vdef SPIFLASH_CODE_OFFSET)
+SPIFLASH_DATA_OFFSET=$(vdef SPIFLASH_DATA_OFFSET)
 FLASH_ORIGIN=$(( SPIFLASH_BASE + SPIFLASH_CODE_OFFSET ))
 FLASH_LENGTH=$(( (1 << $(vdef SPIFLASH_ADDR_W)) - SPIFLASH_CODE_OFFSET ))
 
@@ -167,6 +170,9 @@ expect memory.ld "FLASH LENGTH" "$(ldfield FLASH LENGTH)" "$FLASH_LENGTH"
 echo "== fw/Makefile"
 expect Makefile RAM_SIZE          "$(mvar Makefile RAM_SIZE)"          "$RAM_BYTES"
 expect Makefile FLASH_CODE_OFFSET "$(mvar Makefile FLASH_CODE_OFFSET)" "$SPIFLASH_CODE_OFFSET"
+
+echo "== fw/ST_NICCC.c"
+expect ST_NICCC.c ADDR_OFFSET "$(cdef ST_NICCC.c ADDR_OFFSET)" "$SPIFLASH_DATA_OFFSET"
 
 [ "$fail" = 0 ] && echo "PASS: firmware memory-map mirrors match rtl/defines.vh"
 exit "$fail"

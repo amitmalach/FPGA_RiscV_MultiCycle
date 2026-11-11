@@ -30,6 +30,7 @@ opt_design
 place_design
 route_design
 
-if {[timing_line BOARD] < 0} { error "BOARD timing not met" }
+lassign [timing_line BOARD] wns whs
+if {$wns < 0 || $whs < 0} { error "BOARD timing not met" }
 write_bitstream -force [file join $out SOC.bit]
 puts "BOARD $boot-boot bitstream [file join $out SOC.bit]"

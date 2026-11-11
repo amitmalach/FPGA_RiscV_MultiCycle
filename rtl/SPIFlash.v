@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: MappedSPIFlash in spi_flash.v from Bruno Levy's learn-fpga
+// (BSD-3-Clause; see LICENSE), adapted.
 // SPIFlash -- SPI NOR flash read controller, plain 03h Read command.
 // One rstrb pulse reads one 32-bit word: spi_cs_n drops, the 8-bit opcode and the
 // 24-bit byte address go out on spi_mosi, 32 data bits come back on spi_miso, spi_cs_n

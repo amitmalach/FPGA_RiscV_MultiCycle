@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: the address decoding of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE), restructured into its own module.
 // IOBus -- address decoder and IO bus.
 // Owns the memory map (defines.vh): selects RAM, IO or SPI-flash space for
 // each core access, holds the LED register, handshakes with the UART

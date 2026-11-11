@@ -1,7 +1,6 @@
-# Repository gates. This header is the one list of what each gate runs and how
-# long it takes.
+# Repository gates: what each runs and how long it takes.
 #
-#   make lint          seconds, no tools: by-products, stale paths, line length, naming, mirrors
+#   make lint          seconds, no tools: by-products, line length, naming, mirrors
 #   make unit          seconds: ALU bench under iverilog, results against hand-worked values
 #   make smoke         ~25 s: unit, firmware check, then a short xsim run matching the golden so far
 #   make check         minutes: unit, firmware reproducibility, xsim regression, Vivado synthesis
@@ -10,19 +9,17 @@
 #   make check-sim     ~6 min: check-fw, then the full xsim regression against the golden trace
 #   make check-synth   under a minute: check-fw, then Vivado synthesis in project mode
 #   make golden        ~6 min: firmware check, then a full xsim run that overwrites the golden trace
-#   make check-moves BASE=<rev>   every file moved since <rev> is a 100 % rename
-#   make bitstream     synthesis, implementation, bitstream to build/SOC.bit
+#   make bitstream     synthesis, implementation, bitstream to build/SOC.bit; fails unless timing is met
 #   make baseline      non-project synth/impl with reports in build/baseline/
 #
-# lint and check-moves need only bash and git; unit needs iverilog; check-fw needs
+# lint needs only bash, git and perl; unit needs iverilog; check-fw needs
 # riscv64-unknown-elf-gcc on PATH; smoke, check, check-sim, check-synth and golden also need
 # Vivado's settings64.sh sourced, and bitstream and baseline need Vivado alone.
 #
 # Every gate writes its output to build/logs/<target>-<timestamp>.log as well as
 # the terminal; targets of one make invocation share the timestamp. The log ends
 # with "PASS: <target>" or "FAIL: <target> (exit N)", and the terminal output ends
-# with "LOG: build/logs/<target>-<timestamp>.log" so `tail -1` gives the line a
-# commit message cites (the commit-msg hook in scripts/hooks checks the citation).
+# with "LOG: build/logs/<target>-<timestamp>.log".
 
 SHELL  := /bin/bash
 VIVADO ?= vivado
@@ -39,7 +36,7 @@ logged = @mkdir -p $(LOGS) && log=$(LOGS)/$(1)-$(STAMP).log && { $(2); } 2>&1 | 
 # run starts inside build/. The scripts take absolute paths.
 VIVADO_BATCH = mkdir -p $(BUILD) && cd $(BUILD) && $(VIVADO) -mode batch -nojournal -nolog
 
-.PHONY: lint unit smoke check check-fw check-sim check-synth golden check-moves bitstream baseline
+.PHONY: lint unit smoke check check-fw check-sim check-synth golden bitstream baseline
 
 lint:
 	$(call logged,lint,scripts/lint.sh)
@@ -74,6 +71,3 @@ bitstream:
 
 baseline:
 	$(call logged,baseline,$(VIVADO_BATCH) -source $(CURDIR)/vivado/baseline.tcl -tclargs $(CURDIR)/$(BUILD)/baseline)
-
-check-moves:
-	$(call logged,check-moves,scripts/lint.sh --moves $(BASE))

@@ -15,7 +15,12 @@ HEX="$(make -s --no-print-directory -C "$FW_DIR" print-hex-path)"
 [ -f "$HEX" ] || { echo "FAIL: canonical image $HEX does not exist"; exit 1; }
 
 REF="$(mktemp)"
-trap 'rm -f "$REF"' EXIT
+# On any failure, put back the image the working tree held, so the check never
+# leaves rtl/firmware.hex deleted or changed.
+SAVED="$(mktemp)"
+cp "$HEX" "$SAVED"
+pass=0
+trap '[ "$pass" = 1 ] || cp "$SAVED" "$HEX"; rm -f "$REF" "$SAVED"' EXIT
 HEX_REPO_PATH="$(git -C "$FW_DIR" ls-files --full-name "$HEX" 2>/dev/null || true)"
 if [ -n "$HEX_REPO_PATH" ] && git -C "$FW_DIR" cat-file -e "HEAD:$HEX_REPO_PATH" 2>/dev/null; then
     git -C "$FW_DIR" show "HEAD:$HEX_REPO_PATH" > "$REF"
@@ -34,6 +39,7 @@ rm -f "$HEX"
 make -s -C "$FW_DIR"
 
 if cmp -s "$REF" "$HEX"; then
+    pass=1
     echo "PASS: regenerated $(basename "$HEX") is byte-identical to the $SRC ($(wc -c < "$HEX") bytes)"
 else
     echo "FAIL: regenerated $HEX differs from the $SRC"

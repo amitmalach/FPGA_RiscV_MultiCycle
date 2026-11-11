@@ -19,11 +19,13 @@ else differs from the synthesized design.
 
 ## Synthesis and implementation
 
-`make baseline` (`vivado/baseline.tcl`, launched from `build/`), Vivado 2025.2,
-part `xc7k325tffg900-2`, constraints `Genesys-2-Master.xdc` (200 MHz `sys_clk_p`,
-5.000 ns period). Reports in `build/baseline/` (not committed). Numbers from another
-run are only comparable when produced by the same script; a project-mode run with
-different synthesis settings will not match.
+`make baseline` (`vivado/baseline.tcl`, launched from `build/`), run on 2026-10-28 with
+Vivado 2025.2 (build 6299465); since then the RTL, `rtl/firmware.hex` and the constraints have
+changed only in comments. Part `xc7k325tffg900-2`, constraints `Genesys-2-Master.xdc` (200 MHz
+`sys_clk_p`, 5.000 ns period). The script sets no parameter, so this is the flash-boot design
+(`BOOT_ADDR_FLASH`) with `rtl/firmware.hex` in the RAM. Reports in `build/baseline/` (not
+committed). Numbers from another run are only comparable when produced by the same script; a
+project-mode run with different synthesis settings will not match.
 
 | | |
 |---|---|

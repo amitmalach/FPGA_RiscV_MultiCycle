@@ -1,22 +1,16 @@
 `timescale 1ns/1ps
+`include "defines.vh"
 
-// bench -- SoC-level regression testbench. Observes the SoC from the outside
-// only (LEDs and the FPGA-to-PC UART line) and writes one line per event to a
-// trace file: LEDS <time_ns> <hex>, UART <hex>, END <reason> cycles=<n>
-// uart_bytes=<n> leds=<hex>. Nothing internal is read, so the RTL can change
-// freely as long as the trace stays byte-identical to sim/golden/*.txt.
-// BOOT_ADDR is forced to 0 (BRAM boot: no SPI-flash model); the run script
-// links firmware.hex into xsim's working directory. The run stops when LEDS
-// becomes STOP_LEDS (the mandelbrot frame counter, 1 = first frame drawn;
-// negative = never) or after MAX_CYCLES. Plusargs override the parameters:
-// +out=<file> +max_cycles=<n> +stop_leds=<n>. See sim/README.md.
+// bench -- SoC-level regression testbench, in BRAM boot (no SPI-flash model).
+// Observes only the LEDs and the FPGA-to-PC UART line and writes a trace;
+// trace format, stop conditions and plusargs: sim/README.md.
 
 module bench();
 
    parameter         OUT_FILE   = "sim_out.txt";
    parameter integer MAX_CYCLES = 400_000_000;  // 2 s of simulated time at 200 MHz
    parameter integer STOP_LEDS  = 1;
-   parameter integer BAUD       = 115200;       // passed to the SoC, decoded below
+   parameter integer BAUD       = `UART_BAUD;   // passed to the SoC, decoded below
 
    // Differential 200 MHz clock: period 5 ns.
    reg sysclk_p = 1'b0;
@@ -37,7 +31,7 @@ module bench();
    wire spiflash_mosi;
 
    SOC #(
-      .BOOT_ADDR     (32'h00000000),    // BRAM boot; see header
+      .BOOT_ADDR     (`BOOT_ADDR_BRAM),
       .UART_BAUD     (BAUD)
    ) uut (
       .sysclk_p      (sysclk_p),

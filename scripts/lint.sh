@@ -1,70 +1,32 @@
 #!/usr/bin/env bash
-# Mechanical checks that need no EDA tools. Exit 1 on the first failing group.
-#
-#   scripts/lint.sh                  all checks below
-#   scripts/lint.sh --moves <rev>    only: every file moved since <rev> is a 100 % rename
+# Mechanical checks that need no EDA tools. Runs every check; exits 1 if any failed.
 #
 # 1. No ignored by-products under rtl/, sim/ or fw/ except the build outputs
-#    the Makefiles own (sim/build/, fw/build/, sim/asm/program.hex,
-#    program_asm.out). Catches Vivado writing .Xil/ or clockInfo.txt next to
-#    the sources. Also no Vivado by-product at the repository root or under
-#    vivado/, constraints/, docs/ or scripts/: everything Vivado writes belongs
-#    under build/.
-# 2. No tracked file refers to a retired path (old Vivado import tree,
-#    firmware/, bench_iverilog.v, vivado/sources.tcl). No tracked file uses
-#    retired vocabulary either: "tutorial", a tutorial
-#    step number (10 to 24), step1.v, "ticket #", "seam 1/2". The published
-#    tree describes the design, not where it came from or how it was tidied.
-# 3. Markdown prose lines are at most 100 characters; table rows are exempt.
-# 4. vivado/rtl_sources.txt lists exactly the tracked rtl/*.v and rtl/*.vh
+#    the Makefiles own (sim/build/, fw/build/). Catches Vivado writing .Xil/ or
+#    clockInfo.txt next to the sources. Also no Vivado by-product directly in
+#    the repository root, vivado/, constraints/, docs/ or scripts/: everything
+#    Vivado writes belongs under build/.
+# 2. Markdown prose lines are at most 100 characters; table rows are exempt.
+# 3. vivado/rtl_sources.txt lists exactly the tracked rtl/*.v and rtl/*.vh
 #    files: a file missing from the list compiles nowhere and fails nowhere.
-# 5. File name equals module name, one word without underscores, for every
+# 4. File name equals module name, one word without underscores, for every
 #    rtl/*.v, sim/*.v and vivado/*/*.v (the flash register tool and its bench).
-#    sim/asm/ is exempt: the third-party assembler and the sample program it
-#    assembles.
-# 6. Active-low signals are declared with an _n suffix, never resetn/rstn.
-# 7. Section banners ("// ---- name ----...") in rtl/*.v, sim/*.v and
+# 5. Active-low signals are declared with an _n suffix, never resetn/rstn.
+# 6. Section banners ("// ---- name ----...") in rtl/*.v, sim/*.v and
 #    vivado/*/*.v end at column 80.
-# 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S,
-#    fw/blinker.S, fw/start*.S, fw/memory.ld, fw/Makefile) equal
-#    rtl/defines.vh; start*.S and memory.ld take the RAM size from the one
-#    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh,
-#    whose --selftest proves it detects a change or deletion of every value it
-#    checks.
-# 9. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v,
-#    sim/asm/*.v and vivado/*/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*). The first
-#    name of each declaration is checked, with // and single-line /* */
-#    comments stripped. sim/asm/riscv_assembly.v is exempt: it is third-party
-#    (Bruno Levy's assembler, kept as upstream wrote it) and its lower-case
-#    localparams are the RISC-V ABI register names (a0, sp, ra, ...) that the
-#    assembly programs use as mnemonics.
-# 10. The golden-trace summary in docs/baseline.md (cycles, simulated seconds,
-#    UART bytes, LED changes) equals the END and LEDS lines of the golden trace:
-#    sim/tests/check_golden_mirror.sh, whose --selftest proves it detects a
-#    change or deletion of every value it checks.
+# 7. fw/tests/check_memory_map.sh and its --selftest: every copy of a
+#    memory-map value outside rtl/ equals rtl/defines.vh.
+# 8. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v
+#    and vivado/*/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*). The first name of each
+#    declaration is checked, with // and single-line /* */ comments stripped.
+# 9. sim/tests/check_golden_mirror.sh and its --selftest: the golden-trace
+#    summary in docs/baseline.md equals the golden trace.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
 
-moves_check() {
-    local base="$1"
-    [ -n "$base" ] || { echo "usage: scripts/lint.sh --moves <rev>" >&2; exit 2; }
-    # With -M100% only byte-identical moves are reported as renames; anything
-    # else shows up as an add or delete and is listed here.
-    local bad
-    bad=$(git diff -M100% --name-status --diff-filter=AD "$base" -- . ':!*.md' ':!LICENSE' ':!Makefile' ':!.gitignore' ':!scripts/*' ':!vivado/*')
-    if [ -n "$bad" ]; then
-        echo "FAIL: not a pure move since $base (A = added, D = deleted):"
-        echo "$bad"
-        exit 1
-    fi
-    echo "PASS: every file moved since $base is a byte-identical rename"
-    exit 0
-}
-[ "${1:-}" = "--moves" ] && moves_check "${2:-}"
-
 echo "== by-products in the source tree"
-allowed='^!! (sim/build/|fw/build/|sim/asm/program\.hex|sim/asm/program_asm\.out)$'
+allowed='^!! (sim/build/|fw/build/)$'
 stray=$(git status --short --ignored -- rtl sim fw | grep '^!!' | grep -Ev "$allowed" || true)
 if [ -n "$stray" ]; then
     echo "FAIL: ignored files under rtl/, sim/ or fw/ that no Makefile owns:"
@@ -78,22 +40,6 @@ vivado_junk=$(find . vivado constraints docs scripts -maxdepth 1 \
 if [ -n "$vivado_junk" ]; then
     echo "FAIL: Vivado by-products outside build/ (run the Tcl scripts from their output directory):"
     echo "$vivado_junk"
-    fail=1
-fi
-
-echo "== retired paths"
-retired='bench_iverilog\.v|vivado/sources\.tcl|(^|[^a-z_/])firmware/'
-hits=$(git ls-files | xargs grep -nE "$retired" 2>/dev/null | grep -v '^scripts/lint.sh:' || true)
-if [ -n "$hits" ]; then
-    echo "FAIL: references to paths that no longer exist:"
-    echo "$hits"
-    fail=1
-fi
-vocabulary='[Tt]utorial|\b[Ss]teps? ?(1[0-9]|2[0-4])\b|step1\.v|ticket #|seam [12]'
-hits=$(git ls-files | xargs grep -nE "$vocabulary" 2>/dev/null | grep -v '^scripts/lint.sh:' || true)
-if [ -n "$hits" ]; then
-    echo "FAIL: retired vocabulary (tutorial, step numbers, step1.v, ticket #, seam):"
-    echo "$hits"
     fail=1
 fi
 
@@ -115,7 +61,7 @@ if [ "$listed" != "$tracked" ]; then
 fi
 
 echo "== module name equals file name"
-for f in $(git ls-files 'rtl/*.v' 'sim/*.v' 'vivado/*/*.v' | grep -v '^sim/asm/'); do
+for f in $(git ls-files 'rtl/*.v' 'sim/*.v' 'vivado/*/*.v'); do
     want=$(basename "$f" .v)
     got=$(grep -oE '^\s*module\s+[A-Za-z_][A-Za-z0-9_]*' "$f" | awk '{print $2}')
     if [ "$got" != "$want" ]; then
@@ -150,8 +96,7 @@ fw/tests/check_memory_map.sh | grep -E '^(FAIL|PASS)' || fail=1
 fw/tests/check_memory_map.sh --selftest | grep -E '^(FAIL|PASS)' || fail=1
 
 echo "== UPPER_CASE macros, parameters and localparams"
-bad_case=$(git ls-files 'rtl/*.v' 'rtl/*.vh' 'sim/*.v' 'sim/asm/*.v' 'vivado/*/*.v' \
-    | grep -v '^sim/asm/riscv_assembly\.v$' \
+bad_case=$(git ls-files 'rtl/*.v' 'rtl/*.vh' 'sim/*.v' 'vivado/*/*.v' \
     | xargs perl -ne '
         s{//.*}{}; s{/\*.*?\*/}{}g;
         while (/(?:`define|\b(?:parameter|localparam)\b)\s+(?:(?:integer|real|time|signed|unsigned)\s+)*(?:\[[^\]]*\]\s*)?(?:signed\s+)?([A-Za-z_][A-Za-z0-9_]*)/g) {

@@ -1,3 +1,6 @@
+// Origin: io.h from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE,
+// adapted (BSD-3-Clause; see LICENSE).
+
 #include <stdint.h>
 
 #define IO_BASE       0x400000

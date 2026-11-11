@@ -1,3 +1,5 @@
+# Origin: putchar.S from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE,
+# adapted (BSD-3-Clause; see LICENSE).
 # IO-reg offsets from IO_BASE, which start*.S load into gp.
 # To read or write one of them, use IO_XXX(gp)
 .equ IO_UART_DAT, 8

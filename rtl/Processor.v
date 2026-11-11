@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: restructured from the core of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE).
 // Processor -- multi-cycle RV32I core.
 // Instantiates the decoder, ALU, register file and control FSM and keeps the
 // datapath glue: pc, the instruction register, next-pc and load/store address

@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: split out of the core of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE).
 // Decoder -- RV32I instruction fields, immediates and instruction-class flags.
 // Purely combinational on the instruction word. The class flags come from
 // disjoint opcodes, so at most one is high; every instruction this core

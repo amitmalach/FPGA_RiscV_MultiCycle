@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: split out of the core of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE).
 // RegisterFile -- the 32 RV32I integer registers.
 // Synchronous read: rs1 and rs2 are latched on the edge where read_en is
 // high and hold until the next read. Synchronous write of rd on write_en.

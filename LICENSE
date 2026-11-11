@@ -1,9 +1,7 @@
 BSD 3-Clause License
 
 Copyright (c) 2026, Amit Malach
-Copyright (c) 2020, Bruno Levy (learn-fpga: rtl/Clockworks.v, sim/asm/riscv_assembly.v, and code adapted from it in rtl/SOC.v, rtl/SPIFlash.v and fw/)
-Copyright (c) 2023, Olof Kindgren (rtl/UartTx.v, from CoreScore; that file stays under Apache-2.0, as its header states)
-Copyright (c) Dmitry V. Sokolov (fw/tinyraytracer.c, ported from https://github.com/ssloy/tinyraytracer)
+Copyright (c) 2020, Bruno Levy
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,3 +28,36 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------------------------
+Third-party code
+
+The files below come from, or are adapted from, other projects and keep their
+authors' terms. Each one names its origin in its header.
+
+learn-fpga, Bruno Levy, https://github.com/BrunoLevy/learn-fpga
+BSD-3-Clause, the licence above.
+  rtl/Clockworks.v, rtl/SPIFlash.v                                  adapted
+  rtl/Processor.v, rtl/Control.v, rtl/Decoder.v, rtl/ALU.v,
+  rtl/RegisterFile.v, rtl/Memory.v, rtl/IOBus.v, rtl/SOC.v          restructured
+      from the core and SoC of step24.v, series From Blinker to RISC-V
+  fw/errno.c, fw/memcpy.c, fw/mandelbrot.c, fw/riscv_logo.c, fw/wait.S
+                                                                    as upstream
+  fw/print.c, fw/putchar.S, fw/start.S, fw/start_spiflash.S, fw/blinker.S,
+  fw/io.h, fw/bram.ld, fw/spiflash.ld, fw/ST_NICCC.c                adapted
+
+CoreScore, Olof Kindgren, https://github.com/olofk/corescore
+Apache-2.0: LICENSES/Apache-2.0.txt.
+  rtl/UartTx.v                                         modified, as its header states
+
+digilent-xdc, Digilent, https://github.com/Digilent/digilent-xdc
+MIT, Copyright (c) 2017 Digilent: LICENSES/MIT.txt.
+  constraints/Genesys-2-Master.xdc                     modified, as its header states
+
+tinyraytracer, Dmitry V. Sokolov, https://github.com/ssloy/tinyraytracer
+WTFPL; through Bruno Levy's C port in learn-fpga (BSD-3-Clause).
+  fw/tinyraytracer.c                                   adapted
+
+PicoRV32, https://github.com/YosysHQ/picorv32
+Public domain, as the file states; through learn-fpga.
+  fw/sieve.c                                           adapted

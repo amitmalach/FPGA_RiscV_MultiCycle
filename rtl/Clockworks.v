@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2020 Bruno Levy
 // SPDX-License-Identifier: BSD-3-Clause
-// Origin: clockworks.v from Bruno Levy's learn-fpga; the PLL and power-on
-// reset branches are removed, the gearbox is kept as is; ports renamed and
-// SLOW moved into the ANSI parameter list.
+// Origin: clockworks.v from Bruno Levy's learn-fpga. The PLL, the power-on
+// reset and the board macros are removed; the gearbox, a clock divider
+// upstream, is rewritten as a clock enable with a reset; ports renamed.
 //
 // Clockworks -- clock enable and reset for the design.
 //   clk_enable: high once every 2^SLOW cycles of clk (every cycle when SLOW=0)

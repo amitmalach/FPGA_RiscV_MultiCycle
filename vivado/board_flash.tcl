@@ -10,33 +10,29 @@
 #
 # read copies <bytes> bytes of the flash, from byte <offset>, into <out.bin>.
 #
-# write programs and verifies the bytes a flash image covers and nothing else, Hardware
-# Manager's "Configuration File Only": on my board, a readback of the whole chip after
-# a write differed from the one before only in the image's bytes. It refuses an image with any
-# byte outside FLASH_LO to FLASH_HI: below lies the configuration bitstream the board boots at
-# power-on (on my board, Digilent's factory demo), which no script here writes, and
-# above, the SoC's flash window has ended (SPIFLASH_ADDR_W in rtl/defines.vh). The images it is
-# meant for are the scene data at 0xC00000 and a demo at the code offset, 0xD00000, both built
-# by fw/tools/write_mcs.tcl.
+# write programs and verifies only the bytes the image covers (Hardware Manager's
+# "Configuration File Only") and refuses an image with any byte outside FLASH_LO to FLASH_HI.
+# Below FLASH_LO (SPIFLASH_DATA_OFFSET in rtl/defines.vh) lies the configuration bitstream the
+# board boots at power-on, which no script here writes; above FLASH_HI the SoC's flash window
+# ends (SPIFLASH_ADDR_W). The images come from fw/tools/write_mcs.tcl: the scene data at
+# 0xC00000, a demo at the code offset 0xD00000.
 #
-# write keeps the flash's non-volatile Quad Enable bit (S25FL256S configuration register 1,
-# bit 1) with PROGRAM.SKIP_QE_BIT_ERASE. At that property's default, 0, a write cleared the
-# bit, and a write with an SPIx4 .prm did not set it back. The bitstream the board
-# boots at power-on reads the flash four bits wide (opcode 0x6C, Quad Output Read with a
-# four-byte address, in its BSPI register) and needs the bit: without it the FPGA stalls in
-# configuration, with no error flagged. On my board one such write left it
-# unable to boot until flashregs/FlashRegs.v, beside this script, set the bit again; that tool
-# also reads the bit, which Vivado's Tcl has no command for (README.md here says how to use it).
+# write sets PROGRAM.SKIP_QE_BIT_ERASE: without it the write clears the flash's Quad Enable
+# bit and the board stops booting at power-on (vivado/README.md, "The Quad Enable bit").
 #
 # <target> picks the JTAG cable as in board_program.tcl. The part is the Genesys 2's S25FL256S
 # as Digilent names it for Vivado; Vivado's width-specific names for this chip are for Zynq only.
 
 source [file join [file dirname [info script]] board_jtag.tcl]
 set FLASH_PART s25fl256sxxxxxx0-spi-x1_x2_x4
-set FLASH_LO 0xC00000
 set fh [open [file join $root rtl defines.vh]]
-regexp -line {^`define\s+SPIFLASH_ADDR_W\s+(\d+)} [read $fh] -> addr_w
+set defines [read $fh]
 close $fh
+if {![regexp -line {^`define\s+SPIFLASH_ADDR_W\s+(\d+)} $defines -> addr_w] ||
+    ![regexp -line {^`define\s+SPIFLASH_DATA_OFFSET\s+32'h([0-9A-Fa-f]+)} $defines -> lo_hex]} {
+    error "BOARD rtl/defines.vh: SPIFLASH_ADDR_W or SPIFLASH_DATA_OFFSET not found"
+}
+scan $lo_hex %x FLASH_LO
 set FLASH_HI [expr {(1 << $addr_w) - 1}]
 
 # The lowest and highest byte address of the data records of an Intel HEX (.mcs) file.

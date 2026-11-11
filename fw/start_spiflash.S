@@ -1,6 +1,9 @@
 # =============================================================================
 # start_spiflash.S -- startup code for programs that execute from SPI flash
 # =============================================================================
+# Origin: based on start_spiflash1.S from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE
+# (BSD-3-Clause; see LICENSE).
+#
 # This replaces start.S for flash-resident programs.
 #
 # The CPU's reset vector (Processor.v's RESET_PC, set from SOC.v's

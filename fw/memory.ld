@@ -9,7 +9,7 @@
  * the flash region bit in rtl/defines.vh) + 0x00D00000 (13MB into the physical
  * chip). That offset is forced by what already occupies the chip:
  *   0x000000..0xAE9E10  this design's FPGA bitstream (~10.91MB)
- *   0xC00000..0xC9C3E7  scene1.dat, the ST_NICCC polygon stream (640KB)
+ *   0xC00000..0xC9C3E7  scene1.dat, the ST_NICCC polygon stream (625 KB)
  *   0xD00000..0xFFFFFF  <- us: 3MB, 64KB-sector-aligned, clear of both
  * 0xFFFFFF is a hard ceiling: SPIFlash.v's 22-bit word_address reaches 16MB.
  *

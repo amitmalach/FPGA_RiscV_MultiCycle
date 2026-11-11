@@ -1,6 +1,8 @@
 /* ===========================================================================
  * spiflash.ld -- flash boot: code executes in place from SPI flash
  * ===========================================================================
+ * Origin: based on spiflash1.ld to spiflash3.ld from Bruno Levy's learn-fpga, FROM_BLINKER_TO_RISCV/FIRMWARE
+ * (BSD-3-Clause; see LICENSE), themselves inspired by PicoSoC's sections.lds.
  * Memory regions: memory.ld.
  *
  * The split:
@@ -40,9 +42,9 @@
  *
  * BUDGET WARNING: everything listed here consumes the same 6KB BRAM that
  * also holds .data, .bss and the stack. Adding too much will silently push
- * the stack into your own code. firmware_words reports the occupancy --
- * watch it, and keep headroom for the stack (ST_NICCC.c alone peaks around
- * 576 bytes of stack).
+ * the stack into your own code. Nothing reports or checks the RAM use of a
+ * flash build: riscv64-unknown-elf-size shows it. Keep headroom for the stack
+ * (ST_NICCC.c alone peaks around 576 bytes of stack).
  * =========================================================================== */
 
 INCLUDE memory.ld

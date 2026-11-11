@@ -12,8 +12,7 @@
 # Variables: PROG (default mandelbrot), TARGET (bram or flash), BUILD (output directory,
 # default build/), HEX_OUT (the BRAM-boot image, below), RAM_SIZE (below), CROSS (the toolchain
 # prefix), XILINX_RV32_ROOT (Vivado's RISC-V newlib, for tinyraytracer). A flash build runs
-# Vivado's write_cfgmem, so it needs Vivado's settings64.sh sourced; a BRAM build compiles the
-# ELF-to-hex converter with HOSTCXX (default g++).
+# Vivado's write_cfgmem, so it needs Vivado's settings64.sh sourced.
 #
 # Demos: blinker sieve mandelbrot riscv_logo ST_NICCC (BRAM or flash)
 #        tinyraytracer (flash only: ~29 KB of code, the RAM holds 6 KB)
@@ -47,7 +46,6 @@ AS       = $(CROSS)as
 CC       = $(CROSS)gcc
 LD       = $(CROSS)ld
 OBJCOPY  = $(CROSS)objcopy
-HOSTCXX ?= g++
 VIVADO  ?= vivado
 
 ARCHFLAGS = -march=rv32i -mabi=ilp32
@@ -69,12 +67,12 @@ MATH_LIB = -L$(XILINX_RV32_ROOT)/lib/rv32i/ilp32 -lm
 # --- objects ------------------------------------------------------------------
 LIBOBJS = $(addprefix $(BUILD)/,putchar.o wait.o print.o memcpy.o errno.o)
 
-FW_WORDS     = $(BUILD)/firmware_words
-FW_WORDS_SRC = tools/firmware_words_src/firmware_words.cpp tools/firmware_words_src/femto_elf.c
-
 # Records which demo HEX_OUT currently holds, so `make PROG=x` after
 # `make PROG=y` rebuilds the image even though both ELFs already exist.
 IMAGE_DEMO_STAMP = $(BUILD)/image_demo
+# Records the RAM_SIZE the start-up objects and the ELFs were built with (they take
+# it as a symbol), so another RAM_SIZE rebuilds them.
+RAM_SIZE_STAMP = $(BUILD)/ram_size
 
 # Link: $(1) = linker script, $(2) = startup object. The demo object ($<)
 # comes right after the startup code; libgcc (and libm when set) close the group.
@@ -137,26 +135,36 @@ $(BUILD)/%.s: %.c | $(BUILD)
 $(BUILD)/tinyraytracer.o:            CFLAGS     += $(MATH_INC)
 $(BUILD)/tinyraytracer.spiflash.elf: EXTRA_LIBS  = $(MATH_LIB)
 
-$(FW_WORDS): $(FW_WORDS_SRC) tools/firmware_words_src/femto_elf.h | $(BUILD)
-	$(HOSTCXX) -O2 -Itools/firmware_words_src -DSTANDALONE_FEMTOELF $(FW_WORDS_SRC) -o $@
-
 ifneq ($(file <$(IMAGE_DEMO_STAMP)),$(PROG))
 .PHONY: $(IMAGE_DEMO_STAMP)
 endif
 $(IMAGE_DEMO_STAMP): | $(BUILD)
 	@echo $(PROG) > $@
 
+ifneq ($(file <$(RAM_SIZE_STAMP)),$(RAM_SIZE))
+.PHONY: $(RAM_SIZE_STAMP)
+endif
+$(RAM_SIZE_STAMP): | $(BUILD)
+	@echo $(RAM_SIZE) > $@
+$(BUILD)/start.o $(BUILD)/start_spiflash.o: $(RAM_SIZE_STAMP)
+
 # --- BRAM boot: start.S + program + support, everything in the 6 KB RAM --------
-$(BUILD)/%.bram.elf: $(BUILD)/%.o $(BUILD)/start.o $(LIBOBJS) bram.ld memory.ld
+$(BUILD)/%.bram.elf: $(BUILD)/%.o $(BUILD)/start.o $(LIBOBJS) bram.ld memory.ld $(RAM_SIZE_STAMP)
 	$(call link,bram.ld,$(BUILD)/start.o)
 
-$(HEX_OUT): $(BUILD)/$(PROG).bram.elf $(FW_WORDS) $(IMAGE_DEMO_STAMP)
-	$(FW_WORDS) $< -ram $(RAM_SIZE) -max_addr $(RAM_SIZE) -out $@
+# The image: the program's bytes padded to the whole RAM, four little-endian words a line,
+# the format $$readmemh reads. The linker's RAM region already refuses a program that does
+# not fit.
+$(HEX_OUT): $(BUILD)/$(PROG).bram.elf $(IMAGE_DEMO_STAMP)
+	$(OBJCOPY) -O binary --pad-to=$(RAM_SIZE) $< $(BUILD)/$(PROG).bram.bin
+	od -An -v -tx4 -w16 --endian=little $(BUILD)/$(PROG).bram.bin > $(BUILD)/$(PROG).bram.od
+	sed 's/^ //; s/$$/ /' $(BUILD)/$(PROG).bram.od > $@
 
 bram: $(HEX_OUT)
 
 # --- flash boot: code in SPI flash, .data/.bss/fastcode copied to RAM at startup
-$(BUILD)/%.spiflash.elf: $(BUILD)/%.o $(BUILD)/start_spiflash.o $(LIBOBJS) spiflash.ld memory.ld
+$(BUILD)/%.spiflash.elf: $(BUILD)/%.o $(BUILD)/start_spiflash.o $(LIBOBJS) spiflash.ld memory.ld \
+                         $(RAM_SIZE_STAMP)
 	$(call link,spiflash.ld,$(BUILD)/start_spiflash.o)
 
 $(BUILD)/%.spiflash.bin: $(BUILD)/%.spiflash.elf

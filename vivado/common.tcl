@@ -24,12 +24,12 @@ proc arg_or {i default} {
 }
 
 # Print "<prefix> WNS_ns=... WHS_ns=... timing=MET|FAILED" for the open
-# implemented design. Setup and hold only; pulse-width and recovery checks
-# are in the timing summary report.
+# implemented design and return {WNS WHS}. Setup and hold only; pulse-width and
+# recovery checks are in the timing summary report.
 proc timing_line {prefix} {
     set wns [get_property SLACK [get_timing_paths -max_paths 1 -nworst 1 -setup]]
     set whs [get_property SLACK [get_timing_paths -max_paths 1 -nworst 1 -hold]]
     puts [format "%s WNS_ns=%.3f WHS_ns=%.3f timing=%s" $prefix $wns $whs \
           [expr {$wns >= 0 && $whs >= 0 ? "MET" : "FAILED"}]]
-    return $wns
+    return [list $wns $whs]
 }

@@ -1,4 +1,5 @@
-// Taken from picorv32
+// Origin: firmware/sieve.c from PicoRV32 (https://github.com/YosysHQ/picorv32),
+// through Bruno Levy's learn-fpga; public domain, as stated below.
 // 
 // This is free and unencumbered software released into the public domain.
 //

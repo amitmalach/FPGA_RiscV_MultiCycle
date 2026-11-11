@@ -3,9 +3,9 @@
 // and the flash base in fw/io.h, the UART register offsets and busy bit in
 // fw/putchar.S, the LED offset in fw/blinker.S, the IO base in fw/start*.S,
 // the RAM size as RAM_SIZE in fw/Makefile (fed to start*.S and memory.ld as a
-// symbol) and the flash region in fw/memory.ld. fw/tests/check_memory_map.sh
-// (lint rule 8) keeps them all equal.
-// sim/asm/program_asm.v includes this file instead of copying.
+// symbol), the flash region in fw/memory.ld and the scene-data offset in
+// fw/ST_NICCC.c. fw/tests/check_memory_map.sh (lint rule 7) keeps them all
+// equal. sim/bench.v and vivado/board_flash.tcl read this file directly.
 `ifndef DEFINES_VH
 `define DEFINES_VH
 
@@ -43,9 +43,11 @@
 `define IO_UART_CNTL   32'h00000010   // read: UART status
 `define UART_BUSY_BIT  9              // status bit: transmitter busy
 
-// ---- boot -----------------------------------------------------------------
-// Flash boot: program code sits 13 MB into the chip, after the bitstream
-// (~10.9 MB) and the ST_NICCC scene data (12 MB..12.6 MB), 64 KB aligned.
+// ---- flash layout and boot ------------------------------------------------
+// Offsets into the flash chip, 64 KB aligned, clear of the bitstream (~10.9 MB
+// from 0): the ST_NICCC scene data (625 KB) at 12 MB; flash-boot program code
+// at 13 MB.
+`define SPIFLASH_DATA_OFFSET 32'h00C00000
 `define SPIFLASH_CODE_OFFSET 32'h00D00000
 `define BOOT_ADDR_FLASH      (`SPIFLASH_BASE + `SPIFLASH_CODE_OFFSET)
 `define BOOT_ADDR_BRAM       `RAM_BASE

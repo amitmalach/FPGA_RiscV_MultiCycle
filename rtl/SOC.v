@@ -1,5 +1,7 @@
 `timescale 1ns/1ps
 `include "defines.vh"
+// Origin: the SOC of step24.v in Bruno Levy's learn-fpga series From Blinker to RISC-V
+// (BSD-3-Clause; see LICENSE); the Genesys 2 clock input and STARTUPE2 added.
 // SOC -- top level for the Digilent Genesys 2.
 // Wiring only: clock and reset (IBUFDS, BUFG, Clockworks), the RV32I core,
 // the IO bus (address decode, LED register, UART and flash handshakes), the
