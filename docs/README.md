@@ -2,7 +2,6 @@
 
 | Path | What it is |
 |---|---|
-| `CONTRIBUTING.md` | The coding conventions, the gates and which log a commit cites, and the review checklist |
 | `baseline.md` | The reference numbers: the golden trace's cycle count and the synthesis and timing results |
 | `design/` | The final report and everything behind it |
 
@@ -27,5 +26,5 @@ make -C docs/design captures   # record the board captures again: the board, Viv
 make -C docs/design clean
 ```
 
-`figures` is also available in parts: `board-figures`, `waves`, `flow`, `impl` and
-`schematics`. The header of `design/Makefile` says what each needs.
+`figures` is also available in parts: `board-figures`, `waves` and `impl`. The header of
+`design/Makefile` says what each needs.

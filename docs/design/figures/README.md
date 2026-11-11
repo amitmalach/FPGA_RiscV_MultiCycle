@@ -8,8 +8,8 @@ builds the PDF from the committed figures without Vivado or the board. Paths bel
 to the repository root.
 
 Formats: PDF for vector drawings, PNG for screenshots, JPEG for photos, GIF for the README's
-animations, and LaTeX for the excerpts a drawing in `design.tex` sets (`flow_excerpts.tex`,
-`board_sieve.tex`). Keep the source of a
+animations, and LaTeX for the excerpts a drawing in `design.tex` sets (`board_sieve.tex`).
+Keep the source of a
 hand-made drawing (for example `.svg`) next to its exported PDF.
 
 A photo is committed without its metadata: a phone writes the GPS position into the EXIF
@@ -25,14 +25,12 @@ image data; dropping segments, rather than re-saving, leaves every pixel as it w
 | `rtl_alu.pdf` | 6, The multi-cycle core | `make figures`, as above |
 | `wave_fsm.pdf` | 6, The multi-cycle core: four instructions through the FSM states | `make figures`: `docs/design/scripts/waves/WaveBench.v` under iverilog, rendered by `docs/design/scripts/vcd_wave.py`; "Waveforms" below |
 | `wave_flash.pdf`, `wave_flash_end.pdf` | 7, Memory and memory-mapped IO: an instruction fetched from the flash, whole and its end | `make figures`, as `wave_fsm.pdf` |
-| `flow_excerpts.tex` | 9, From C to the board: the excerpts of the flow figure, drawn in `design.tex` | `make figures`: `docs/design/scripts/flow_excerpts.py`; "The C-to-board flow" below |
-| `sch_oscillator.png`, `sch_reset.png`, `sch_leds.png`, `sch_uart.png`, `sch_config.png`, `sch_mode.png` | 2, Board and tools: excerpts of Digilent's schematic | `make figures`: `docs/design/scripts/schematic_crops.sh`, from a local copy of the schematic; "Schematic excerpts" below |
-| `vivado_io_package.png` | 2, Board and tools: the pins and the banks, cropped to the package under a box per module, a label per bank and a key of its symbols, all drawn in `design.tex` | by hand, recipe below |
-| `impl_results.tex` | 11, Implementation results: its numbers, the utilization table's rows and the data of the slack, logic-level and power charts, drawn in `design.tex` | `make figures`: `docs/design/scripts/impl_reports.tcl` and `docs/design/scripts/impl_results.py`; "Implementation results" below |
-| `timing_worst_path.pdf` | 11, Implementation results: the worst setup path | `make figures`: `docs/design/scripts/path_schematic.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
-| `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 11, Implementation results: the zoom series | by hand, recipe below |
-| `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 11, Implementation results: the worst path | by hand, recipe below |
-| `board_mandelbrot.pdf` | 1, Introduction: the frames of the capture, a page each; page 1 also in 9, the flow figure | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
+| `vivado_io_package.png` | 2, The board: the pins and the banks, cropped to the package under a box per module, a label per bank and a key of its symbols, all drawn in `design.tex` | by hand, recipe below |
+| `impl_results.tex` | 10, Implementation results: its numbers, the utilization table's rows and the data of the slack, logic-level and power charts, drawn in `design.tex` | `make figures`: `docs/design/scripts/impl_reports.tcl` and `docs/design/scripts/impl_results.py`; "Implementation results" below |
+| `timing_worst_path.pdf` | 10, Implementation results: the worst setup path | `make figures`: `docs/design/scripts/path_schematic.tcl`, cropped by `docs/design/scripts/crop_pdf.sh` |
+| `vivado_device_1_whole.png` to `vivado_device_4_path.png` | 10, Implementation results: the zoom series | by hand, recipe below |
+| `vivado_device_5_routing_on.png`, `vivado_device_6_routing_off.png` | 10, Implementation results: the worst path | by hand, recipe below |
+| `board_mandelbrot.pdf` | 1, Introduction: the frames of the capture, a page each | `make figures`: `docs/design/scripts/board_figures.py`, from the board captures |
 | `board_mandelbrot.gif` | The README, "Running the demos" | `make figures`, as above |
 | `board_riscv_logo.pdf` | 1, Introduction: the filmstrip (pages 1, 9, ..., 57) | `make figures`, as above |
 | `board_riscv_logo.gif` | The README, "Running the demos" | `make figures`, as above |
@@ -50,8 +48,7 @@ source ~/Xilinx/2025.2/Vivado/settings64.sh
 make -C docs/design figures     # then review and commit the changed figures
 ```
 
-Needs Vivado, `xvfb-run` (package `xvfb`), Ghostscript, `pdftoppm` (package `poppler-utils`),
-the local copy of the board schematic ("Schematic excerpts" below), and Python 3 with Pillow for the
+Needs Vivado, `xvfb-run` (package `xvfb`), Ghostscript, and Python 3 with Pillow for the
 figures rendered from the board captures (`make board-figures` makes only those, and needs
 nothing else). `docs/design/scripts/vivado_xvfb.sh`
 runs each Vivado script in the GUI on a private X server, never on your display, from the
@@ -77,7 +74,7 @@ Facts about Vivado 2025.2 behind these scripts:
 
 ## Implementation results: `make impl`
 
-Chapter 11's numbers are generated, so they follow a change to the RTL. `make impl` (part of
+Chapter 10's numbers are generated, so they follow a change to the RTL. `make impl` (part of
 `make figures`) runs four steps, from `docs/design/`:
 
 1. `vivado/baseline.tcl`, the script behind `docs/baseline.md`, builds the routed design into
@@ -102,35 +99,13 @@ Chapter 11's numbers are generated, so they follow a change to the RTL. `make im
 
 It also fails unless the reports agree with each other (the worst path's slack and the
 smallest endpoint slack are the WNS, its logic levels are its cells between the registers) and
-the path is still LUTs, one carry chain, then LUTs, the shape chapter 11 describes. A few facts
+the path is still LUTs, one carry chain, then LUTs, the shape chapter 10 describes. A few facts
 in that chapter's prose are written by hand: that the worst path is the load path, and that its
 carry chain ends at bit 24, the flash region's bit. After a change that moves the path, read
 `docs/design/build/impl/reports/worst_path.txt` and check them.
 
 The power numbers are Vivado's vectorless estimate at its default toggle rates. Nothing in
 either file records a date, so an unchanged design regenerates them byte-identical.
-
-## Schematic excerpts: `make schematics`
-
-`docs/design/scripts/schematic_crops.sh` (part of `make figures`) crops six fixed regions of
-Digilent's Genesys 2 schematic, revision H.1 (22 pages, 828 x 612 pt), with `pdftoppm` at 300
-dpi into `sch_*.png`; the table at the end of the script lists each region's page and box, in
-points from the top left corner. Digilent's site refuses a scripted download (HTTP 403), so the
-script reads a local copy: download the schematic from the Genesys 2 Resource Center,
-<https://digilent.com/reference/programmable-logic/genesys-2/start>, as
-`docs/design/build/genesys2_sch.pdf`, or point `SCHEMATIC=<path>` at it. The script checks its
-SHA-256 (`73a6b396...c43`) and stops on any other file, since another revision would put other
-parts in the boxes. If Digilent publishes a new revision, measure the boxes again on it and
-update the hash with them.
-
-| File | Page | Shows |
-|---|---|---|
-| `sch_oscillator.png` | 13 | IC23, the 200 MHz LVDS oscillator, `SYSCLK_P` and `SYSCLK_N` |
-| `sch_reset.png` | 11 | BTN1, CPU RESET, and its pull-up, `CPU_RESET_N` |
-| `sch_leds.png` | 4 | LD0 to LD7 and their 330 ohm resistors |
-| `sch_uart.png` | 9 | IC16, the FT232RQ, behind the micro-USB port J15 |
-| `sch_config.png` | 15 | the FPGA's configuration bank, the QSPI flash IC26, and IC25D, the buffer of `UART_TX_IN` |
-| `sch_mode.png` | 15 | the mode jumper JP5 and its three positions |
 
 ## Waveforms: `make waves`
 
@@ -178,37 +153,6 @@ skips the first fetch on purpose: in the simulation it is lost, for the reason c
 gives in "CCLK and STARTUPE2". To add a waveform, add its signals to the bench's `$dumpvars`, write
 a spec file and add a render line to the `waves` target.
 
-## The C-to-board flow: `make flow`
-
-Figure `fig:flow` is drawn in TikZ in `design.tex`; its excerpts, one LaTeX macro each, are
-generated into `flow_excerpts.tex` from the real build, so they follow a change to the
-firmware or the RTL. `make flow` (part of `make figures`) runs three steps, from `docs/design/`:
-
-1. `make -C fw` builds mandelbrot into `docs/design/build/flow/`: the BRAM-boot ELF and firmware
-   image, the assembly (`build/mandelbrot.s`, the `fw/Makefile` rule for the reader), and the
-   flash build's ELF, binary and MCS. `fw/build/` and `rtl/firmware.hex` are left alone; the
-   MCS needs Vivado (`fw/tools/write_mcs.tcl`).
-2. `docs/design/scripts/flow_bram.tcl` builds the BRAM-boot bitstream from that image with
-   `board_bitstream.tcl`, about a minute and a half, and writes the routed block RAMs' `INIT`
-   strings to `bram_init.txt`. Make rebuilds it only when the image, the RTL, the constraints
-   or the scripts changed.
-3. `docs/design/scripts/flow_excerpts.py` cuts the excerpts: the line of `fw/mandelbrot.c` that
-   writes the LEDs, its four instructions in the assembly and in `objdump -d` (the store and
-   the three before it, the window of `wave_fsm.pdf`), the firmware image's lines, the block
-   RAMs' `INIT` string, the bitstream's header, the JTAG load and frame 0 from
-   `captures/mandelbrot_bram`, and the flash build's first instruction through the binary and
-   the MCS. The JTAG and flash lines are quoted from `board_program.tcl` and `board_flash.tcl`.
-   It also writes the numbers and words chapter 9's prose quotes, one macro each. It fails
-   unless each stage holds what the one before made: the image equals `rtl/firmware.hex`, its
-   words are the ELF's instructions, two 18-bit-wide block RAMs of one kind hold its low and
-   high halves, the binary begins with the flash ELF's first instruction, and the MCS holds
-   the binary at `SPIFLASH_CODE_OFFSET`.
-
-The window is found, not configured: the first store in `main` that `objdump` annotates with
-the LED register's address. It is the window of `wave_fsm.pdf` too, whose `--start` in
-`docs/design/Makefile` is configured: after a firmware change, check that both still agree.
-Nothing in the file records a date, so an unchanged build regenerates it byte-identical.
-
 ## Board captures: `make captures`
 
 The figures of chapter 1 are rendered from the board's UART output, recorded once and
@@ -250,8 +194,9 @@ stops unless it holds the demo's binary, then builds the flash-boot bitstream, t
 default, in `docs/design/build/board/flash/` with a copy of `rtl/firmware.hex` that the core
 never runs, and records as above. It prints a reminder just before the load: once the load has
 ended, about half a minute after the script starts, press the board's CPU RESET button. After
-configuration the core prints nothing until a reset (the report's pitfall P5 says why), and
-tinyraytracer then takes about two minutes to draw its picture; 360 seconds leaves time for both.
+configuration the core prints nothing until a reset (`docs/design/notes.md`, "Flash boot loses
+its first fetch", says why), and tinyraytracer then takes about two minutes to draw its
+picture; 360 seconds leaves time for both.
 `board_figures.py` draws the last complete run in the capture, so a second press does no harm.
 
 Back the whole chip up before the first write (the README's "Flash boot"). On the owner's
@@ -280,7 +225,8 @@ JTAG_TARGET='*8361B' scripts/board_capture.sh ST_NICCC bram 150 captures/ST_NICC
 
 The core prints its greeting straight after configuration, with no press of the reset button,
 but the player's first frame comes out wrong: its first read from the flash is the first SPI
-transaction after configuration, the one that loses clock edges (the report's pitfall P5).
+transaction after configuration, the one that loses clock edges (`docs/design/notes.md`,
+"Flash boot loses its first fetch").
 The polygons are right from 1.3 s on, one palette colour stays wrong until the scene sets it
 again 70 s in, and from there the bytes are the native player's, as below.
 
@@ -395,9 +341,7 @@ cmp <(tail -c +799970 docs/design/captures/ST_NICCC_bram.bin) \
 One colour per module, in every Vivado view and drawing of the report. They are Okabe-Ito
 colours, which stay distinct under the common forms of colour blindness.
 `docs/design/scripts/gui_helper.tcl` holds the same table. `docs/design/design.tex` holds the
-module rows, as the `\definecolor` lines in its preamble and the colour key under the package
-view, `fig:io-package`, in chapter 2; its views show the worst path selected, so the key has
-white for it, not red.
+module rows, as the `\definecolor` lines in its preamble.
 
 | Module | Cells | RGB | Ports |
 |---|---|---|---|
@@ -435,7 +379,7 @@ If the Vivado version is not 2025.2, note it in the commit that adds the screens
 
 ### Device views, from the whole device to the worst path
 
-- Files: `vivado_device_1_whole.png` to `vivado_device_6_routing_off.png`, chapter 11:
+- Files: `vivado_device_1_whole.png` to `vivado_device_6_routing_off.png`, chapter 10:
   figure `fig:device-zoom`, its six panels in file order
 - Vivado 2025.2, checkpoint `build/baseline/post_route.dcp`
 - View: Device window, the worst path selected, Auto-fit Selection on in every panel;

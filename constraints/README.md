@@ -12,4 +12,4 @@ that name to `SOC`: Vivado refuses to write a bitstream while a port has no pin 
 standard.
 
 There is no Makefile here; the scripts in `vivado/` read the file. The final report, chapter
-"Board and tools", shows each pin on the schematic and on the package.
+"The board", shows each pin on the package.

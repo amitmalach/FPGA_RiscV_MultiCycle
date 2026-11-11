@@ -3,15 +3,32 @@
 The reasoning behind the RTL and the firmware, where the code alone does not say why. Each
 entry answers one question, stated under its title, names the files and signals it concerns,
 and answers in the current names. An entry describes the design as it is now and changes in
-the same commit as the code it describes (`docs/CONTRIBUTING.md`, "Comments"). Entries are
-grouped by the file that holds the thing they explain. The final report cites them by title.
+the same commit as the code it describes. Entries are grouped by the file that holds the thing
+they explain. The final report cites them by title.
 
 Sections: [SOC](#soc-rtlsocv), [IOBus](#iobus-rtliobusv),
 [Processor](#processor-rtlprocessorv), [Decoder](#decoder-rtldecoderv), [ALU](#alu-rtlaluv),
 [Control](#control-rtlcontrolv), [RegisterFile](#registerfile-rtlregisterfilev),
 [SPIFlash](#spiflash-rtlspiflashv), [Clockworks](#clockworks-rtlclockworksv),
 [UartTx](#uarttx-rtluarttxv), [Memory](#memory-rtlmemoryv), [Firmware build](#firmware-build-fw),
+[Board flash writes](#board-flash-writes-docsdesignscriptsboard_flashtcl),
 [program_asm](#program_asm-simasmprogram_asmv).
+
+Pitfalls: ten entries end in a **Pitfall** paragraph, a trap that cost time once, with the
+symptom as it showed and how the design or the repository now handles it:
+
+1. "UART port names and the pin-direction trap" (SOC)
+2. "Bare file name in $readmemh" (Memory)
+3. "Explicit initial values on div and sclk (simulation hang)" (SPIFlash)
+4. "SRL versus SRA: both shift arms are signed" (ALU)
+5. "Flash boot loses its first fetch" (SOC)
+6. "Reset lands in WAIT_DATA, not FETCH_INSTR" (Control)
+7. "The worst path ends in the register-file write" (Processor)
+8. "Writing the flash clears the Quad Enable bit" (Board flash writes)
+9. "firmware_words arguments, -max_addr as a stack guard" (Firmware build): the stack runs into
+   the program
+10. "bram.ld line by line, the /DISCARD/ workaround" (Firmware build): debug data loaded into
+    the RAM
 
 ## SOC (`rtl/SOC.v`)
 
@@ -51,6 +68,11 @@ binds ports by name, not by pin.
 The bridge presents the serial stream to the PC as a virtual COM port (`/dev/ttyUSB*` on
 Linux). Receiving would need a receiver module and a readable "byte received" IO register;
 `uart_tx_in` is already constrained for it.
+
+**Pitfall:** not one byte reaches the PC and the bridge's activity LED never blinks, while the
+design looks healthy in simulation: a testbench that prints what the core handed the UART,
+instead of decoding the pin, cannot see the swap. Handled: the ports of `SOC` keep the board's
+names and directions, and `sim/bench.v` decodes the `uart_rx_out` pin as a receiver does.
 
 ### Processor bus has no notion of RAM versus device
 
@@ -150,8 +172,34 @@ Xilinx's; the instance name `spiflash_cclk_access` is this design's.
 
 The hand-over is not immediate: in Vivado's simulation model, CCLK stays high after end of
 startup until `USRCCLKO` has risen twice, so the first transaction after configuration loses
-two clock edges (the report's section "CCLK and STARTUPE2", and its pitfall "Flash boot loses
-its first fetch").
+two clock edges (the report's section "CCLK and STARTUPE2", and "Flash boot loses its first
+fetch" below).
+
+### Flash boot loses its first fetch
+
+**Question:** Why does the flash-boot bitstream print nothing straight after it is loaded,
+until the CPU RESET button is pressed?
+
+*Where:* `rtl/SOC.v` (`spiflash_cclk_access`, `eos`), `rtl/IOBus.v` (`spiflash_rstrb`),
+`rtl/SPIFlash.v`, `fw/start_spiflash.S`
+
+Most likely the core's first fetch from the flash is lost straight after configuration. That
+fetch is `lui gp,0x400`, the first instruction of `fw/start_spiflash.S`, which sets `gp` to
+`IO_BASE`; without it the UART writes land in the RAM instead. Two things can lose it.
+`STARTUPE2` passes `USRCCLKO` to the CCLK pin only after a few edges, so the first transaction
+misses clock edges and the flash misreads its command ("SPI flash CCLK access through
+STARTUPE2"). And `IOBus` drops, rather than stalls, a fetch requested before end of startup
+("Flash read strobe gated by end-of-startup, 22-bit word address"). ST_NICCC shows the same
+loss in BRAM boot, where the first flash access is a data read: its first frame came out
+wrong, while the frames after it were drawn from the right data.
+
+**Pitfall:** with the flash-boot bitstream loaded over JTAG, no byte arrives on the UART and
+the LEDs stay dark; one press of the CPU RESET button, and the demo runs from then on.
+Handled on the board only: press the reset button once after each load. A candidate fix, not
+kept in the repository, made the board print straight after the load: `eos` moves into
+`SPIFlash`, which makes one throwaway read as soon as `eos` rises and holds a read requested
+before that, busy, until it can start it. It cost about 25 LUTs and 25 flip-flops more and met
+timing with 0.334 ns of slack.
 
 ## IOBus (`rtl/IOBus.v`)
 
@@ -255,8 +303,8 @@ controller's start pulse. `eos` comes from `STARTUPE2`, and the gate keeps the c
 clocking a CCLK that the configuration logic still owns. It drops such a read rather than
 holding it: `spiflash_rbusy` stays low, the core does not stall, and it takes the stale
 contents of the controller's receive register as its answer. Whether the core's first fetch
-after configuration can come before `eos` is not settled; the report's pitfall "Flash boot
-loses its first fetch" discusses it.
+after configuration can come before `eos` is not settled; "Flash boot loses its first fetch"
+discusses it.
 
 The address: `spiflash_word_addr = mem_addr[23:2]`, 22 bits, the word index inside the 16 MB
 window. Bits 31 to 24 hold the region bit and are dropped; bits 1 and 0 are dropped because
@@ -348,6 +396,27 @@ Misaligned stores are not supported: the halfword mask ignores address bit 0 and
 both low bits, so such a store writes wrong lanes. Compiled code keeps its data aligned. The IO
 registers sit at word-aligned offsets, so they always receive `rs2[7:0]` on lane 0.
 
+### The worst path ends in the register-file write
+
+**Question:** Which path limits the clock, and what would shorten it?
+
+*Where:* `rtl/Processor.v`, `loadstore_addr`, `load_data`, `wb_data`; `rtl/IOBus.v`, the read
+mux; `rtl/RegisterFile.v`; `docs/baseline.md`
+
+The load-store address, `rs1 + imm`, is not registered, so every cycle of a load computes it
+again. The worst setup path starts at `cpu/instr_reg[3]`, an opcode bit, chooses the I- or
+S-immediate, adds it to `rs1` in a carry chain as far as bit 24, the flash region's bit, uses
+that bit in `IOBus`'s read mux, cuts out the loaded byte or halfword and ends at the data input
+of the register file's LUT RAM: 15 levels and 4.312 ns, 70 % of it routing, against the 5 ns
+of the 200 MHz clock, a slack of 0.219 ns. Vivado times it as a one-cycle path, although
+`instr` and `rs1` settle cycles before any write; the report's chapter "Implementation results"
+explains why that bound is pessimistic.
+
+**Pitfall:** a small change on the load path, one more term in the address decode or in the
+load lanes, can miss the 5 ns. Not handled yet: a comment at `loadstore_addr` marks it.
+Register the address in `EXECUTE`, or only its region bit, and the adder leaves the path;
+`LOAD` and `STORE` follow `EXECUTE`, so the register costs no cycle.
+
 ## Decoder (`rtl/Decoder.v`)
 
 Combinational decode of `instr` into class flags, register indices, function fields and the
@@ -393,6 +462,11 @@ The bug showed in the mandelbrot output. Compared with the C program run nativel
 -1544416 by 9 gave `0x007FF437` instead of `0xFFFFF437`. The golden trace was captured again
 after the fix, and `sim/ALUBench.v` now checks SRA, SRAI, SRL and SRLI on negative operands.
 The sign fill cost 54 LUTs, 930 to 984.
+
+**Pitfall:** the golden trace recorded the wrong shift and agreed with it, since a trace cannot
+catch a bug that was there when it was recorded; only the comparison with the C program run
+natively showed it. Handled: both arms are signed, and the unit bench holds the four right
+shifts to the specification.
 
 ### Branch comparator default arm
 
@@ -474,16 +548,31 @@ cost is one cycle per reset. `WAIT_DATA` also raises `write_rd` on that cycle, w
 harmless: `instr` is the NOP, whose `rd` is x0, and `RegisterFile` never writes x0. The choice
 is unconditional because it is equally correct in BRAM boot, where `mem_rbusy` is never high.
 
+**Pitfall:** with the reset state changed to `FETCH_INSTR`, the obvious choice, nothing shows
+in BRAM boot, while in flash boot the first fetch after a press of the reset button goes
+wrong. Handled: `rtl/Control.v` resets into `WAIT_DATA`.
+
 ### Synchronous reset and the clock enable
 
-**Question:** How do `reset_n` and `clk_enable` act on the core's registers?
+**Question:** How can the reset input be asynchronous while the resets it drives are
+synchronous, and how do `reset_n` and `clk_enable` act on the core's registers?
 
-*Where:* `rtl/Control.v`, `run`, `state`; `rtl/Processor.v`, `pc`, `instr`;
-`rtl/RegisterFile.v`
+*Where:* `rtl/Clockworks.v`, `reset_n`; `rtl/Control.v`, `run`, `state`; `rtl/Processor.v`,
+`pc`, `instr`; `rtl/IOBus.v`, `leds`; `rtl/UartTx.v`; `rtl/RegisterFile.v`
 
-- The reset is synchronous: `reset_n` is tested inside `always @(posedge clk)` and is not in
-  any sensitivity list. It is not gated by `clk_enable`, so it acts on any edge. It resets
-  `pc`, `instr` and `state` ("Power-on state matches the reset state").
+The two words describe different things. The *input* is asynchronous: `reset_n` is the CPU
+RESET button, active-low, forwarded by `Clockworks` as it is. No synchroniser brings it into
+the clock domain and no debounce filters it, so it can change at any moment between two clock
+edges. The *resets* are synchronous: every register that resets tests `reset_n` only at a
+rising edge of `clk`, inside `always @(posedge clk)`, and none has it in its sensitivity list,
+which is what makes a reset synchronous. Three places have one: the core's `pc`, `instr` and
+FSM `state`, the LED register in `IOBus`, and the transmitter in `UartTx` ("Reset state").
+A press or a release that lands close to an edge can reach one of these registers a cycle
+before another, or leave one metastable for a moment; a two-flip-flop synchroniser in
+`Clockworks` would remove that risk, and the design has none.
+
+- The reset is not gated by `clk_enable`, so it acts on any edge. In the core it resets `pc`,
+  `instr` and `state` ("Power-on state matches the reset state").
 - `Control` qualifies the four edge strobes, `latch_instr`, `read_regs`, `update_pc` and
   `write_rd`, with `run = clk_enable & reset_n`. The datapath registers and the register file
   test only those strobes, so with `clk_enable` low the core holds every register, and during
@@ -675,6 +764,11 @@ three hangs the first read, with `spi_cs_n` low and `div` at `x`. `spi_cs_n`'s 1
 flash deselected and `rbusy` low from the start. The other registers need none: `cmd_addr` and
 `snd_bitcount` are loaded by the first `rstrb`, `rcv_bitcount` by the last command bit, and while
 they are `x` no branch that tests them is taken.
+
+**Pitfall:** the simulation runs but the flash controller never starts its clock, and the
+testbench hangs, while the same RTL works on the board. Handled: the initial values above, and
+the core's registers declare their reset values as initial values. A new counter needs one
+too.
 
 ### spi_clk forced low while idle
 
@@ -933,6 +1027,13 @@ that reads it, not against `rtl/`. Each flow therefore puts the image where its 
 Running a tool from `rtl/` instead would find the file, but Vivado would then leave `.Xil/` and
 `clockInfo.txt` beside the sources, which `make lint` (rule 1) rejects.
 
+**Pitfall:** a missing file leaves the RAM undefined without an error. In simulation the
+program does nothing: the LEDs stay at zero and the RAM reads `x`, with only a warning in
+xsim's log. After a Vivado run from the wrong directory, `.Xil/` and `clockInfo.txt` appear
+beside the sources. Handled: every script that simulates or synthesises runs in a directory of
+its own with the image linked or copied in, as the table shows, and lint rule 1 fails on the
+by-products.
+
 ### Simulation and hardware after a firmware change
 
 **Question:** What must be redone after `rtl/firmware.hex` changes, in simulation and on the
@@ -943,7 +1044,7 @@ board?
 
 - **Regression.** `run_regression.sh` links the current image afresh on every run, so nothing
   needs resetting. Another program gives another trace, so the gate fails unless the change is
-  meant, and then needs `make golden` (`docs/CONTRIBUTING.md`, "Gates and evidence").
+  meant, and then needs `make golden`.
 - **GUI simulation.** Vivado simulates its own copy of the image in the run directory: reset
   the behavioural simulation before running again, so the copy is refreshed. The project sets
   the run time to `-all`; the bench ends the run itself (`sim/README.md`, "Stop conditions").
@@ -1058,6 +1159,11 @@ They are never fetched, so the program runs the same, but they take room the sta
 Adding `*(.debug*)` to `/DISCARD/` gives a 2324-byte image, with `__divsi3` at `0x860` instead
 of `0xaa0`; the change is left out so that the image the report describes stays the committed
 one. `spiflash.ld` names its input sections, so it loads none of these.
+
+**Pitfall:** none at run time, but the image is larger than its code, 852 words, and
+`objdump -D` shows runs of `.insn` nonsense after `__mulsi3` and `__modsi3`: 1084 bytes, 18 %
+of the 6 KB, never fetched but taken from the room the stack grows into. Not handled: adding
+`*(.debug*)` to `/DISCARD/` is the fix, left out as above.
 
 ### Support objects every C program needs
 
@@ -1177,7 +1283,13 @@ words )` and `Occupancy: 55%`, with a warning above 95 %. The stack starts at `R
 clear of the program: a deep call chain overwrites code or data without a sign, and the core
 then runs garbage. A `-max_addr` below `-ram` would reserve headroom for the stack. The Makefile
 passes the full size and reserves none, so the margin is what the occupancy leaves: 2736 bytes
-for mandelbrot.
+for mandelbrot. In flash boot the stack shares the RAM with the data and the code copied from
+the flash ("Execute-in-place" in the report), and nothing checks that either.
+
+**Pitfall:** the stack runs into the program. A program that has grown wanders off into
+garbage after a while, or prints nonsense, with no warning from the build. Handled in part:
+`firmware_words` refuses an image past `-max_addr`, which, set below the RAM size, reserves
+room for the stack; the stack itself is not checked.
 
 ### Why blinker's LEDs look steadily lit
 
@@ -1203,6 +1315,33 @@ The micro-USB port J15, behind the FT232R USB-UART bridge, not the JTAG port J17
 appears as a serial device such as `/dev/ttyUSB0`; the README, "Running the demos", gives the
 terminal settings. `docs/design/scripts/uart_capture.py` records the port with timestamps, as
 the report's captures were made.
+
+## Board flash writes (`docs/design/scripts/board_flash.tcl`)
+
+How a program or the scene data reaches the board's flash: Vivado's *Program Configuration
+Memory Device* over JTAG, with the address range *Configuration File Only*, so that only the
+bytes the image covers change (README, "Running the demos").
+
+### Writing the flash clears the Quad Enable bit
+
+**Question:** Why can a flash write stop the board from booting at power-on, and how is that
+prevented?
+
+*Where:* `docs/design/scripts/board_flash.tcl` (`PROGRAM.SKIP_QE_BIT_ERASE`),
+`docs/design/scripts/flashregs/FlashRegs.v`, `docs/design/figures/README.md`, "The Quad
+Enable bit"
+
+Vivado's `program_hw_cfgmem`, with the `hw_cfgmem` property `PROGRAM.SKIP_QE_BIT_ERASE` at its
+default, 0, clears the S25FL256S's non-volatile Quad Enable bit (configuration register 1,
+bit 1). The factory bitstream at offset 0 reads the flash four bits wide and needs the bit. A
+write with an SPIx4 `.prm` does not set it back, and Vivado's Tcl has no command that reads the
+flash's registers.
+
+**Pitfall:** after a flash write, the board no longer boots at power-on: DONE off, no error
+flag, the mode pins right, and every byte of the flash intact. Handled: `board_flash.tcl write`
+sets `SKIP_QE_BIT_ERASE` to 1, and a write with it kept the bit. `FlashRegs.v`, loaded over
+JTAG, prints the flash's registers on the UART and, built with `WRITE_REGS=1`, writes the bit
+back, which repaired the owner's board.
 
 ## program_asm (`sim/asm/program_asm.v`)
 

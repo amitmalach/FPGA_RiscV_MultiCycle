@@ -1,6 +1,5 @@
 # Repository gates. This header is the one list of what each gate runs and how
-# long it takes; when each one runs, and what a commit may cite:
-# docs/CONTRIBUTING.md, "Gates and evidence".
+# long it takes.
 #
 #   make lint          seconds, no tools: by-products, stale paths, line length, naming, mirrors
 #   make unit          seconds: ALU bench under iverilog, results against hand-worked values

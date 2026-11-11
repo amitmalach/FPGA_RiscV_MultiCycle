@@ -135,7 +135,7 @@ controller sends a 24-bit address.
 | `sim/` | SoC-level testbench, golden trace, regression script; `ALUBench.v`, the ALU unit bench, and `run_unit.sh`; `sim/asm/` is a Verilog-macro assembler for test programs |
 | `constraints/` | `Genesys-2-Master.xdc`: pins and the 200 MHz clock |
 | `vivado/` | Tcl scripts: regenerate the project, build the bitstream, run the non-project baseline, with `common.tcl` shared by all three; `rtl_sources.txt` is the file list every script shares |
-| `docs/` | `CONTRIBUTING.md` (coding conventions), `baseline.md` (baseline trace and synthesis numbers), `design/` (final report sources, figures and their scripts, design notes, and `scripts/flashregs/`, a small FPGA design that reads and sets the flash's Quad Enable bit) |
+| `docs/` | `baseline.md` (baseline trace and synthesis numbers), `design/` (final report sources, figures and their scripts, design notes, and `scripts/flashregs/`, a small FPGA design that reads and sets the flash's Quad Enable bit) |
 | `scripts/` | `lint.sh`, the pre-commit hook that runs it, the commit-msg hook that checks cited gate logs, and `quote_comment.sh` for moving RTL comments into the design notes |
 | `build/` | Everything generated: the Vivado project, run directories, `SOC.bit`, gate logs. Not tracked |
 
@@ -312,7 +312,8 @@ The program is written to the flash's code window; the bitstream, built once wit
    from `0x01D0_0000`.
 4. Press the reset button once the load has ended. Straight after configuration the core
    prints nothing and the LEDs stay dark, most likely because its first fetch from the flash
-   is lost (the final report, pitfall P5). From the reset on, the demo runs, and
+   is lost (`docs/design/notes.md`, "Flash boot loses its first fetch"). From the reset on,
+   the demo runs, and
    the reset button restarts it.
 
 `ST_NICCC`, in either boot mode, also needs its scene file written to the flash at `0xC00000`:
@@ -336,15 +337,13 @@ make smoke
 make -j2 check
 ```
 
-The header of the root `Makefile` lists every gate with what it runs and how long it takes;
-`docs/CONTRIBUTING.md`, "Gates and evidence", says when each one runs.
+The header of the root `Makefile` lists every gate with what it runs and how long it takes.
 
 The testbench in `sim/bench.v` instantiates `SOC` with BRAM boot, loads the committed firmware
 image and records what an outside observer sees: every UART byte and every LED change. The
 trace of one complete mandelbrot frame is committed as `sim/golden/mandelbrot_bram.txt`, and
 the regression passes only when a new run is byte-identical to it, cycle count included. See
-`sim/README.md`. Coding conventions and the rules the lint enforces are in
-`docs/CONTRIBUTING.md`.
+`sim/README.md`. The rules the lint enforces are listed in the header of `scripts/lint.sh`.
 
 ## Final report
 

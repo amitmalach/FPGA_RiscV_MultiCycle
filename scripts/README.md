@@ -11,5 +11,4 @@ Repository checks and helpers that need no EDA tools.
 
 There is no Makefile here. `make lint`, in the root `Makefile`, runs `lint.sh` and logs it;
 `make check-moves BASE=<rev>` runs `lint.sh --moves <rev>`. Enable both hooks once with
-`git config core.hooksPath scripts/hooks`. `docs/CONTRIBUTING.md`, "Gates and evidence", says
-which gate a change needs.
+`git config core.hooksPath scripts/hooks`.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Print a block of source lines, the raw material of a docs/design/notes.md
-# entry (docs/CONTRIBUTING.md, "Comments": the entry rephrases it).
+# entry (the entry rephrases it).
 #
 #   scripts/quote_comment.sh [<rev>:]<file> <from> <to>
 #

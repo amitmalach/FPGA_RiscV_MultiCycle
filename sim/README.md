@@ -72,8 +72,8 @@ recorded is a prefix of the golden event list.
 
 Only when a behaviour change is intended. `make golden` runs
 `sim/run_regression.sh --update-golden`, which overwrites the golden trace with the new run,
-and logs it like the other gates. Commit the trace with the RTL change;
-`docs/CONTRIBUTING.md`, "Gates and evidence", says what else such a change needs.
+and logs it like the other gates. Commit the trace with the RTL change and the reason for it,
+and update the trace numbers in `docs/baseline.md`, which lint rule 10 holds to the golden file.
 
 ## ALU unit bench
 

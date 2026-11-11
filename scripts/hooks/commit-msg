@@ -2,7 +2,7 @@
 # Enable with: git config core.hooksPath scripts/hooks   (same setting as pre-commit)
 #
 # A commit message may claim a verification only by citing the gate log that
-# shows it (docs/CONTRIBUTING.md, "Gates and evidence"). This hook holds that:
+# shows it. This hook holds that:
 #   - every build/logs/<target>-<stamp>.log the message names must exist and
 #     end with a PASS or timing=MET line (the Makefile's logged macro writes
 #     "PASS: <target>" as the last line of a passing gate's log);

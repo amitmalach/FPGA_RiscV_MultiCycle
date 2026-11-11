@@ -21,7 +21,7 @@
 #    files: a file missing from the list compiles nowhere and fails nowhere.
 # 5. File name equals module name, one word without underscores, for every
 #    rtl/*.v, sim/*.v and docs/design/scripts/*/*.v (the report's benches and the
-#    flash register tool; docs/CONTRIBUTING.md). sim/asm/ is exempt: the
+#    flash register tool). sim/asm/ is exempt: the
 #    third-party assembler and the sample program it assembles.
 # 6. Active-low signals are declared with an _n suffix, never resetn/rstn.
 # 7. Section banners ("// ---- name ----...") in rtl/*.v, sim/*.v and
@@ -33,7 +33,7 @@
 #    whose --selftest proves it detects a change or deletion of every value it
 #    checks.
 # 9. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v,
-#    sim/asm/*.v and docs/design/scripts/*/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*, docs/CONTRIBUTING.md). The
+#    sim/asm/*.v and docs/design/scripts/*/*.v is UPPER_CASE ([A-Z][A-Z0-9_]*). The
 #    first name of each declaration is checked, with // and single-line /* */
 #    comments stripped. sim/asm/riscv_assembly.v is exempt: it is third-party
 #    (Bruno Levy's assembler, kept as upstream wrote it) and its lower-case
@@ -123,7 +123,7 @@ for f in $(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/*/*.v' | grep -
         echo "FAIL: $f declares module '${got:-<none>}', expected '$want' (one module per file, same name)"
         fail=1
     elif [[ ! "$got" =~ ^[A-Za-z][A-Za-z0-9]*$ ]]; then
-        echo "FAIL: $f: module '$got' is not one word (docs/CONTRIBUTING.md, Naming: no underscores)"
+        echo "FAIL: $f: module '$got' is not one word (no underscores)"
         fail=1
     fi
 done
@@ -132,7 +132,7 @@ echo "== active-low suffix"
 bad_n=$(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/*/*.v' \
     | xargs grep -nE '^\s*(input|output|inout|wire|reg)\b.*\b[A-Za-z_]*(resetn|rstn|nreset|nrst)\b' 2>/dev/null || true)
 if [ -n "$bad_n" ]; then
-    echo "FAIL: active-low signals take an _n suffix (reset_n), see docs/CONTRIBUTING.md:"
+    echo "FAIL: active-low signals take an _n suffix (reset_n):"
     echo "$bad_n"
     fail=1
 fi
@@ -141,7 +141,7 @@ echo "== section banner width"
 bad_banner=$(git ls-files 'rtl/*.v' 'sim/*.v' 'docs/design/scripts/*/*.v' \
     | xargs awk '/^[[:space:]]*\/\/ ----.*----$/ && length != 80 {print FILENAME":"FNR": "length" chars"}')
 if [ -n "$bad_banner" ]; then
-    echo "FAIL: section banners end at column 80 (docs/CONTRIBUTING.md):"
+    echo "FAIL: section banners end at column 80:"
     echo "$bad_banner"
     fail=1
 fi
@@ -160,7 +160,7 @@ bad_case=$(git ls-files 'rtl/*.v' 'rtl/*.vh' 'sim/*.v' 'sim/asm/*.v' 'docs/desig
         }
         close ARGV if eof;' 2>/dev/null || true)
 if [ -n "$bad_case" ]; then
-    echo "FAIL: macro, parameter and localparam names are UPPER_CASE (docs/CONTRIBUTING.md):"
+    echo "FAIL: macro, parameter and localparam names are UPPER_CASE:"
     echo "$bad_case"
     fail=1
 fi
