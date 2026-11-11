@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Memory-map mirror check: every constant the firmware repeats from
 # rtl/defines.vh (IO base and register offsets, UART busy bit, RAM size and
-# base, flash base, code offset and window) must still equal the RTL value,
-# and so must the addresses in the README's memory-map tables. The RAM size
-# has one firmware copy, RAM_SIZE in fw/Makefile: the stack top in
+# base, flash base, code offset and window) must still equal the RTL value.
+# The RAM size has one firmware copy, RAM_SIZE in fw/Makefile: the stack top in
 # fw/start*.S and the RAM length in fw/memory.ld must spell that symbol, not
 # a number. Runs without any tool; `make lint` calls it. Runs every group;
 # exit 1 if any value mismatched or was not found.
@@ -16,7 +15,6 @@ set -uo pipefail
 ROOT="${ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 DEF="$ROOT/rtl/defines.vh"
 FW="$ROOT/fw"
-README="$ROOT/README.md"
 fail=0
 
 # One mutation per checked value: <file>@<sed -E expression>@<what>. A pattern that
@@ -45,14 +43,6 @@ fw/memory.ld@s/ORIGIN = 0x01D00000/ORIGIN = 0x01C00000/@FLASH ORIGIN changed
 fw/memory.ld@s/LENGTH = 0x300000/LENGTH = 0x400000/@FLASH LENGTH changed (runs past the 16MB window)
 fw/Makefile@s/^(RAM_SIZE[[:space:]]*=[[:space:]]*)6144$/\18192/@RAM_SIZE changed
 fw/Makefile@s/^(FLASH_CODE_OFFSET[[:space:]]*=[[:space:]]*)0xD00000$/\1/@FLASH_CODE_OFFSET deleted
-README.md@s/0x0000_17FF/0x0000_1FFF/@RAM top changed
-README.md@s/0x0040_0004/0x0040_0002/@IO_LEDS address changed
-README.md@s/0x0040_0008/0x0040_0009/@IO_UART_DAT address changed
-README.md@s/0x0040_0010/0x0040_0020/@IO_UART_CNTL address changed
-README.md@s/0x0100_0000/0x0200_0000/@SPI flash base changed
-README.md@s/0x01D0_0000/0x01C0_0000/@flash reset vector changed
-README.md@s/`0x01D0_0000`//@flash reset vector deleted
-README.md@s/[|] bit 24 [|] read, fetch [|]/| bit twenty-four | read, fetch |/@flash row reworded
 '
 
 selftest() {
@@ -134,7 +124,6 @@ SPIFLASH_BASE=$(vdef SPIFLASH_BASE)
 SPIFLASH_CODE_OFFSET=$(vdef SPIFLASH_CODE_OFFSET)
 FLASH_ORIGIN=$(( SPIFLASH_BASE + SPIFLASH_CODE_OFFSET ))
 FLASH_LENGTH=$(( (1 << $(vdef SPIFLASH_ADDR_W)) - SPIFLASH_CODE_OFFSET ))
-RAM_TOP=$(( RAM_BASE + RAM_BYTES - 1 ))
 
 # C header: #define NAME value
 cdef() { grep -E "^#define[[:space:]]+$2[[:space:]]" "$FW/$1" | awk '{print $3}'; }
@@ -144,11 +133,6 @@ aequ() { grep -E "^\.equ[[:space:]]+$2," "$FW/$1" | sed -E 's/.*,[[:space:]]*//;
 ali()  { grep -E "^[[:space:]]*li[[:space:]]+$2," "$FW/$1" | head -1 | sed -E 's/.*,[[:space:]]*//; s/[[:space:]]+$//'; }
 # Makefile: NAME = value
 mvar() { grep -E "^$2[[:space:]]*=" "$FW/Makefile" | sed -E 's/.*=[[:space:]]*//'; }
-# README table row: the $2-th 0x.. address on the first table row matching $1,
-# underscores stripped (the README writes 0x0040_0004). Anchor on a cell that
-# names the row uniquely (the Select column, a register name, the boot mode),
-# never on prose that a rewording would move to another row.
-rdaddr() { grep -E '^\|' "$README" | grep -E "$1" | head -1 | grep -oE '0x[0-9A-Fa-f_]+' | sed -n "${2}p" | tr -d _; }
 # Linker script MEMORY line: REGION (..) : ORIGIN = x, LENGTH = y
 ldfield() { grep -E "^[[:space:]]*$1[[:space:]]*\(" "$FW/memory.ld" | grep -oE "$2[[:space:]]*=[[:space:]]*[^,[:space:]]+" | sed -E 's/.*=[[:space:]]*//'; }
 
@@ -184,13 +168,5 @@ echo "== fw/Makefile"
 expect Makefile RAM_SIZE          "$(mvar Makefile RAM_SIZE)"          "$RAM_BYTES"
 expect Makefile FLASH_CODE_OFFSET "$(mvar Makefile FLASH_CODE_OFFSET)" "$SPIFLASH_CODE_OFFSET"
 
-echo "== README.md memory-map tables"
-expect README.md "RAM top"          "$(rdaddr '\| no region bit set \|' 2)" "$RAM_TOP"
-expect README.md IO_LEDS            "$(rdaddr '`IO_LEDS`' 1)"           "$(( IO_BASE + IO_LEDS ))"
-expect README.md IO_UART_DAT        "$(rdaddr '`IO_UART_DAT`' 1)"       "$(( IO_BASE + IO_UART_DAT ))"
-expect README.md IO_UART_CNTL       "$(rdaddr '`IO_UART_CNTL`' 1)"      "$(( IO_BASE + IO_UART_CNTL ))"
-expect README.md "SPI flash base"   "$(rdaddr '\| bit 24 \|' 1)"           "$SPIFLASH_BASE"
-expect README.md "flash reset vector" "$(rdaddr '^\| Flash boot' 1)"      "$FLASH_ORIGIN"
-
-[ "$fail" = 0 ] && echo "PASS: firmware and README memory-map mirrors match rtl/defines.vh"
+[ "$fail" = 0 ] && echo "PASS: firmware memory-map mirrors match rtl/defines.vh"
 exit "$fail"

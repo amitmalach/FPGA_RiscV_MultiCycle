@@ -26,9 +26,9 @@
 # 7. Section banners ("// ---- name ----...") in rtl/*.v, sim/*.v and
 #    vivado/*/*.v end at column 80.
 # 8. The firmware's copies of the memory map (fw/io.h, fw/putchar.S,
-#    fw/blinker.S, fw/start*.S, fw/memory.ld, fw/Makefile) and the README's
-#    memory-map tables equal rtl/defines.vh; start*.S and memory.ld take the RAM
-#    size from the one RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh,
+#    fw/blinker.S, fw/start*.S, fw/memory.ld, fw/Makefile) equal
+#    rtl/defines.vh; start*.S and memory.ld take the RAM size from the one
+#    RAM_SIZE in fw/Makefile: fw/tests/check_memory_map.sh,
 #    whose --selftest proves it detects a change or deletion of every value it
 #    checks.
 # 9. Every `define, parameter and localparam name in rtl/*.v, rtl/*.vh, sim/*.v,
@@ -145,7 +145,7 @@ if [ -n "$bad_banner" ]; then
     fail=1
 fi
 
-echo "== firmware and README memory-map mirrors"
+echo "== firmware memory-map mirrors"
 fw/tests/check_memory_map.sh | grep -E '^(FAIL|PASS)' || fail=1
 fw/tests/check_memory_map.sh --selftest | grep -E '^(FAIL|PASS)' || fail=1
 

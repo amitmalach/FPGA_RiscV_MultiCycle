@@ -3,9 +3,8 @@
 // and the flash base in fw/io.h, the UART register offsets and busy bit in
 // fw/putchar.S, the LED offset in fw/blinker.S, the IO base in fw/start*.S,
 // the RAM size as RAM_SIZE in fw/Makefile (fed to start*.S and memory.ld as a
-// symbol) and the flash region in fw/memory.ld; the README's memory-map tables
-// repeat the addresses. fw/tests/check_memory_map.sh (lint rule 8) keeps them
-// all equal.
+// symbol) and the flash region in fw/memory.ld. fw/tests/check_memory_map.sh
+// (lint rule 8) keeps them all equal.
 // sim/asm/program_asm.v includes this file instead of copying.
 `ifndef DEFINES_VH
 `define DEFINES_VH
