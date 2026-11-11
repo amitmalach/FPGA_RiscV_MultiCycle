@@ -199,15 +199,15 @@ its first fetch", says why), and tinyraytracer then takes about two minutes to d
 picture; 360 seconds leaves time for both.
 `board_figures.py` draws the last complete run in the capture, so a second press does no harm.
 
-Back the whole chip up before the first write (the README's "Flash boot"). On the owner's
-board, a full readback after the tinyraytracer write differed from the backup only in the
+Back the whole chip up before the first write (the README's "Flash boot"). On my board,
+a full readback after the tinyraytracer write differed from the backup only in the
 29 016 bytes of the image, `0xD00000` to `0xD07157`, and so did one after the third write of
 the same image, below.
 
 ### ST_NICCC: the scene data in the flash
 
 ST_NICCC runs in BRAM boot, but reads its 625 KB scene, `scene1.dat`, which is not in the
-repository, from the flash at `0xC00000`. The owner's board held factory-demo data there,
+repository, from the flash at `0xC00000`. My board held factory-demo data there,
 equal to the backup, so the region was read back first and then written with
 `board_flash.tcl write` and a `.mcs` of the scene made by `fw/tools/write_mcs.tcl` (the
 README's "Flash boot"). A readback of the 639 976 bytes then matched `scene1.dat`. From
@@ -243,8 +243,8 @@ Vivado's Tcl reads no flash register, so `scripts/flashregs/FlashRegs.v` is a sm
 the board that does: it reads status register 1, configuration register 1, the chip's ID and the
 four bytes at `0x30` (a bitstream's sync word, `AA995566`, as a check that the bits line up),
 prints them on the UART once a second and shows CR1 on the LEDs. Built with `WRITE_REGS=1` it
-also writes SR1 `0x00` and CR1 `0x02` once, which sets the bit, and reads them again. On the
-owner's board it read `CR1=00`, wrote, read `CR1=02`, and the FPGA configured from the flash
+also writes SR1 `0x00` and CR1 `0x02` once, which sets the bit, and reads them again. On my
+board it read `CR1=00`, wrote, read `CR1=02`, and the FPGA configured from the flash
 again (`boot_hw_device`, Vivado's reconfigure-from-flash over JTAG: DONE high). The third
 write of the image, through `board_flash.tcl write` with `SKIP_QE_BIT_ERASE 1`, kept the bit,
 and at the next power-on the board booted Digilent's factory demo, DONE lit and the demo on
@@ -330,7 +330,7 @@ cmp <(tail -c +799970 docs/design/captures/ST_NICCC_bram.bin) \
 ```
 
 - Captured 2026-10-28, the BRAM-boot demos with `make captures` and tinyraytracer as above,
-  Vivado 2025.2, on the owner's board: Genesys 2 revision H, through its own FT232R USB-UART
+  Vivado 2025.2, on my board: Genesys 2 revision H, through its own FT232R USB-UART
   bridge and Digilent USB-JTAG. mandelbrot was captured again on 2026-10-29, for 24 s after
   the load, so that its frames cover a full cycle of the 21 colours; the JTAG cable showed
   up as `.../Digilent/200300BD8361B` and `JTAG_TARGET='*8361B'` picked it. ST_NICCC was

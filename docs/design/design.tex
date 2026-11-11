@@ -1909,10 +1909,16 @@ window. A BRAM-boot bitstream sets \texttt{BOOT\_ADDR} to~0 at synthesis.
 
 \section{The flash layout}
 
-The board's flash is a 32~MB S25FL256S. The core sees only its lower 16~MB, as flash space:
-the byte at chip offset~$o$ is at core address $\texttt{0x0100\_0000} + o$.
-Figure~\ref{fig:flash-layout} draws those 16~MB to scale, with the chip offsets under the bar
-and the core addresses over it \notes{Flash memory map and boot address}.
+The board's flash is a 32~MB S25FL256S. The core sees only its lower 16~MB, because three
+limits meet at 24 address bits, $2^{24}$ bytes: the flash's Read command, \texttt{03h}, carries
+a 3-byte address, which the chip completes into its lower half; the controller fills that field
+with a 22-bit word address and two zero bits; and in the memory map, bit~24 selects flash
+space, so the offset is the 24 bits below it (Section~\ref{sec:memmap}). Everything the design
+keeps in the flash fits in that half, so the upper 16~MB stays unused \notes{Why the core
+reaches only the lower 16 MB of the flash}. The byte at chip offset~$o$ is at core address
+$\texttt{0x0100\_0000} + o$. Figure~\ref{fig:flash-layout} draws those 16~MB to scale, with
+the chip offsets under the bar and the core addresses over it \notes{Flash memory map and boot
+address}.
 
 \begin{figure}[!ht]
   \centering
@@ -1950,8 +1956,8 @@ and the core addresses over it \notes{Flash memory map and boot address}.
   \end{tikzpicture}
   \caption{The flash layout, to scale: the lower 16~MB of the 32~MB chip, the part the core
     can reach. Under the bar, each byte's offset from the start of the chip; over it, the
-    same byte's core address, \texttt{0x0100\_0000} more. Both grow to the right. On the
-    owner's board the grey region holds Digilent's factory demo, whose data also reaches
+    same byte's core address, \texttt{0x0100\_0000} more. Both grow to the right. On my
+    board the grey region holds Digilent's factory demo, whose data also reaches
     further, up to \texttt{0xDEFFFF}, so a write to the scene data or the code window
     overwrites part of that data.}
   \label{fig:flash-layout}
@@ -1971,9 +1977,7 @@ the right, in four regions:
     is the chip offset; the core address of the same point is the scale over the bar.
 \end{itemize}
 Each region starts on a 64~KB boundary, because the flash erases in 64~KB sectors, so one
-region can be rewritten without touching the others. The core reaches 16~MB, not 32, because
-the controller reads with the flash's Read command, opcode \texttt{03h}, whose 3-byte address
-reaches $2^{24}$ bytes. That is also why bit~24 selects flash space (Section~\ref{sec:memmap}).
+region can be rewritten without touching the others.
 
 \paragraph{A power-on bitstream.} The FPGA holds its configuration in volatile memory, so it
 forgets the design when the power goes. A bitstream reaches it in one of two ways. Over JTAG,
@@ -1988,10 +1992,20 @@ SoC's included. The layout keeps that much room at offset~0, so that a bitstream
 design could be stored there. A flash-boot program is not part of the bitstream: it sits in
 the code window, where tinyraytracer takes 29~KB of the 3~MB.
 
+This project does not store a power-on bitstream, for three reasons. Loading over JTAG takes about 7~s and
+touches nothing, while a power-on bitstream means erasing and writing 11~MB of flash for every
+change, and in BRAM boot every new program is a new bitstream. The board is never used without
+the PC anyway: the demos print to a terminal on the PC, over the UART. And offset~0 holds
+Digilent's factory demo, which this project keeps, so that the board stays as it was shipped:
+\texttt{board\_flash.tcl} refuses any image with a byte below \texttt{0xC00000}, so no write
+can replace the bitstream the board boots, and the one write that cleared the Quad Enable bit
+showed how easily a flash write can stop the board from configuring at power-on \notes{Writing
+the flash clears the Quad Enable bit}.
+
 \paragraph{Digilent's factory demo.} A Genesys~2 leaves the factory with a power-on bitstream
 of Digilent's already at offset~0, the factory demo: a design that shows the board working,
 with text on its OLED display (Figure~\ref{fig:board-top} shows it running). This project
-never writes offset~0, so on the owner's board the grey region still holds the factory demo,
+never writes offset~0, so on my board the grey region still holds the factory demo,
 and the board boots it whenever it is switched on. The demo keeps data beyond its bitstream,
 from \texttt{0x600000} to \texttt{0x69FFFF} and from \texttt{0x800000} to \texttt{0xDEFFFF},
 so writing the scene data or a program overwrites part of that data, but never the
@@ -2337,8 +2351,14 @@ the work it takes. None is begun.
     last, to retire close to one instruction a cycle.
   \item \textbf{The M extension:} multiply and divide in hardware, on the device's DSP blocks,
     instead of calls into \texttt{libgcc}.
-  \item \textbf{UART receive:} a receiver on the unused \texttt{uart\_tx\_in} pin, enough for a
-    serial boot loader.
+  \item \textbf{Inputs from the PC:} today the PC only listens. A UART receiver on the unused
+    \texttt{uart\_tx\_in} pin, with a data register and a ``byte received'' status bit in the
+    IO region, would bring the keys typed in the PC's terminal to the program, and the board's
+    five push buttons and eight switches could be read the same way. With input the system can
+    run interactive programs, games among them, and load new programs over the cable, a serial
+    boot loader. A game such as Doom is the far goal: it also needs megabytes of RAM for its
+    code and data, which the DDR3 item below gives, a screen, which the HDMI item gives, and the
+    speed that pipelining and the M extension bring.
   \item \textbf{Interrupts:} the control and status registers of Zicsr and a trap state, with a
     timer and the UART as the first sources.
   \item \textbf{DDR3:} the board's 1~GB as main memory, through AMD's Memory Interface
@@ -2375,10 +2395,20 @@ on a board, and each layer taught something no single course covers:
   \item \textbf{The FPGA and the board.} Pins, banks and I/O standards, a differential clock,
     the configuration logic that owns the flash's clock, and the way a bitstream reaches the
     FPGA, over JTAG or from the flash, are what a design must get right before it runs at all.
-  \item \textbf{The tools and the evidence.} Synthesis, placement and routing became reports to
-    read rather than buttons to press, and a golden trace, a unit bench and a lint, checked
-    against the C program run natively and against the board, taught me to trust a result only
-    as far as the evidence behind it.
+  \item \textbf{The FPGA and Vivado.} I learned what an FPGA is: not a processor that runs a
+    program, but a grid of configurable logic, LUTs that compute any function of six inputs,
+    flip-flops, carry chains, block RAMs and DSP blocks, joined by a programmable routing
+    network, all of it set by the bitstream. Vivado, AMD's tool, turns Verilog into that
+    bitstream, and I learned to work with it in both ways: in its GUI, a project with sources,
+    constraints, simulation, schematics and the Hardware Manager, and in batch mode from Tcl
+    scripts, which make every build repeatable. I learned what each step does on the chip.
+    Synthesis turns the RTL into a netlist of the device's own cells: the RAM became two block
+    RAMs, the register file LUT RAM and the adders carry chains, and module boundaries dissolve
+    as logic is optimised across them. Placement gives each cell a site on the chip, and routing
+    joins the sites through the interconnect, which on an FPGA is most of the delay: \implPathNetPct\,\% of
+    the worst path is wire. Static timing analysis then checks every path against the clock
+    constraint. Reading its reports, the schematics and the Device view is how I learned what my
+    Verilog had become in silicon.
 \end{itemize}
 
 Building the whole system alone, from the first lit LED to programs larger than its RAM, gave

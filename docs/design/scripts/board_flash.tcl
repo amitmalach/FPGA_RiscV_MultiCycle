@@ -12,10 +12,10 @@
 # read copies <bytes> bytes of the flash, from byte <offset>, into <out.bin>.
 #
 # write programs and verifies the bytes a flash image covers and nothing else, Hardware
-# Manager's "Configuration File Only": on the owner's board, a readback of the whole chip after
+# Manager's "Configuration File Only": on my board, a readback of the whole chip after
 # a write differed from the one before only in the image's bytes. It refuses an image with any
 # byte outside FLASH_LO to FLASH_HI: below lies the configuration bitstream the board boots at
-# power-on (on the owner's board, Digilent's factory demo), which no script here writes, and
+# power-on (on my board, Digilent's factory demo), which no script here writes, and
 # above, the SoC's flash window has ended (SPIFLASH_ADDR_W in rtl/defines.vh). The images it is
 # meant for are the scene data at 0xC00000 and a demo at the code offset, 0xD00000, both built
 # by fw/tools/write_mcs.tcl.
@@ -25,7 +25,7 @@
 # bit, and a write with an SPIx4 .prm did not set it back. The bitstream the board
 # boots at power-on reads the flash four bits wide (opcode 0x6C, Quad Output Read with a
 # four-byte address, in its BSPI register) and needs the bit: without it the FPGA stalls in
-# configuration, with no error flagged. On the owner's board one such write left the board
+# configuration, with no error flagged. On my board one such write left it
 # unable to boot until docs/design/scripts/flashregs/FlashRegs.v set the bit again; that tool
 # also reads the bit, which Vivado's Tcl has no command for.
 #

@@ -177,7 +177,7 @@ Demos and where they fit:
 | `ST_NICCC` | `fw/ST_NICCC.c` | the ST-NICCC polygon demo, rendered as ANSI characters; needs the scene data in flash | BRAM, flash | BRAM boot, with the scene data in the flash |
 | `tinyraytracer` | `fw/tinyraytracer.c` | ray-traced scene on the UART | flash only (29 KB of code) | flash boot, started with the reset button |
 
-"Run on the board" is what ran on the owner's Genesys 2, with the bitstream loaded over JTAG;
+"Run on the board" is what ran on my Genesys 2, with the bitstream loaded over JTAG;
 the final report shows the results (`docs/design/design.tex`, "What the board
 does").
 
@@ -322,7 +322,7 @@ Wrap it with `fw/tools/write_mcs.tcl` (the file, the output name and the offset,
 Makefile does for the code image) and write it as in step 2. Its first frame comes out wrong,
 for the reason of step 4.
 
-A board as shipped is not blank above its factory bitstream: on the owner's board, Digilent's
+A board as shipped is not blank above its factory bitstream: on my board, Digilent's
 factory demo also holds data from `0x600000` to `0x69FFFF` and from `0x800000` to `0xDEFFFF`,
 which the scene data and the code window overwrite in part. Back the whole flash up before the
 first write, with `-tclargs read 0x0 0x2000000 <file>.bin` in step 2's place (about two

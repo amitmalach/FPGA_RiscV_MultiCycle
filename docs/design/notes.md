@@ -807,7 +807,49 @@ fill it exactly. `SPIFLASH_ADDR_W`, 24, sets both this width and the size of the
 in the memory map. The whole 16 MB is needed: the scene data at `0xC00000` and the code at
 `0xD00000` sit above the 10.9 MB bitstream ("Flash memory map and boot address"). The upstream
 controller's 20 bits reached 4 MB and would wrap such offsets onto the bitstream: `0xC00000`
-modulo 4 MB is 0. The chip's upper 16 MB is out of reach.
+modulo 4 MB is 0. The chip's upper 16 MB is out of reach ("Why the core reaches only the
+lower 16 MB of the flash").
+
+### Why the core reaches only the lower 16 MB of the flash
+
+**Question:** The S25FL256S holds 32 MB. Why does the core see only the lower 16 MB, and what
+would reaching the rest take?
+
+*Where:* `rtl/SPIFlash.v` (`cmd_addr`, `word_address`), `rtl/IOBus.v` (`is_spiflash`,
+`spiflash_word_addr`), `rtl/defines.vh` (`SPIFLASH_BASE`, `SPIFLASH_ADDR_W`)
+
+Three limits meet at the same place, 24 address bits, which reach 2^24 bytes, 16 MB:
+
+| Layer | Limit | Why 24 bits |
+|---|---|---|
+| The flash's command | `03h`, Read, followed by a 3-byte address | the classic SPI Read, made for chips of 16 MB and less ("Purpose and the SPI Mode 0 protocol") |
+| The controller | `word_address`, 22 bits, then two zero bits | it fills the command's address field exactly ("Command packing and the 22-bit word address") |
+| The memory map | flash space is selected by bit 24, `SPIFLASH_BASE = 0x0100_0000`, and `IOBus` passes `mem_addr[23:2]` | the bits below the region bit are the offset inside the flash ("Address decode: one bit per region, one-hot IO registers, why bit 24") |
+
+How the chip completes a 3-byte address: the S25FL256S has twice the memory a 3-byte address
+can reach, and its datasheet splits it into two banks of 16 MB. Its Bank Address Register
+(BAR) supplies the missing bit: BAR[0], BA24, is address bit 24 for every 3-byte command, and
+BAR[7], EXTADD, set to 1, would make the same `03h` take a 4-byte address instead. Both bits
+are volatile and clear at power-up, so a 3-byte address lands in bank 0, the lower 16 MB, and
+nothing in the design writes the BAR.
+
+Why 16 MB is enough: everything the design keeps in the flash lies in the lower half. The room
+for a power-on bitstream is at offset 0, where configuration always reads, the scene data at
+`0xC00000`, and the code window fills the last 3 MB of the half, `0xD00000` to `0xFFFFFF`
+("Flash memory map and boot address"). The upper 16 MB stays unused.
+
+What the whole chip would take, all three layers together:
+
+1. A 4-byte address on the wire: the 4-byte Read, `4READ 13h`, with 32 address bits, so that
+   `cmd_addr` grows by a byte. That adds 8 SPI clocks, 48 system cycles, to every transaction,
+   about 430 cycles of `mem_rbusy` instead of 382, and so slows every word read from the flash.
+   The alternative keeps `03h` and writes BA24 with Bank Register Write, `BRWR 17h`, before a
+   read in the other bank: no cost per read, but a second command and state in the controller.
+2. A 25-bit offset: `SPIFLASH_ADDR_W` 25 and a 23-bit `word_address`.
+3. A region bit above it: `SPIFLASH_BASE` at bit 25, `0x0200_0000`. The flash boot address
+   moves with it, and the firmware's copies of the memory map follow (lint rule 8).
+
+None of it is needed while every region fits in the lower half.
 
 ### The transaction, cycle by cycle
 
@@ -1341,7 +1383,7 @@ flash's registers.
 flag, the mode pins right, and every byte of the flash intact. Handled: `board_flash.tcl write`
 sets `SKIP_QE_BIT_ERASE` to 1, and a write with it kept the bit. `FlashRegs.v`, loaded over
 JTAG, prints the flash's registers on the UART and, built with `WRITE_REGS=1`, writes the bit
-back, which repaired the owner's board.
+back, which repaired my board.
 
 ## program_asm (`sim/asm/program_asm.v`)
 
